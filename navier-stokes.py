@@ -11,6 +11,7 @@ Incremental Pressure Correction Scheme (IPCS).
 """
 
 from __future__ import print_function
+from datetime import datetime
 from fenics import *
 from mshr import *
 import numpy as np
@@ -262,6 +263,8 @@ def plot_boundary_conditions():
 
 if __name__ == '__main__':
 	
+	print('Started at: ' + str(datetime.now()))
+	
 	parse_commandline_args()
 	
 	T = float(args.final_time)      # final time
@@ -280,8 +283,11 @@ if __name__ == '__main__':
 	boundary_conditions()
 	run_simulation()
 	
+	print('Finished at: ' + str(datetime.now()))
+	
 	if(args.plot == True):
 		plot_solution()
 	
 	if(args.plot_BC == True):
 		plot_boundary_conditions()
+		
