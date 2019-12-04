@@ -17,6 +17,7 @@ from mshr import *
 import numpy as np
 import matplotlib.pyplot as plt
 import sys, getopt, argparse
+import math
 
 def parse_commandline_args():
 	global args
@@ -39,7 +40,8 @@ def parse_commandline_args():
 	parser.add_argument('--density', default=1, type=int, help='Density (default: %(default)s)')
 	parser.add_argument('--domain', default='custom', help='What domain to use, either `square` or `custom` (default: %(default)s)')
 	parser.add_argument('--mesh-resolution', default=16, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
-	parser.add_argument('-v', '--verbose', default=False, dest='verbose', action='store_true', help='Whether to dsplay debug info (default: %(default)s)')
+	parser.add_argument('-v', '--verbose', default=True, dest='verbose', action='store_true', help='Whether to dsplay debug info (default: %(default)s)')
+	parser.add_argument('-vv', '--very-verbose', default=False, dest='very_verbose', action='store_true', help='Whether to dsplay debug info from Fenics (default: %(default)s)')
 	add_bool_arg(parser, 'plot', default=True, help='Whether to plot solution (default: %(default)s)')
 	add_bool_arg(parser, 'plot-BC', default=False, dest='plot_BC', help='Wheher to plot boundary conditions (default: %(default)s)')
 	args = parser.parse_args()
@@ -88,6 +90,8 @@ def define_variational_problems():
 	A1 = assemble(a1)
 	A2 = assemble(a2)
 	A3 = assemble(a3)
+	
+	log('Defined variational problems')
 
 def deform_mesh_coords(mesh):
 	x = mesh.coordinates()[:, 0]
@@ -117,6 +121,8 @@ def initialize_mesh( domain, resolution ):
 	if domain == 'custom':
 		deform_mesh_coords(mesh)
 
+	log('Initialized mesh')
+	
 	#plot(mesh)
 	
 def define_function_spaces():
@@ -187,8 +193,15 @@ def run_simulation():
 	global u_, p_
 	
 	# Time-stepping
+	iterations_n = num_steps*int(T)
+	rounded_iterations_n = pow(10, (round(math.log(num_steps*int(T), 10))))
 	t = 0
-	for n in range(num_steps*int(T)):
+	for n in range(iterations_n):
+		
+		# Even if verbose, get progressively less verbose with the order of number of iterations
+		if(rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0):
+			log('Step %s of %s' % (n, iterations_n))
+			
 		t += dt
 
 		# Step 1: Tentative velocity step
@@ -260,6 +273,9 @@ def plot_boundary_conditions():
 	plt.show()
 
 	#plt.scatter(boundarycoords[:,0], boundarycoords[:,1])
+	
+def log(message):
+	if(args.verbose == True): print('* %s' % message, flush=True)
 
 if __name__ == '__main__':
 	
@@ -273,7 +289,7 @@ if __name__ == '__main__':
 	mu = float(args.viscosity)      # kinematic viscosity
 	rho = float(args.density)       # density
 	
-	if(args.verbose == True):
+	if(args.very_verbose == True):
 		set_log_active(True)
 		set_log_level(1)
 	
