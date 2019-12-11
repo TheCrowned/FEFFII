@@ -40,7 +40,7 @@ def parse_commandline_args():
 	parser.add_argument('--density', default=1, type=int, help='Density (default: %(default)s)')
 	parser.add_argument('--domain', default='custom', help='What domain to use, either `square` or `custom` (default: %(default)s)')
 	parser.add_argument('--mesh-resolution', default=16, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
-	parser.add_argument('-v', '--verbose', default=True, dest='verbose', action='store_true', help='Whether to dsplay debug info (default: %(default)s)')
+	parser.add_argument('-v', '--verbose', default=False, dest='verbose', action='store_true', help='Whether to dsplay debug info (default: %(default)s)')
 	parser.add_argument('-vv', '--very-verbose', default=False, dest='very_verbose', action='store_true', help='Whether to dsplay debug info from Fenics (default: %(default)s)')
 	add_bool_arg(parser, 'plot', default=True, help='Whether to plot solution (default: %(default)s)')
 	add_bool_arg(parser, 'plot-BC', default=False, dest='plot_BC', help='Wheher to plot boundary conditions (default: %(default)s)')
@@ -144,46 +144,103 @@ def boundary_conditions():
 	bcu = []
 	bcp = []
 	
-	# Define boundaries
+	# In/Out flow sinusodial expression
+	ux_sin = "-(0.3)*sin(2*pi*x[1])"
+	
 	if(args.domain == 'square'):
-		left   = 'near(x[0], 0)'
-		right  = 'near(x[0], 1)'
-		top    = 'near(x[1], 1)'
-		bottom = 'near(x[1], 0)'
+		
+		# Define boundaries
+		def top(x, on_boundary):
+			if(near(x[1], 1, tolerance) and on_boundary):
+				return True
+
+			return False
+			
+		def bottom(x, on_boundary):
+			if(near(x[1], 0, tolerance) and on_boundary):
+				return True
+
+			return False
+			
+		def left(x, on_boundary):
+			if(near(x[0], 0, tolerance) and on_boundary):
+				return True
+
+			return False
+			
+		def right(x, on_boundary):
+			if(near(x[0], 1, tolerance) and on_boundary):
+				return True
+
+			return False
+	
+		# Define boundary conditions
+		bcu.append(DirichletBC(V, Expression((ux_sin, 0), degree = 2), right))
+		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), bottom))
+		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), left))
+		bcu.append(DirichletBC(V.sub(1), Constant(0.0), top))
+		
+		bcp.append(DirichletBC(Q, Constant(0), top))
 	
 	elif(args.domain == 'custom'):
-		left   = 'near(x[0], 0)'
-		right  = 'near(x[0], 1)'
 		
+		# Define boundaries
+		def left(x, on_boundary):
+			if(near(x[0], 0, tolerance) and on_boundary):
+				return True
+
+			return False
+			
+		def right(x, on_boundary):
+			if(near(x[0], 1, tolerance) and on_boundary):
+				return True
+
+			return False
+			
 		def bottom(x, on_boundary):
-			if(near(x[1], 0.1*np.sin(3*pi*(x[0]-(3/8)))) and on_boundary and (x[0] < 0.75 and x[0] > 0.3)):
+			if(near(x[1], 0.1*np.sin(3*pi*(x[0]-(3/8))), tolerance) and (x[0] < 0.75 and x[0] > 0.3) and on_boundary):
 				return True
-			elif(near(x[1], 0) and on_boundary and (x[0] >= 0.75 or x[0] <= 0.3)):
+			elif(near(x[1], 0) and (x[0] >= 0.75 or x[0] <= 0.3) and on_boundary):
 				return True
-			else:
-				False
+			
+			return False
+		
+		def ice_shelf_bottom(x, on_boundary):
+			if((x[0] >= 0 and x[0] <= 0.4) and near(x[1], 0.9, tolerance) and on_boundary):
+				return True
+			
+			return False
+			
+		def ice_shelf_right(x, on_boundary):
+			if(near(x[0], 0.4, tolerance) and (x[1] >= 0.9 and x[1] <= 1) and on_boundary):
+				return True
+			
+			return False
+		
+		def sea_top(x, on_boundary):
+			if(x[0] > 0.4 and near(x[1], 1, tolerance) and on_boundary):
+				return True
+				
+			return False
 		
 		def top(x, on_boundary):
-			if((x[0] <= 0.4 and x[0] >= 0) and near(x[1], 0.9) and on_boundary):
+			if(ice_shelf_bottom(x, on_boundary) or ice_shelf_right(x, on_boundary) or sea_top(x, on_boundary)):
 				return True
-			elif(near(x[0], 0.4) and on_boundary and (x[1] >= 0.9 and x[1] <= 1)):
-				return True
-			elif(x[0] > 0.4 and on_boundary and near(x[1], 1)):
-				return True
-			else:
-				False
-	
-	# Define boundary conditions
-	ux_sin = Expression(("-sin(2*pi*x[1])", 0), degree = 2)
-	#ux_linear = Expression(('x[1]-(1/2)', 0), degree = 2)
 
-	bcu.append(DirichletBC(V, ux_sin, right))
-	bcu.append(DirichletBC(V.sub(1), Constant(0.0), bottom))
-	bcu.append(DirichletBC(V.sub(1), Constant(0.0), top))
-	bcu.append(DirichletBC(V.sub(0), Constant(0.0), left))
-	bcu.append(DirichletBC(V.sub(1), Constant(0.0), left))
-	
-	bcp.append(DirichletBC(Q, Constant(0), top))
+			return False
+		
+		# Define boundary conditions
+		bcu.append(DirichletBC(V, Expression((ux_sin, 0), degree = 2), right))
+		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), bottom))
+		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), left))
+		bcu.append(DirichletBC(V.sub(0), Constant(0.0), ice_shelf_bottom))
+		bcu.append(DirichletBC(V.sub(0), Constant(0.0), ice_shelf_right))
+		bcu.append(DirichletBC(V.sub(0), Constant(0.0), sea_top))
+		bcu.append(DirichletBC(V.sub(1), Constant(0.0), ice_shelf_bottom))
+		bcu.append(DirichletBC(V.sub(1), Constant(0.0), ice_shelf_right))
+		bcu.append(DirichletBC(V.sub(1), Constant(0.0), sea_top))
+		
+		bcp.append(DirichletBC(Q, Constant(0), sea_top))
 	
 	# Apply boundary conditions to matrices
 	[bc.apply(A1) for bc in bcu]
@@ -199,7 +256,7 @@ def run_simulation():
 	for n in range(iterations_n):
 		
 		# Even if verbose, get progressively less verbose with the order of number of iterations
-		if(rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0):
+		if(rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0)):
 			log('Step %s of %s' % (n, iterations_n))
 			
 		t += dt
@@ -246,8 +303,8 @@ def plot_solution():
 	plt.colorbar(fig3)
 	plt.show()
 
-	fig = plot(p_, title='pressure')
-	plt.colorbar(fig)
+	fig4 = plot(p_, title='pressure')
+	plt.colorbar(fig4)
 	plt.show()
 	
 def plot_boundary_conditions():
@@ -288,6 +345,9 @@ if __name__ == '__main__':
 	dt = 1 / num_steps 				# time step size
 	mu = float(args.viscosity)      # kinematic viscosity
 	rho = float(args.density)       # density
+	
+	# tolerance for near() function
+	tolerance = pow(10, - round(math.log(args.mesh_resolution, 10)))
 	
 	if(args.very_verbose == True):
 		set_log_active(True)
