@@ -18,6 +18,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys, getopt, argparse
 import math
+import inspect
+from importlib import import_module
 
 def parse_commandline_args():
 	global args
@@ -39,7 +41,7 @@ def parse_commandline_args():
 	parser.add_argument('--viscosity', default=100, type=int, help='Viscosity (default: %(default)s)')
 	parser.add_argument('--density', default=1, type=int, help='Density (default: %(default)s)')
 	parser.add_argument('--domain', default='custom', help='What domain to use, either `square` or `custom` (default: %(default)s)')
-	parser.add_argument('--mesh-resolution', default=16, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
+	parser.add_argument('--mesh-resolution', default=32, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
 	parser.add_argument('-v', '--verbose', default=False, dest='verbose', action='store_true', help='Whether to dsplay debug info (default: %(default)s)')
 	parser.add_argument('-vv', '--very-verbose', default=False, dest='very_verbose', action='store_true', help='Whether to dsplay debug info from Fenics (default: %(default)s)')
 	add_bool_arg(parser, 'plot', default=True, help='Whether to plot solution (default: %(default)s)')
@@ -101,6 +103,35 @@ def deform_mesh_coords(mesh):
 	y = np.maximum(y, new_y)
 
 	mesh.coordinates()[:] = np.array([x, y]).transpose()
+	
+def refine_boundary_mesh(mesh, domain):
+	boundary_domain = MeshFunction("bool", mesh, mesh.topology().dim() - 1)
+	boundary_domain.set_all(False)
+	
+	#if domain == 'square':
+	#bd = import_module('boundaries_' + domain)
+	#elif domain == 'custom':
+	#	import boundaries_custom as bd
+	
+	#Make sure we use the custom tolerance dependant on mesh resolution	
+	#bd.tolerance = tolerance
+	
+	#Get all members of imported boundary and select only the boundary classes (i.e. exclude all other imported functions, such as from fenics).
+	#Mark boundary cells as to be refined and do so.
+	members = inspect.getmembers(bd, inspect.isclass)
+	boundary_classes = []
+	for x in members:
+		if 'Bound_' in x[0]:
+			boundary_classes.append(x[0])
+			obj = getattr(bd, x[0])()
+			obj.mark(boundary_domain, True)
+	
+	mesh = refine(mesh, boundary_domain)
+	
+	log('Refined mesh at boundaries')
+	
+	return mesh
+	
 
 def initialize_mesh( domain, resolution ):
 	""" To create a Mesh, either use one of the built-in meshes https://fenicsproject.org/docs/dolfin/1.4.0/python/demo/documented/built-in_meshes/python/documentation.html or create a custom one. 
@@ -113,17 +144,19 @@ def initialize_mesh( domain, resolution ):
 	
 	if domain == "square":
 		mesh = UnitSquareMesh(resolution, resolution)
+		
 	elif domain == 'custom':
 		fenics_domain = Rectangle(Point(0., 0.), Point(1., 1.)) - \
 						Rectangle(Point(0.0, 0.9), Point(0.4, 1.0)) 
 		mesh = generate_mesh(fenics_domain, resolution, "cgal")
-		
-	if domain == 'custom':
 		deform_mesh_coords(mesh)
 
 	log('Initialized mesh')
 	
+	mesh = refine_boundary_mesh(mesh, domain)
+	
 	#plot(mesh)
+	#plt.show()
 	
 def define_function_spaces():
 	global V, Q, u_n, u_, p_n, p_
@@ -150,29 +183,10 @@ def boundary_conditions():
 	if(args.domain == 'square'):
 		
 		# Define boundaries
-		def top(x, on_boundary):
-			if(near(x[1], 1, tolerance) and on_boundary):
-				return True
-
-			return False
-			
-		def bottom(x, on_boundary):
-			if(near(x[1], 0, tolerance) and on_boundary):
-				return True
-
-			return False
-			
-		def left(x, on_boundary):
-			if(near(x[0], 0, tolerance) and on_boundary):
-				return True
-
-			return False
-			
-		def right(x, on_boundary):
-			if(near(x[0], 1, tolerance) and on_boundary):
-				return True
-
-			return False
+		top = bd.Bound_Top()
+		bottom = bd.Bound_Bottom()
+		left = bd.Bound_Left()
+		right = bd.Bound_Right()
 	
 		# Define boundary conditions
 		bcu.append(DirichletBC(V, Expression((ux_sin, 0), degree = 2), right))
@@ -185,60 +199,20 @@ def boundary_conditions():
 	elif(args.domain == 'custom'):
 		
 		# Define boundaries
-		def left(x, on_boundary):
-			if(near(x[0], 0, tolerance) and on_boundary):
-				return True
-
-			return False
-			
-		def right(x, on_boundary):
-			if(near(x[0], 1, tolerance) and on_boundary):
-				return True
-
-			return False
-			
-		def bottom(x, on_boundary):
-			if(near(x[1], 0.1*np.sin(3*pi*(x[0]-(3/8))), tolerance) and (x[0] < 0.75 and x[0] > 0.3) and on_boundary):
-				return True
-			elif(near(x[1], 0) and (x[0] >= 0.75 or x[0] <= 0.3) and on_boundary):
-				return True
-			
-			return False
-		
-		def ice_shelf_bottom(x, on_boundary):
-			if((x[0] >= 0 and x[0] <= 0.4) and near(x[1], 0.9, tolerance) and on_boundary):
-				return True
-			
-			return False
-			
-		def ice_shelf_right(x, on_boundary):
-			if(near(x[0], 0.4, tolerance) and (x[1] >= 0.9 and x[1] <= 1) and on_boundary):
-				return True
-			
-			return False
-		
-		def sea_top(x, on_boundary):
-			if(x[0] > 0.4 and near(x[1], 1, tolerance) and on_boundary):
-				return True
-				
-			return False
-		
-		def top(x, on_boundary):
-			if(ice_shelf_bottom(x, on_boundary) or ice_shelf_right(x, on_boundary) or sea_top(x, on_boundary)):
-				return True
-
-			return False
+		sea_top = bd.Bound_Sea_Top()
+		ice_shelf_bottom = bd.Bound_Ice_Shelf_Bottom()
+		ice_shelf_right = bd.Bound_Ice_Shelf_Right()
+		bottom = bd.Bound_Bottom()
+		left = bd.Bound_Left()
+		right = bd.Bound_Right()
 		
 		# Define boundary conditions
 		bcu.append(DirichletBC(V, Expression((ux_sin, 0), degree = 2), right))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), bottom))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), left))
-		bcu.append(DirichletBC(V.sub(0), Constant(0.0), ice_shelf_bottom))
-		bcu.append(DirichletBC(V.sub(0), Constant(0.0), ice_shelf_right))
-		bcu.append(DirichletBC(V.sub(0), Constant(0.0), sea_top))
-		bcu.append(DirichletBC(V.sub(1), Constant(0.0), ice_shelf_bottom))
-		bcu.append(DirichletBC(V.sub(1), Constant(0.0), ice_shelf_right))
-		bcu.append(DirichletBC(V.sub(1), Constant(0.0), sea_top))
+		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), ice_shelf_bottom))
+		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), ice_shelf_right))
+		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), sea_top))
 		
 		bcp.append(DirichletBC(Q, Constant(0), sea_top))
 	
@@ -293,19 +267,23 @@ def plot_solution():
 	#fig = plt.figure(figsize=(80, 60))
 
 	fig1 = plot(u_, title='velocity X,Y')
-	plt.show()
+	plt.savefig('velxy.png')
+	plt.close()
 
 	fig2 = plot(u_[0], title='velocity X')
 	plt.colorbar(fig2)
-	plt.show()
+	plt.savefig('velx.png')
+	plt.close()
 
 	fig3 = plot(u_[1], title='velocity Y')
 	plt.colorbar(fig3)
-	plt.show()
+	plt.savefig('vely.png')
+	plt.close()
 
 	fig4 = plot(p_, title='pressure')
 	plt.colorbar(fig4)
-	plt.show()
+	plt.savefig('pressure.png')
+	plt.close()
 	
 def plot_boundary_conditions():
 	_u_1, _u_2 = u_.split(True)
@@ -346,8 +324,12 @@ if __name__ == '__main__':
 	mu = float(args.viscosity)      # kinematic viscosity
 	rho = float(args.density)       # density
 	
-	# tolerance for near() function
+	# tolerance for near() function based on mesh resolution
 	tolerance = pow(10, - round(math.log(args.mesh_resolution, 10)))
+	
+	#Import correct set of boundaries depending on domain and set tolerance
+	bd = import_module('boundaries_' + args.domain)
+	bd.tolerance = tolerance
 	
 	if(args.very_verbose == True):
 		set_log_active(True)
