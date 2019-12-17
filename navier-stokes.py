@@ -20,6 +20,7 @@ import sys, getopt, argparse
 import math
 import inspect
 from importlib import import_module
+import time
 
 def parse_commandline_args():
 	global args
@@ -39,11 +40,11 @@ def parse_commandline_args():
 	parser.add_argument('--final-time', default=10.0, type=float, dest='final_time', help='How long to run the simulation for (default: %(default)s)')
 	parser.add_argument('--steps-n', default=10, type=int, dest='steps_n', help='How many steps each of the "seconds" is made of (default: %(default)s)')
 	parser.add_argument('--viscosity', default=100, type=int, help='Viscosity (default: %(default)s)')
-	parser.add_argument('--density', default=1, type=int, help='Density (default: %(default)s)')
+	parser.add_argument('--density', default=1000, type=int, help='Density (default: %(default)s)')
 	parser.add_argument('--domain', default='custom', help='What domain to use, either `square` or `custom` (default: %(default)s)')
 	parser.add_argument('--mesh-resolution', default=32, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
 	parser.add_argument('-v', '--verbose', default=False, dest='verbose', action='store_true', help='Whether to dsplay debug info (default: %(default)s)')
-	parser.add_argument('-vv', '--very-verbose', default=False, dest='very_verbose', action='store_true', help='Whether to dsplay debug info from Fenics (default: %(default)s)')
+	parser.add_argument('-vv', '--very-verbose', default=False, dest='very_verbose', action='store_true', help='Whether to dsplay debug info from FEniCS as well (default: %(default)s)')
 	add_bool_arg(parser, 'plot', default=True, help='Whether to plot solution (default: %(default)s)')
 	add_bool_arg(parser, 'plot-BC', default=False, dest='plot_BC', help='Wheher to plot boundary conditions (default: %(default)s)')
 	args = parser.parse_args()
@@ -108,14 +109,6 @@ def refine_boundary_mesh(mesh, domain):
 	boundary_domain = MeshFunction("bool", mesh, mesh.topology().dim() - 1)
 	boundary_domain.set_all(False)
 	
-	#if domain == 'square':
-	#bd = import_module('boundaries_' + domain)
-	#elif domain == 'custom':
-	#	import boundaries_custom as bd
-	
-	#Make sure we use the custom tolerance dependant on mesh resolution	
-	#bd.tolerance = tolerance
-	
 	#Get all members of imported boundary and select only the boundary classes (i.e. exclude all other imported functions, such as from fenics).
 	#Mark boundary cells as to be refined and do so.
 	members = inspect.getmembers(bd, inspect.isclass)
@@ -132,7 +125,6 @@ def refine_boundary_mesh(mesh, domain):
 	
 	return mesh
 	
-
 def initialize_mesh( domain, resolution ):
 	""" To create a Mesh, either use one of the built-in meshes https://fenicsproject.org/docs/dolfin/1.4.0/python/demo/documented/built-in_meshes/python/documentation.html or create a custom one. 
 	
@@ -154,9 +146,6 @@ def initialize_mesh( domain, resolution ):
 	log('Initialized mesh')
 	
 	mesh = refine_boundary_mesh(mesh, domain)
-	
-	#plot(mesh)
-	#plt.show()
 	
 def define_function_spaces():
 	global V, Q, u_n, u_, p_n, p_
@@ -212,7 +201,7 @@ def boundary_conditions():
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), left))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), ice_shelf_bottom))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), ice_shelf_right))
-		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), sea_top))
+		bcu.append(DirichletBC(V.sub(0), (0.0), sea_top))
 		
 		bcp.append(DirichletBC(Q, Constant(0), sea_top))
 	
@@ -222,6 +211,8 @@ def boundary_conditions():
 	
 def run_simulation():
 	global u_, p_
+	
+	log('Starting simulation')
 	
 	# Time-stepping
 	iterations_n = num_steps*int(T)
@@ -267,22 +258,26 @@ def plot_solution():
 	#fig = plt.figure(figsize=(80, 60))
 
 	fig1 = plot(u_, title='velocity X,Y')
-	plt.savefig('velxy.png')
+	plt.savefig('velxy.png', dpi = 300)
 	plt.close()
 
 	fig2 = plot(u_[0], title='velocity X')
 	plt.colorbar(fig2)
-	plt.savefig('velx.png')
+	plt.savefig('velx.png', dpi = 300)
 	plt.close()
 
 	fig3 = plot(u_[1], title='velocity Y')
 	plt.colorbar(fig3)
-	plt.savefig('vely.png')
+	plt.savefig('vely.png', dpi = 300)
 	plt.close()
 
 	fig4 = plot(p_, title='pressure')
 	plt.colorbar(fig4)
-	plt.savefig('pressure.png')
+	plt.savefig('pressure.png', dpi = 300)
+	plt.close()
+	
+	fig5 = plot(mesh)
+	plt.savefig('mesh.png', dpi = 300)
 	plt.close()
 	
 def plot_boundary_conditions():
@@ -305,7 +300,8 @@ def plot_boundary_conditions():
 
 	fig6 = plt.figure()
 	plt.scatter(BC[:,0], BC[:,1])
-	plt.show()
+	plt.savefig('boundary_conditions.png', dpi = 300)
+	plt.close()
 
 	#plt.scatter(boundarycoords[:,0], boundarycoords[:,1])
 	
@@ -314,12 +310,13 @@ def log(message):
 
 if __name__ == '__main__':
 	
-	print('Started at: ' + str(datetime.now()))
+	start_time = time.time()
+	print('--- Started at %s --- ' % str(datetime.now()))
 	
 	parse_commandline_args()
 	
 	T = float(args.final_time)      # final time
-	num_steps = int(args.steps_n)   # number of time steps per second
+	num_steps = int(args.steps_n)   # number of time steps per time unit
 	dt = 1 / num_steps 				# time step size
 	mu = float(args.viscosity)      # kinematic viscosity
 	rho = float(args.density)       # density
@@ -341,11 +338,11 @@ if __name__ == '__main__':
 	boundary_conditions()
 	run_simulation()
 	
-	print('Finished at: ' + str(datetime.now()))
+	print('--- Finished at %s --- ' % str(datetime.now()))
+	print('--- Duration: %s seconds --- ' % round((time.time() - start_time), 2))
 	
 	if(args.plot == True):
 		plot_solution()
 	
 	if(args.plot_BC == True):
 		plot_boundary_conditions()
-		
