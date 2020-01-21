@@ -105,17 +105,49 @@ def deform_mesh_coords(mesh):
 
 	mesh.coordinates()[:] = np.array([x, y]).transpose()
 	
+def refine_mesh_at_point(mesh, target, domain):
+	to_refine = MeshFunction("bool", mesh, mesh.topology().dim() - 1)
+	to_refine.set_all(False)
+	
+	to_refine_vertexes = []
+	for v in vertices(mesh):
+		if((v.point()-target).norm() < (1/2)*mesh.hmax()):
+			to_refine_vertexes.append(v.point().array().tolist())
+			#print(type(v.point().array().tolist()))
+
+	class dummy_subdomain(SubDomain):
+		def inside(self, x, on_boundary):
+			#print (Point(x))
+			#print (Point(x).array())
+			#print (type(Point(x).array()))
+			#print (to_refine_vertexes)
+			#print (type(to_refine_vertexes))
+			#print (type(to_refine_vertexes[0]))
+			if (Point(x).array().tolist() in to_refine_vertexes):
+				print(x)
+				#print((Point(x)-target).norm())
+				return True
+
+	print (to_refine_vertexes)
+	D = dummy_subdomain()
+	D.mark(to_refine, True)
+	
+	mesh = refine(mesh, to_refine)		
+	
+	return mesh
+	
+'''
+Refines mesh on ALL boundary points
+'''
 def refine_boundary_mesh(mesh, domain):
 	boundary_domain = MeshFunction("bool", mesh, mesh.topology().dim() - 1)
 	boundary_domain.set_all(False)
 	
 	#Get all members of imported boundary and select only the boundary classes (i.e. exclude all other imported functions, such as from fenics).
 	#Mark boundary cells as to be refined and do so.
-	members = inspect.getmembers(bd, inspect.isclass)
-	boundary_classes = []
+	members = inspect.getmembers(bd, inspect.isclass) #bd is boundary module (included with this code)
 	for x in members:
 		if 'Bound_' in x[0]:
-			boundary_classes.append(x[0])
 			obj = getattr(bd, x[0])()
 			obj.mark(boundary_domain, True)
 	
@@ -144,8 +176,21 @@ def initialize_mesh( domain, resolution ):
 		deform_mesh_coords(mesh)
 
 	log('Initialized mesh')
-	
-	mesh = refine_boundary_mesh(mesh, domain)
+	fig5 = plot(mesh)
+	plt.savefig('mesh1.png', dpi = 800)
+	plt.close()
+	#refining the mesh at sharp vertexes seems enough. With refinement over whole boundaries result is better though, but slower. For
+	#density=1000, domain='custom', final_time=10.0, mesh_resolution=30, plot=True, plot_BC=False, steps_n=10, verbose=True, very_verbose=False, viscosity=100, **{'plot-BC': False}
+	#it is 27.12 seconds vs 31.18
+	#mesh = refine_boundary_mesh(mesh, domain) #looks like it is needed as well, or solution goes astray
+	print(mesh.hmax())
+	mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)
+	#mesh = refine_mesh_at_point(mesh, Point(0, 0), domain)
+	#mesh = refine_mesh_at_point(mesh, Point(0, 1), domain)
+	#mesh = refine_mesh_at_point(mesh, Point(1, 0), domain)
+	#mesh = refine_mesh_at_point(mesh, Point(1, 1), domain)
+	#mesh = refine_mesh_at_point(mesh, Point(0, 0.9), domain)
+	print(mesh.num_vertices())
 	
 def define_function_spaces():
 	global V, Q, u_n, u_, p_n, p_
@@ -256,6 +301,10 @@ def run_simulation():
 def plot_solution():
 	# Plot solution
 	#fig = plt.figure(figsize=(80, 60))
+	
+	fig5 = plot(mesh)
+	plt.savefig('mesh.png', dpi = 800)
+	plt.close()
 
 	fig1 = plot(u_, title='velocity X,Y')
 	plt.savefig('velxy.png', dpi = 300)
@@ -274,10 +323,6 @@ def plot_solution():
 	fig4 = plot(p_, title='pressure')
 	plt.colorbar(fig4)
 	plt.savefig('pressure.png', dpi = 300)
-	plt.close()
-	
-	fig5 = plot(mesh)
-	plt.savefig('mesh.png', dpi = 300)
 	plt.close()
 	
 def plot_boundary_conditions():
@@ -315,6 +360,9 @@ if __name__ == '__main__':
 	
 	parse_commandline_args()
 	
+	print('--- Parameters are: ---')
+	print(args)
+	
 	T = float(args.final_time)      # final time
 	num_steps = int(args.steps_n)   # number of time steps per time unit
 	dt = 1 / num_steps 				# time step size
@@ -334,6 +382,7 @@ if __name__ == '__main__':
 	
 	initialize_mesh( args.domain, args.mesh_resolution )
 	define_function_spaces()
+	start_time = time.time()
 	define_variational_problems()
 	boundary_conditions()
 	run_simulation()
