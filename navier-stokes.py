@@ -105,33 +105,22 @@ def deform_mesh_coords(mesh):
 
 	mesh.coordinates()[:] = np.array([x, y]).transpose()
 	
+	
+#good resource https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html
 def refine_mesh_at_point(mesh, target, domain):
 	to_refine = MeshFunction("bool", mesh, mesh.topology().dim() - 1)
 	to_refine.set_all(False)
 	
-	to_refine_vertexes = []
-	for v in vertices(mesh):
-		if((v.point()-target).norm() < (1/2)*mesh.hmax()):
-			to_refine_vertexes.append(v.point().array().tolist())
-			#print(type(v.point().array().tolist()))
-
 	class dummy_subdomain(SubDomain):
 		def inside(self, x, on_boundary):
-			#print (Point(x))
-			#print (Point(x).array())
-			#print (type(Point(x).array()))
-			#print (to_refine_vertexes)
-			#print (type(to_refine_vertexes))
-			#print (type(to_refine_vertexes[0]))
-			if (Point(x).array().tolist() in to_refine_vertexes):
-				print(x)
-				#print((Point(x)-target).norm())
+			if((Point(x) - target).norm() < mesh.hmax()):
 				return True
+			
+			return False
 
-	print (to_refine_vertexes)
 	D = dummy_subdomain()
 	D.mark(to_refine, True)
-	
+	#print(to_refine.array())
 	mesh = refine(mesh, to_refine)		
 	
 	return mesh
@@ -176,21 +165,20 @@ def initialize_mesh( domain, resolution ):
 		deform_mesh_coords(mesh)
 
 	log('Initialized mesh')
-	fig5 = plot(mesh)
-	plt.savefig('mesh1.png', dpi = 800)
-	plt.close()
-	#refining the mesh at sharp vertexes seems enough. With refinement over whole boundaries result is better though, but slower. For
-	#density=1000, domain='custom', final_time=10.0, mesh_resolution=30, plot=True, plot_BC=False, steps_n=10, verbose=True, very_verbose=False, viscosity=100, **{'plot-BC': False}
-	#it is 27.12 seconds vs 31.18
+	
 	#mesh = refine_boundary_mesh(mesh, domain) #looks like it is needed as well, or solution goes astray
-	print(mesh.hmax())
+	
+	#refining the mesh at sharp vertexes seems enough, no need to refine the whole boundaries.
+	#For density=1000, domain='custom', final_time=10.0, mesh_resolution=16, plot=True, plot_BC=False, steps_n=10, verbose=True, very_verbose=False, viscosity=100, **{'plot-BC': False}
+	#it is 7.17 seconds vs 7.84
+	
 	mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)
-	#mesh = refine_mesh_at_point(mesh, Point(0, 0), domain)
-	#mesh = refine_mesh_at_point(mesh, Point(0, 1), domain)
-	#mesh = refine_mesh_at_point(mesh, Point(1, 0), domain)
-	#mesh = refine_mesh_at_point(mesh, Point(1, 1), domain)
-	#mesh = refine_mesh_at_point(mesh, Point(0, 0.9), domain)
-	print(mesh.num_vertices())
+	mesh = refine_mesh_at_point(mesh, Point(0.4, 1), domain)
+	mesh = refine_mesh_at_point(mesh, Point(0, 0), domain)
+	mesh = refine_mesh_at_point(mesh, Point(0, 1), domain)
+	mesh = refine_mesh_at_point(mesh, Point(1, 0), domain)
+	mesh = refine_mesh_at_point(mesh, Point(1, 1), domain)
+	mesh = refine_mesh_at_point(mesh, Point(0, 0.9), domain)
 	
 def define_function_spaces():
 	global V, Q, u_n, u_, p_n, p_
