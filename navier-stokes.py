@@ -42,59 +42,12 @@ def parse_commandline_args():
 	parser.add_argument('--viscosity', default=100, type=int, help='Viscosity (default: %(default)s)')
 	parser.add_argument('--density', default=1000, type=int, help='Density (default: %(default)s)')
 	parser.add_argument('--domain', default='custom', help='What domain to use, either `square` or `custom` (default: %(default)s)')
-	parser.add_argument('--mesh-resolution', default=32, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
+	parser.add_argument('--mesh-resolution', default=16, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
 	parser.add_argument('-v', '--verbose', default=False, dest='verbose', action='store_true', help='Whether to dsplay debug info (default: %(default)s)')
 	parser.add_argument('-vv', '--very-verbose', default=False, dest='very_verbose', action='store_true', help='Whether to dsplay debug info from FEniCS as well (default: %(default)s)')
 	add_bool_arg(parser, 'plot', default=True, help='Whether to plot solution (default: %(default)s)')
 	add_bool_arg(parser, 'plot-BC', default=False, dest='plot_BC', help='Wheher to plot boundary conditions (default: %(default)s)')
 	args = parser.parse_args()
-
-def define_variational_problems():
-	global A1, A2, A3, L1, L2, L3
-	global rho, mu
-	
-	# Define trial and test functions
-	u = TrialFunction(V)
-	v = TestFunction(V)
-	p = TrialFunction(Q)
-	q = TestFunction(Q)
-	
-	# Define expressions used in variational forms
-	U   = 0.5*(u_n + u)
-	n   = FacetNormal(mesh)
-	g   = 9.81
-	f   = Constant((0, -g))
-	k   = Constant(dt)
-	mu  = Constant(mu)
-	rho = Constant(rho)
-	
-	# Define strain-rate tensor
-	def epsilon(u):
-		return sym(nabla_grad(u))
-
-	# Define stress tensor
-	def sigma(u, p):
-		return 2*mu*epsilon(u) - p*Identity(len(u))
-
-	# Define variational problem for step 1
-	F1 = rho*dot((u - u_n) / k, v)*dx +      rho*dot(dot(u_n, nabla_grad(u_n)), v)*dx      + inner(sigma(U, p_n), epsilon(v))*dx      + dot(p_n*n, v)*ds - dot(mu*nabla_grad(U)*n, v)*ds      - dot(f, v)*dx
-	a1 = lhs(F1)
-	L1 = rhs(F1)
-
-	# Define variational problem for step 2
-	a2 = dot(nabla_grad(p), nabla_grad(q))*dx
-	L2 = dot(nabla_grad(p_n), nabla_grad(q))*dx - (1/k)*div(u_)*q*dx
-
-	# Define variational problem for step 3
-	a3 = dot(u, v)*dx
-	L3 = dot(u_, v)*dx - k*dot(nabla_grad(p_ - p_n), v)*dx
-	
-	# Assemble matrices
-	A1 = assemble(a1)
-	A2 = assemble(a2)
-	A3 = assemble(a3)
-	
-	log('Defined variational problems')
 
 def deform_mesh_coords(mesh):
 	x = mesh.coordinates()[:, 0]
@@ -175,29 +128,34 @@ def initialize_mesh( domain, resolution ):
 	mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)
 	mesh = refine_mesh_at_point(mesh, Point(0.4, 1), domain)
 	mesh = refine_mesh_at_point(mesh, Point(0, 0), domain)
-	mesh = refine_mesh_at_point(mesh, Point(0, 1), domain)
 	mesh = refine_mesh_at_point(mesh, Point(1, 0), domain)
 	mesh = refine_mesh_at_point(mesh, Point(1, 1), domain)
 	mesh = refine_mesh_at_point(mesh, Point(0, 0.9), domain)
 	
+	print('Vertexes %s, max diameter %s' % (mesh.num_vertices(), mesh.hmax()))
+	
 def define_function_spaces():
-	global V, Q, u_n, u_, p_n, p_
+	global V, Q, T_space, u_n, u_, p_n, p_, T_n, T_
 	
 	# Define function spaces
 	V = VectorFunctionSpace(mesh, 'P', 2)
 	Q = FunctionSpace(mesh, 'P', 1)
+	T_space = FunctionSpace(mesh, 'P', 2)
 
 	# Define functions for solution computation
 	u_n = Function(V)
 	u_  = Function(V)
 	p_n = Function(Q)
 	p_  = Function(Q)
+	T_n = Function(T_space)
+	T_  = Function(T_space)
 
 def boundary_conditions():
-	global bcu, bcp
+	global bcu, bcp, bcT
 	
 	bcu = []
 	bcp = []
+	bcT = []
 	
 	# In/Out flow sinusodial expression
 	ux_sin = "-(0.3)*sin(2*pi*x[1])"
@@ -237,19 +195,81 @@ def boundary_conditions():
 		bcu.append(DirichletBC(V.sub(0), (0.0), sea_top))
 		
 		bcp.append(DirichletBC(Q, Constant(0), sea_top))
+		
+		#bcT.append(DirichletBC(T_space, Constant(-2), left))
+		#bcT.append(DirichletBC(T_space, Constant(5), right))
+		bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
 	
 	# Apply boundary conditions to matrices
 	[bc.apply(A1) for bc in bcu]
+	[bc.apply(A3) for bc in bcu]
 	[bc.apply(A2) for bc in bcp]
+	[bc.apply(A4) for bc in bcT]
+
+def define_variational_problems():
+	global A1, A2, A3, A4, L1, L2, L3, L4
+	global rho, mu
+	
+	# Define trial and test functions
+	u = TrialFunction(V)
+	v = TestFunction(V)
+	p = TrialFunction(Q)
+	q = TestFunction(Q)
+	T = TrialFunction(T_space)
+	T_v = TestFunction(T_space)
+	
+	
+	# Define expressions used in variational forms
+	U   = 0.5*(u_n + u)
+	n   = FacetNormal(mesh)
+	g   = 9.81
+	f   = Constant((0, -g))
+	f_T   = Constant(0)
+	k   = Constant(dt)
+	mu  = Constant(mu)
+	rho = Constant(rho)
+	K   = Constant(100)
+	
+	# Define strain-rate tensor
+	def epsilon(u):
+		return sym(nabla_grad(u))
+
+	# Define stress tensor
+	def sigma(u, p):
+		return 2*mu*epsilon(u) - p*Identity(len(u))
+
+	# Variational problem for velocity u with pression p_n from previous step
+	F1 = rho*dot((u - u_n) / k, v)*dx + rho*dot(dot(u_n, nabla_grad(u_n)), v)*dx + inner(sigma(U, p_n), epsilon(v))*dx + dot(p_n*n, v)*ds - dot(mu*nabla_grad(U)*n, v)*ds - dot(f, v)*dx
+	a1, L1 = lhs(F1), rhs(F1)
+
+	# Variational problem for pressure p with approximated velocity u
+	a2 = dot(nabla_grad(p), nabla_grad(q))*dx
+	L2 = dot(nabla_grad(p_n), nabla_grad(q))*dx - (1/k)*div(u_)*q*dx
+
+	# Variational problem for corrected velocity u with pressure p
+	a3 = dot(u, v)*dx
+	L3 = dot(u_, v)*dx - k*dot(nabla_grad(p_ - p_n), v)*dx
+	
+	# Variational problem for temperature
+	F = dot(T - T_n, T_v)*dx + div(u_*T)*T_v*k*dx + k*K*dot(grad(T), grad(T_v))*dx - f_T*T_v*k*dx
+	a4, L4 = lhs(F), rhs(F)
+	
+	# Assemble matrices
+	A1 = assemble(a1)
+	A2 = assemble(a2)
+	A3 = assemble(a3)
+	A4 = assemble(a4)
+	
+	log('Defined variational problems')
 	
 def run_simulation():
-	global u_, p_
+	global u_, p_, T_
 	
 	log('Starting simulation')
 	
 	# Time-stepping
-	iterations_n = num_steps*int(T)
-	rounded_iterations_n = pow(10, (round(math.log(num_steps*int(T), 10))))
+	iterations_n = num_steps*int(final_time)
+	rounded_iterations_n = pow(10, (round(math.log(num_steps*int(final_time), 10))))
 	t = 0
 	for n in range(iterations_n):
 		
@@ -263,7 +283,7 @@ def run_simulation():
 		b1 = assemble(L1)
 		[bc.apply(b1) for bc in bcu]
 		solve(A1, u_.vector(), b1)
-
+		
 		# Step 2: Pressure correction step
 		b2 = assemble(L2)
 		[bc.apply(b2) for bc in bcp]
@@ -271,7 +291,13 @@ def run_simulation():
 
 		# Step 3: Velocity correction step
 		b3 = assemble(L3)
+		[bc.apply(b3) for bc in bcu]
 		solve(A3, u_.vector(), b3)
+		
+		# Step 4: Temperature step
+		b4 = assemble(L4)
+		[bc.apply(b4) for bc in bcT]
+		solve(A4, T_.vector(), b4)
 
 		# Compute error
 		#u_e = Expression(('4*x[1]*(1.0 - x[1])', '0'), degree=2)
@@ -283,16 +309,13 @@ def run_simulation():
 		# Update previous solution
 		u_n.assign(u_)
 		p_n.assign(p_)
+		T_n.assign(T_)
 	
 	return u_, p_
 		
 def plot_solution():
 	# Plot solution
 	#fig = plt.figure(figsize=(80, 60))
-	
-	fig5 = plot(mesh)
-	plt.savefig('mesh.png', dpi = 800)
-	plt.close()
 
 	fig1 = plot(u_, title='velocity X,Y')
 	plt.savefig('velxy.png', dpi = 300)
@@ -311,6 +334,15 @@ def plot_solution():
 	fig4 = plot(p_, title='pressure')
 	plt.colorbar(fig4)
 	plt.savefig('pressure.png', dpi = 300)
+	plt.close()
+	
+	fig5 = plot(mesh)
+	plt.savefig('mesh.png', dpi = 800)
+	plt.close()
+	
+	fig6 = plot(T_, title='temperature')
+	plt.colorbar(fig6)
+	plt.savefig('temperature.png', dpi = 300)
 	plt.close()
 	
 def plot_boundary_conditions():
@@ -351,7 +383,7 @@ if __name__ == '__main__':
 	print('--- Parameters are: ---')
 	print(args)
 	
-	T = float(args.final_time)      # final time
+	final_time = float(args.final_time)      # final time
 	num_steps = int(args.steps_n)   # number of time steps per time unit
 	dt = 1 / num_steps 				# time step size
 	mu = float(args.viscosity)      # kinematic viscosity
