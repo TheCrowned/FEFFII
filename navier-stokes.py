@@ -43,8 +43,8 @@ def parse_commandline_args():
 	parser.add_argument('--density', default=1000, type=int, help='Density (default: %(default)s)')
 	parser.add_argument('--domain', default='custom', help='What domain to use, either `square` or `custom` (default: %(default)s)')
 	parser.add_argument('--mesh-resolution', default=16, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
-	parser.add_argument('-v', '--verbose', default=False, dest='verbose', action='store_true', help='Whether to dsplay debug info (default: %(default)s)')
-	parser.add_argument('-vv', '--very-verbose', default=False, dest='very_verbose', action='store_true', help='Whether to dsplay debug info from FEniCS as well (default: %(default)s)')
+	parser.add_argument('-v', '--verbose', default=False, dest='verbose', action='store_true', help='Whether to display debug info (default: %(default)s)')
+	parser.add_argument('-vv', '--very-verbose', default=False, dest='very_verbose', action='store_true', help='Whether to display debug info from FEniCS as well (default: %(default)s)')
 	add_bool_arg(parser, 'plot', default=True, help='Whether to plot solution (default: %(default)s)')
 	add_bool_arg(parser, 'plot-BC', default=False, dest='plot_BC', help='Wheher to plot boundary conditions (default: %(default)s)')
 	args = parser.parse_args()
@@ -119,11 +119,13 @@ def initialize_mesh( domain, resolution ):
 
 	log('Initialized mesh')
 	
-	#mesh = refine_boundary_mesh(mesh, domain) #looks like it is needed as well, or solution goes astray
+	#mesh = refine_boundary_mesh(mesh, domain)
 	
 	#refining the mesh at sharp vertexes seems enough, no need to refine the whole boundaries.
 	#For density=1000, domain='custom', final_time=10.0, mesh_resolution=16, plot=True, plot_BC=False, steps_n=10, verbose=True, very_verbose=False, viscosity=100, **{'plot-BC': False}
 	#it is 7.17 seconds vs 7.84
+	
+	log('Refining mesh')
 	
 	mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)
 	mesh = refine_mesh_at_point(mesh, Point(0.4, 1), domain)
@@ -132,7 +134,7 @@ def initialize_mesh( domain, resolution ):
 	mesh = refine_mesh_at_point(mesh, Point(1, 1), domain)
 	mesh = refine_mesh_at_point(mesh, Point(0, 0.9), domain)
 	
-	print('Vertexes %s, max diameter %s' % (mesh.num_vertices(), mesh.hmax()))
+	print('Final mesh: vertexes %s, max diameter %s' % (mesh.num_vertices(), mesh.hmax()))
 	
 def define_function_spaces():
 	global V, Q, T_space, u_n, u_, p_n, p_, T_n, T_
@@ -175,6 +177,8 @@ def boundary_conditions():
 		bcu.append(DirichletBC(V.sub(1), Constant(0.0), top))
 		
 		bcp.append(DirichletBC(Q, Constant(0), top))
+		
+		bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
 	
 	elif(args.domain == 'custom'):
 		
@@ -196,19 +200,15 @@ def boundary_conditions():
 		
 		bcp.append(DirichletBC(Q, Constant(0), sea_top))
 		
-		#bcT.append(DirichletBC(T_space, Constant(-2), left))
-		#bcT.append(DirichletBC(T_space, Constant(5), right))
 		bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
 	
 	# Apply boundary conditions to matrices
 	[bc.apply(A1) for bc in bcu]
 	[bc.apply(A3) for bc in bcu]
 	[bc.apply(A2) for bc in bcp]
-	[bc.apply(A4) for bc in bcT]
 
 def define_variational_problems():
-	global A1, A2, A3, A4, L1, L2, L3, L4
-	global rho, mu
+	global A1, A2, A3, a4, L1, L2, L3, L4
 	
 	# Define trial and test functions
 	u = TrialFunction(V)
@@ -218,17 +218,16 @@ def define_variational_problems():
 	T = TrialFunction(T_space)
 	T_v = TestFunction(T_space)
 	
-	
 	# Define expressions used in variational forms
 	U   = 0.5*(u_n + u)
 	n   = FacetNormal(mesh)
 	g   = 9.81
 	f   = Constant((0, -g))
-	f_T   = Constant(0)
-	k   = Constant(dt)
-	mu  = Constant(mu)
-	rho = Constant(rho)
-	K   = Constant(100)
+	f_T = Constant(0)
+	dt  = Constant(dt_scalar)
+	mu  = Constant(mu_scalar)
+	rho = Constant(rho_scalar)
+	K   = Constant(200)
 	
 	# Define strain-rate tensor
 	def epsilon(u):
@@ -239,26 +238,25 @@ def define_variational_problems():
 		return 2*mu*epsilon(u) - p*Identity(len(u))
 
 	# Variational problem for velocity u with pression p_n from previous step
-	F1 = rho*dot((u - u_n) / k, v)*dx + rho*dot(dot(u_n, nabla_grad(u_n)), v)*dx + inner(sigma(U, p_n), epsilon(v))*dx + dot(p_n*n, v)*ds - dot(mu*nabla_grad(U)*n, v)*ds - dot(f, v)*dx
+	F1 = rho*dot((u - u_n)/dt, v)*dx + rho*dot(dot(u_n, nabla_grad(u_n)), v)*dx + inner(sigma(U, p_n), epsilon(v))*dx + dot(p_n*n, v)*ds - dot(mu*nabla_grad(U)*n, v)*ds - dot(f, v)*dx
 	a1, L1 = lhs(F1), rhs(F1)
 
 	# Variational problem for pressure p with approximated velocity u
 	a2 = dot(nabla_grad(p), nabla_grad(q))*dx
-	L2 = dot(nabla_grad(p_n), nabla_grad(q))*dx - (1/k)*div(u_)*q*dx
+	L2 = dot(nabla_grad(p_n), nabla_grad(q))*dx - (1/dt)*div(u_)*q*dx
 
 	# Variational problem for corrected velocity u with pressure p
 	a3 = dot(u, v)*dx
-	L3 = dot(u_, v)*dx - k*dot(nabla_grad(p_ - p_n), v)*dx
+	L3 = dot(u_, v)*dx - dot(nabla_grad(p_ - p_n), v)*dt*dx #obs. dx must be last multiplicative factor?
 	
 	# Variational problem for temperature
-	F = dot(T - T_n, T_v)*dx + div(u_*T)*T_v*k*dx + k*K*dot(grad(T), grad(T_v))*dx - f_T*T_v*k*dx
-	a4, L4 = lhs(F), rhs(F)
+	F2 = dot((T - T_n)/dt, T_v)*dx + div(u_*T)*T_v*dx + K*dot(grad(T), grad(T_v))*dx - f_T*T_v*dx
+	a4, L4 = lhs(F2), rhs(F2)
 	
-	# Assemble matrices
+	# Assemble matrices (a4 needs to be assembled at every time step)
 	A1 = assemble(a1)
 	A2 = assemble(a2)
 	A3 = assemble(a3)
-	A4 = assemble(a4)
 	
 	log('Defined variational problems')
 	
@@ -270,14 +268,15 @@ def run_simulation():
 	# Time-stepping
 	iterations_n = num_steps*int(final_time)
 	rounded_iterations_n = pow(10, (round(math.log(num_steps*int(final_time), 10))))
-	t = 0
+	
+	#file = File('temp.pvd')
+	#vel = File('vel.pvd')
+	
 	for n in range(iterations_n):
 		
 		# Even if verbose, get progressively less verbose with the order of number of iterations
 		if(rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0)):
 			log('Step %s of %s' % (n, iterations_n))
-			
-		t += dt
 
 		# Step 1: Tentative velocity step
 		b1 = assemble(L1)
@@ -295,23 +294,25 @@ def run_simulation():
 		solve(A3, u_.vector(), b3)
 		
 		# Step 4: Temperature step
+		A4 = assemble(a4) # Reassemble stiffness matrix and re-set BC, as coefficients change due to u_
+		[bc.apply(A4) for bc in bcT]
 		b4 = assemble(L4)
 		[bc.apply(b4) for bc in bcT]
 		solve(A4, T_.vector(), b4)
+		
+		print("u_-u_n norm is %s, T norm is %s, T-T_n norm is %s" % ( \
+			round(np.linalg.norm(u_.vector().get_local() - u_n.vector().get_local()), 2), \
+			round(np.linalg.norm(T_.vector().get_local()), 2), \
+			round(np.linalg.norm(T_.vector().get_local() - T_n.vector().get_local()), 2)) \
+		)
 
-		# Compute error
-		#u_e = Expression(('4*x[1]*(1.0 - x[1])', '0'), degree=2)
-		#u_e = interpolate(u_e, V)
-		#error = np.abs(u_e.vector().get_local() - u_.vector().get_local()).max()
-		#print('t = %.2f: error = %.3g' % (t, error))
-		#print('max u:', u_.vector().get_local().max())
+		#file << T_
+		#vel << u_
 
-		# Update previous solution
+		# Set solutions for next time-step
 		u_n.assign(u_)
 		p_n.assign(p_)
 		T_n.assign(T_)
-	
-	return u_, p_
 		
 def plot_solution():
 	# Plot solution
@@ -383,13 +384,13 @@ if __name__ == '__main__':
 	print('--- Parameters are: ---')
 	print(args)
 	
-	final_time = float(args.final_time)      # final time
-	num_steps = int(args.steps_n)   # number of time steps per time unit
-	dt = 1 / num_steps 				# time step size
-	mu = float(args.viscosity)      # kinematic viscosity
-	rho = float(args.density)       # density
+	final_time = float(args.final_time)     # final time
+	num_steps = int(args.steps_n)   		# number of time steps per time unit
+	dt_scalar = 1 / num_steps 						# time step size
+	mu_scalar = float(args.viscosity)      		# kinematic viscosity
+	rho_scalar = float(args.density)       		# density
 	
-	# tolerance for near() function based on mesh resolution
+	# tolerance for near() function based on mesh resolution. Otherwise BC are not properly set
 	tolerance = pow(10, - round(math.log(args.mesh_resolution, 10)))
 	
 	#Import correct set of boundaries depending on domain and set tolerance
