@@ -201,14 +201,9 @@ def boundary_conditions():
 		bcp.append(DirichletBC(Q, Constant(0), sea_top))
 		
 		bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
-	
-	# Apply boundary conditions to matrices
-	[bc.apply(A1) for bc in bcu]
-	[bc.apply(A3) for bc in bcu]
-	[bc.apply(A2) for bc in bcp]
 
 def define_variational_problems():
-	global A1, A2, A3, a4, L1, L2, L3, L4
+	global a1, a2, a3, a4, L1, L2, L3, L4, b4
 	
 	# Define trial and test functions
 	u = TrialFunction(V)
@@ -253,11 +248,6 @@ def define_variational_problems():
 	F2 = dot((T - T_n)/dt, T_v)*dx + div(u_*T)*T_v*dx + K*dot(grad(T), grad(T_v))*dx - f_T*T_v*dx
 	a4, L4 = lhs(F2), rhs(F2)
 	
-	# Assemble matrices (a4 needs to be assembled at every time step)
-	A1 = assemble(a1)
-	A2 = assemble(a2)
-	A3 = assemble(a3)
-	
 	log('Defined variational problems')
 	
 def run_simulation():
@@ -271,6 +261,18 @@ def run_simulation():
 	
 	#file = File('temp.pvd')
 	#vel = File('vel.pvd')
+	
+	# Assemble stiffness matrices (a4 needs to be assembled at every time step) and load vectors (except those whose coefficients change every iteration)
+	A1 = assemble(a1)
+	A2 = assemble(a2)
+	A3 = assemble(a3)
+	b4 = assemble(L4)
+	
+	# Apply boundary conditions
+	[bc.apply(A1) for bc in bcu]
+	[bc.apply(A3) for bc in bcu]
+	[bc.apply(A2) for bc in bcp]
+	[bc.apply(b4) for bc in bcT]
 	
 	for n in range(iterations_n):
 		
@@ -296,8 +298,7 @@ def run_simulation():
 		# Step 4: Temperature step
 		A4 = assemble(a4) # Reassemble stiffness matrix and re-set BC, as coefficients change due to u_
 		[bc.apply(A4) for bc in bcT]
-		b4 = assemble(L4)
-		[bc.apply(b4) for bc in bcT]
+		
 		solve(A4, T_.vector(), b4)
 		
 		print("u_-u_n norm is %s, T norm is %s, T-T_n norm is %s" % ( \
