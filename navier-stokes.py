@@ -61,17 +61,16 @@ def deform_mesh_coords(mesh):
 	
 #good resource https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html
 def refine_mesh_at_point(mesh, target, domain):
+	log('Refining mesh at (%d, %d)' % (target[0], target[1]))
+	
 	to_refine = MeshFunction("bool", mesh, mesh.topology().dim() - 1)
 	to_refine.set_all(False)
 	
-	class dummy_subdomain(SubDomain):
+	class to_refine_subdomain(SubDomain):
 		def inside(self, x, on_boundary):
-			if((Point(x) - target).norm() < mesh.hmax()):
-				return True
-			
-			return False
+			return ((Point(x) - target).norm() < mesh.hmax())
 
-	D = dummy_subdomain()
+	D = to_refine_subdomain()
 	D.mark(to_refine, True)
 	#print(to_refine.array())
 	mesh = refine(mesh, to_refine)		
@@ -125,8 +124,6 @@ def initialize_mesh( domain, resolution ):
 	#For density=1000, domain='custom', final_time=10.0, mesh_resolution=16, plot=True, plot_BC=False, steps_n=10, verbose=True, very_verbose=False, viscosity=100, **{'plot-BC': False}
 	#it is 7.17 seconds vs 7.84
 	
-	log('Refining mesh')
-	
 	mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)
 	mesh = refine_mesh_at_point(mesh, Point(0.4, 1), domain)
 	mesh = refine_mesh_at_point(mesh, Point(0, 0), domain)
@@ -137,12 +134,13 @@ def initialize_mesh( domain, resolution ):
 	print('Final mesh: vertexes %s, max diameter %s' % (mesh.num_vertices(), mesh.hmax()))
 	
 def define_function_spaces():
-	global V, Q, T_space, u_n, u_, p_n, p_, T_n, T_
+	global V, Q, T_space, S_space, u_n, u_, p_n, p_, T_n, T_, S_n, S_
 	
 	# Define function spaces
 	V = VectorFunctionSpace(mesh, 'P', 2)
 	Q = FunctionSpace(mesh, 'P', 1)
 	T_space = FunctionSpace(mesh, 'P', 2)
+	S_space = FunctionSpace(mesh, 'P', 2)
 
 	# Define functions for solution computation
 	u_n = Function(V)
@@ -151,13 +149,16 @@ def define_function_spaces():
 	p_  = Function(Q)
 	T_n = Function(T_space)
 	T_  = Function(T_space)
+	S_n = Function(S_space)
+	S_  = Function(S_space)
 
 def boundary_conditions():
-	global bcu, bcp, bcT
+	global bcu, bcp, bcT, bcS
 	
 	bcu = []
 	bcp = []
 	bcT = []
+	bcS = []
 	
 	# In/Out flow sinusodial expression
 	ux_sin = "-(0.3)*sin(2*pi*x[1])"
@@ -179,6 +180,9 @@ def boundary_conditions():
 		bcp.append(DirichletBC(Q, Constant(0), top))
 		
 		bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
+		
+		bcS.append(DirichletBC(S_space, Expression("5", degree=2), right))
+		bcS.append(DirichletBC(S_space, Expression("0", degree=2), left))
 	
 	elif(args.domain == 'custom'):
 		
@@ -201,9 +205,14 @@ def boundary_conditions():
 		bcp.append(DirichletBC(Q, Constant(0), sea_top))
 		
 		bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
+		
+		bcS.append(DirichletBC(S_space, Expression("5", degree=2), right))
+		bcS.append(DirichletBC(S_space, Expression("0", degree=2), left))
+		bcS.append(DirichletBC(S_space, Expression("0", degree=2), ice_shelf_bottom))
+		bcS.append(DirichletBC(S_space, Expression("0", degree=2), ice_shelf_right))
 
 def define_variational_problems():
-	global a1, a2, a3, a4, L1, L2, L3, L4, b4
+	global a1, a2, a3, a4, a5, L1, L2, L3, L4, L5
 	
 	# Define trial and test functions
 	u = TrialFunction(V)
@@ -212,6 +221,8 @@ def define_variational_problems():
 	q = TestFunction(Q)
 	T = TrialFunction(T_space)
 	T_v = TestFunction(T_space)
+	S = TrialFunction(S_space)
+	S_v = TestFunction(S_space)
 	
 	# Define expressions used in variational forms
 	U   = 0.5*(u_n + u)
@@ -219,9 +230,16 @@ def define_variational_problems():
 	g   = 9.81
 	f   = Constant((0, -g))
 	f_T = Constant(0)
+	f_S = Constant(0)
 	dt  = Constant(dt_scalar)
 	mu  = Constant(mu_scalar)
 	rho = Constant(rho_scalar)
+	#rho = Expression('-rho_0*g*(-alpha*(x[0]-T_0))', degree=2, 
+	rho_0 = Constant(1)
+	alpha = Constant(1)#Constant(10**(-4)) 
+	beta = Constant(1)#Constant(7.6*10**(-4)) 
+	T_0 = Constant(1)
+	S_0 = Constant(35)
 	K   = Constant(200)
 	
 	# Define strain-rate tensor
@@ -233,8 +251,14 @@ def define_variational_problems():
 		return 2*mu*epsilon(u) - p*Identity(len(u))
 
 	# Variational problem for velocity u with pression p_n from previous step
-	F1 = rho*dot((u - u_n)/dt, v)*dx + rho*dot(dot(u_n, nabla_grad(u_n)), v)*dx + inner(sigma(U, p_n), epsilon(v))*dx + dot(p_n*n, v)*ds - dot(mu*nabla_grad(U)*n, v)*ds - dot(f, v)*dx
-	a1, L1 = lhs(F1), rhs(F1)
+	F = dot((u - u_n)/dt, v)*dx \
+		+ dot(dot(u_n, nabla_grad(u_n)), v)*dx \
+		+ inner(sigma(U, p_n), epsilon(v))*dx \
+		- (1/rho)*dot(p_n*n, v)*ds \
+		- dot(mu*nabla_grad(U)*n, v)*ds \
+		- dot(f, v)*dx \
+		- 100000*g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))*dx #buoyancy term
+	a1, L1 = lhs(F), rhs(F)
 
 	# Variational problem for pressure p with approximated velocity u
 	a2 = dot(nabla_grad(p), nabla_grad(q))*dx
@@ -245,13 +269,23 @@ def define_variational_problems():
 	L3 = dot(u_, v)*dx - dot(nabla_grad(p_ - p_n), v)*dt*dx #obs. dx must be last multiplicative factor?
 	
 	# Variational problem for temperature
-	F2 = dot((T - T_n)/dt, T_v)*dx + div(u_*T)*T_v*dx + K*dot(grad(T), grad(T_v))*dx - f_T*T_v*dx
-	a4, L4 = lhs(F2), rhs(F2)
+	F = dot((T - T_n)/dt, T_v)*dx \
+		+ div(u_*T)*T_v*dx \
+		+ K*dot(grad(T), grad(T_v))*dx \
+		- f_T*T_v*dx
+	a4, L4 = lhs(F), rhs(F)
+	
+	# Variational problem for salinity
+	F = dot((S - S_n)/dt, S_v)*dx \
+		+ div(u_*S)*S_v*dx \
+		+ K*dot(grad(S), grad(S_v))*dx \
+		- f_S*S_v*dx
+	a5, L5 = lhs(F), rhs(F)
 	
 	log('Defined variational problems')
 	
 def run_simulation():
-	global u_, p_, T_
+	global u_, p_, T_, S_
 	
 	log('Starting simulation')
 	
@@ -262,17 +296,19 @@ def run_simulation():
 	#file = File('temp.pvd')
 	#vel = File('vel.pvd')
 	
-	# Assemble stiffness matrices (a4 needs to be assembled at every time step) and load vectors (except those whose coefficients change every iteration)
+	# Assemble stiffness matrices (a4, a5 need to be assembled at every time step) and load vectors (except those whose coefficients change every iteration)
 	A1 = assemble(a1)
 	A2 = assemble(a2)
 	A3 = assemble(a3)
 	b4 = assemble(L4)
+	b5 = assemble(L5)
 	
 	# Apply boundary conditions
 	[bc.apply(A1) for bc in bcu]
 	[bc.apply(A3) for bc in bcu]
 	[bc.apply(A2) for bc in bcp]
 	[bc.apply(b4) for bc in bcT]
+	[bc.apply(b5) for bc in bcS]
 	
 	for n in range(iterations_n):
 		
@@ -298,13 +334,22 @@ def run_simulation():
 		# Step 4: Temperature step
 		A4 = assemble(a4) # Reassemble stiffness matrix and re-set BC, as coefficients change due to u_
 		[bc.apply(A4) for bc in bcT]
-		
 		solve(A4, T_.vector(), b4)
 		
-		print("u_-u_n norm is %s, T norm is %s, T-T_n norm is %s" % ( \
+		# Step 5: Salinity step
+		A5 = assemble(a5) # Reassemble stiffness matrix and re-set BC, as coefficients change due to u_
+		[bc.apply(A5) for bc in bcS]
+		solve(A5, S_.vector(), b5)
+		
+		print("||u|| = %s, ||u-u_n|| = %s, ||p|| = %s, ||p-p_n|| = %s, ||T|| = %s, ||T-T_n|| = %s, ||S|| = %s, ||S - S_n|| = %s" % ( \
+			round(np.linalg.norm(u_.vector().get_local()), 2), \
 			round(np.linalg.norm(u_.vector().get_local() - u_n.vector().get_local()), 2), \
+			round(np.linalg.norm(p_.vector().get_local()), 2), \
+			round(np.linalg.norm(p_.vector().get_local() - p_n.vector().get_local()), 2), \
 			round(np.linalg.norm(T_.vector().get_local()), 2), \
-			round(np.linalg.norm(T_.vector().get_local() - T_n.vector().get_local()), 2)) \
+			round(np.linalg.norm(T_.vector().get_local() - T_n.vector().get_local()), 2), \
+			round(np.linalg.norm(S_.vector().get_local()), 2), \
+			round(np.linalg.norm(S_.vector().get_local() - S_n.vector().get_local()), 2)) \
 		)
 
 		#file << T_
@@ -314,6 +359,7 @@ def run_simulation():
 		u_n.assign(u_)
 		p_n.assign(p_)
 		T_n.assign(T_)
+		S_n.assign(S_)
 		
 def plot_solution():
 	# Plot solution
@@ -345,6 +391,11 @@ def plot_solution():
 	fig6 = plot(T_, title='temperature')
 	plt.colorbar(fig6)
 	plt.savefig('temperature.png', dpi = 300)
+	plt.close()
+	
+	fig7 = plot(S_, title='salinity')
+	plt.colorbar(fig7)
+	plt.savefig('salinity.png', dpi = 300)
 	plt.close()
 	
 def plot_boundary_conditions():
