@@ -39,7 +39,7 @@ def parse_commandline_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--final-time', default=10.0, type=float, dest='final_time', help='How long to run the simulation for (default: %(default)s)')
 	parser.add_argument('--steps-n', default=10, type=int, dest='steps_n', help='How many steps each of the "seconds" is made of (default: %(default)s)')
-	parser.add_argument('--viscosity', default=100, type=int, help='Viscosity (default: %(default)s)')
+	parser.add_argument('--viscosity', default=0.36, type=float, help='Viscosity (default: %(default)s)')
 	parser.add_argument('--density', default=1000, type=int, help='Density (default: %(default)s)')
 	parser.add_argument('--domain', default='custom', help='What domain to use, either `square` or `custom` (default: %(default)s)')
 	parser.add_argument('--mesh-resolution', default=16, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
@@ -232,15 +232,16 @@ def define_variational_problems():
 	f_T = Constant(0)
 	f_S = Constant(0)
 	dt  = Constant(dt_scalar)
-	mu  = Constant(mu_scalar)
+	mu  = Constant(0.36)
 	rho = Constant(rho_scalar)
 	#rho = Expression('-rho_0*g*(-alpha*(x[0]-T_0))', degree=2, 
-	rho_0 = Constant(1)
-	alpha = Constant(1)#Constant(10**(-4)) 
-	beta = Constant(1)#Constant(7.6*10**(-4)) 
+	rho_0 = Constant(1.028) #https://en.wikipedia.org/wiki/Seawater#/media/File:WaterDensitySalinity.png
+	alpha = Constant(10**(-4)) 
+	beta = Constant(7.6*10**(-4)) 
 	T_0 = Constant(1)
 	S_0 = Constant(35)
-	K   = Constant(200)
+	K   = mu
+	buoyancy = Expression((0, 'g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))'), alpha=alpha, beta=beta, T_0=T_0, S_0=S_0, g=Constant(g), T_=T_, S_=S_, degree=2)
 	
 	# Define strain-rate tensor
 	def epsilon(u):
@@ -254,10 +255,10 @@ def define_variational_problems():
 	F = dot((u - u_n)/dt, v)*dx \
 		+ dot(dot(u_n, nabla_grad(u_n)), v)*dx \
 		+ inner(sigma(U, p_n), epsilon(v))*dx \
-		- (1/rho)*dot(p_n*n, v)*ds \
+		- (1/rho_0)*dot(p_n*n, v)*ds \
 		- dot(mu*nabla_grad(U)*n, v)*ds \
 		- dot(f, v)*dx \
-		- 100000*g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))*dx #buoyancy term
+		- dot(buoyancy, v)*dx 
 	a1, L1 = lhs(F), rhs(F)
 
 	# Variational problem for pressure p with approximated velocity u
