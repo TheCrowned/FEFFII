@@ -16,7 +16,7 @@ from fenics import *
 from mshr import *
 import numpy as np
 import matplotlib.pyplot as plt
-import sys, getopt, argparse
+import sys, getopt, argparse, os
 import math
 import inspect
 from importlib import import_module
@@ -61,7 +61,7 @@ def deform_mesh_coords(mesh):
 	
 #good resource https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html
 def refine_mesh_at_point(mesh, target, domain):
-	log('Refining mesh at (%d, %d)' % (target[0], target[1]))
+	log('Refining mesh at (%f, %f)' % (target[0], target[1]))
 	
 	to_refine = MeshFunction("bool", mesh, mesh.topology().dim() - 1)
 	to_refine.set_all(False)
@@ -130,6 +130,8 @@ def initialize_mesh( domain, resolution ):
 	mesh = refine_mesh_at_point(mesh, Point(1, 0), domain)
 	mesh = refine_mesh_at_point(mesh, Point(1, 1), domain)
 	mesh = refine_mesh_at_point(mesh, Point(0, 0.9), domain)
+	#mesh = refine_mesh_at_point(mesh, Point(0.98, 0.9), domain)
+	#mesh = refine_mesh_at_point(mesh, Point(0.98, 0.95), domain)
 	
 	print('Final mesh: vertexes %s, max diameter %s' % (mesh.num_vertices(), mesh.hmax()))
 	
@@ -200,7 +202,8 @@ def boundary_conditions():
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), left))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), ice_shelf_bottom))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), ice_shelf_right))
-		bcu.append(DirichletBC(V.sub(0), (0.0), sea_top))
+		#bcu.append(DirichletBC(V.sub(0), (0.0), sea_top))
+		bcu.append(DirichletBC(V.sub(1), (0.0), sea_top))
 		
 		bcp.append(DirichletBC(Q, Constant(0), sea_top))
 		
@@ -227,21 +230,22 @@ def define_variational_problems():
 	# Define expressions used in variational forms
 	U   = 0.5*(u_n + u)
 	n   = FacetNormal(mesh)
-	g   = 9.81
+	g   = 1.27*10**5
 	f   = Constant((0, -g))
 	f_T = Constant(0)
 	f_S = Constant(0)
 	dt  = Constant(dt_scalar)
-	mu  = Constant(0.36)
+	mu  = Constant(3.6*10**-1)
 	rho = Constant(rho_scalar)
 	#rho = Expression('-rho_0*g*(-alpha*(x[0]-T_0))', degree=2, 
-	rho_0 = Constant(1.028) #https://en.wikipedia.org/wiki/Seawater#/media/File:WaterDensitySalinity.png
+	rho_0 = Constant(1.028*10**12) #https://en.wikipedia.org/wiki/Seawater#/media/File:WaterDensitySalinity.png
 	alpha = Constant(10**(-4)) 
 	beta = Constant(7.6*10**(-4)) 
 	T_0 = Constant(1)
 	S_0 = Constant(35)
 	K   = mu
 	buoyancy = Expression((0, 'g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))'), alpha=alpha, beta=beta, T_0=T_0, S_0=S_0, g=Constant(g), T_=T_, S_=S_, degree=2)
+	#buoyancy = Expression((0, 'g'), g=g, degree=2)
 	
 	# Define strain-rate tensor
 	def epsilon(u):
@@ -257,7 +261,6 @@ def define_variational_problems():
 		+ inner(sigma(U, p_n), epsilon(v))*dx \
 		- (1/rho_0)*dot(p_n*n, v)*ds \
 		- dot(mu*nabla_grad(U)*n, v)*ds \
-		- dot(f, v)*dx \
 		- dot(buoyancy, v)*dx 
 	a1, L1 = lhs(F), rhs(F)
 
@@ -367,36 +370,36 @@ def plot_solution():
 	#fig = plt.figure(figsize=(80, 60))
 
 	fig1 = plot(u_, title='velocity X,Y')
-	plt.savefig('velxy.png', dpi = 300)
+	plt.savefig(plot_path + 'velxy.png', dpi = 800)
 	plt.close()
 
 	fig2 = plot(u_[0], title='velocity X')
 	plt.colorbar(fig2)
-	plt.savefig('velx.png', dpi = 300)
+	plt.savefig(plot_path + 'velx.png', dpi = 300)
 	plt.close()
 
 	fig3 = plot(u_[1], title='velocity Y')
 	plt.colorbar(fig3)
-	plt.savefig('vely.png', dpi = 300)
+	plt.savefig(plot_path + 'vely.png', dpi = 300)
 	plt.close()
 
 	fig4 = plot(p_, title='pressure')
 	plt.colorbar(fig4)
-	plt.savefig('pressure.png', dpi = 300)
+	plt.savefig(plot_path + 'pressure.png', dpi = 300)
 	plt.close()
 	
 	fig5 = plot(mesh)
-	plt.savefig('mesh.png', dpi = 800)
+	plt.savefig(plot_path + 'mesh.png', dpi = 800)
 	plt.close()
 	
 	fig6 = plot(T_, title='temperature')
 	plt.colorbar(fig6)
-	plt.savefig('temperature.png', dpi = 300)
+	plt.savefig(plot_path + 'temperature.png', dpi = 300)
 	plt.close()
 	
 	fig7 = plot(S_, title='salinity')
 	plt.colorbar(fig7)
-	plt.savefig('salinity.png', dpi = 300)
+	plt.savefig(plot_path + 'salinity.png', dpi = 300)
 	plt.close()
 	
 def plot_boundary_conditions():
@@ -439,9 +442,13 @@ if __name__ == '__main__':
 	
 	final_time = float(args.final_time)     # final time
 	num_steps = int(args.steps_n)   		# number of time steps per time unit
-	dt_scalar = 1 / num_steps 						# time step size
-	mu_scalar = float(args.viscosity)      		# kinematic viscosity
-	rho_scalar = float(args.density)       		# density
+	dt_scalar = 1 / num_steps 				# time step size
+	mu_scalar = float(args.viscosity)  		# kinematic viscosity
+	rho_scalar = float(args.density)   		# density
+	plot_path = 'plots/plot ' + '--final-time %.0f --steps-n %d --mesh-resolution %d/' % (final_time, num_steps, args.mesh_resolution)
+	
+	if(not os.path.isdir(plot_path) and (args.plot or args.plot_BC)):
+		os.mkdir(plot_path)
 	
 	# tolerance for near() function based on mesh resolution. Otherwise BC are not properly set
 	tolerance = pow(10, - round(math.log(args.mesh_resolution, 10)))
@@ -454,7 +461,7 @@ if __name__ == '__main__':
 		set_log_active(True)
 		set_log_level(1)
 	
-	initialize_mesh( args.domain, args.mesh_resolution )
+	initialize_mesh(args.domain, args.mesh_resolution)
 	define_function_spaces()
 	start_time = time.time()
 	define_variational_problems()
