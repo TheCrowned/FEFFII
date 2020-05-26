@@ -36,6 +36,7 @@ import math
 import inspect
 from importlib import import_module
 import time
+import pickle
 
 def parse_commandline_args():
 	global args
@@ -54,7 +55,7 @@ def parse_commandline_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--final-time', default=10.0, type=float, dest='final_time', help='How long to run the simulation for (hours) (default: %(default)s)')
 	parser.add_argument('--steps-n', default=200, type=int, dest='steps_n', help='How many steps each of the "seconds" is made of (default: %(default)s)')
-	parser.add_argument('--precision', default=-4, type=int, dest='simulation_precision', help='Precision at which converge is achieved, for all variables (power of ten) (default: %(default)s)')
+	parser.add_argument('--precision', default=-3, type=int, dest='simulation_precision', help='Precision at which converge is achieved, for all variables (power of ten) (default: %(default)s)')
 	#parser.add_argument('--viscosity', default=0.36, type=float, help='Viscosity (default: %(default)s)')
 	#parser.add_argument('--density', default=1000, type=int, help='Density (default: %(default)s)')
 	parser.add_argument('--domain', default='custom', help='What domain to use, either `square` or `custom` (default: %(default)s)')
@@ -91,7 +92,7 @@ def create_mesh(domain, resolution):
 	mesh = refine_mesh_at_point(mesh, Point(1, 1), domain)
 	mesh = refine_mesh_at_point(mesh, Point(0, 0.9), domain)
 
-	print('Final mesh: vertexes %d, max diameter %.2f' % (mesh.num_vertices(), mesh.hmax()))
+	log('Final mesh: vertexes %d, max diameter %.2f' % (mesh.num_vertices(), mesh.hmax()), True)
 
 def deform_mesh_coords(mesh):
 	"""Deforms mesh coordinates to create the bottom bump"""
@@ -307,8 +308,9 @@ def run_simulation():
 
 	log('Starting simulation')
 
-	#file = File('temp.pvd')
-	#vel = File('vel.pvd')
+	temp = File(plot_path+'temp.pvd')
+	temp << T_
+	vel = File(plot_path+'vel.pvd')
 
 	# Assemble stiffness matrices (a4, a5 need to be assembled at every time step) and load vectors (except those whose coefficients change every iteration)
 	A1 = assemble(a1)
@@ -329,7 +331,7 @@ def run_simulation():
 	rounded_iterations_n = pow(10, (round(math.log(num_steps*int(final_time), 10))))
 
 	for n in range(iterations_n):
-
+		
 		# Applying IPC splitting scheme (IPCS)
 		# Step 1: Tentative velocity step
 		b1 = assemble(L1)
@@ -361,19 +363,34 @@ def run_simulation():
 		S_diff = np.linalg.norm(S_.vector().get_local() - S_n.vector().get_local())
 		
 		# Even if verbose, get progressively less verbose with the order of number of iterations
-		if(rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0)):
+		if(rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/10000) == 0)):
 			log('Step %s of %s' % (n, iterations_n))
 
-			log("||u|| = %s, ||u-u_n|| = %s, ||p|| = %s, ||p-p_n|| = %s, ||T|| = %s, ||T-T_n|| = %s, ||S|| = %s, ||S - S_n|| = %s" % ( \
-				round(np.linalg.norm(u_.vector().get_local()), 2), round(u_diff, 3), \
-				round(np.linalg.norm(p_.vector().get_local()), 2), round(p_diff, 3), \
-				round(np.linalg.norm(T_.vector().get_local()), 2), round(T_diff, 3), \
-				round(np.linalg.norm(S_.vector().get_local()), 2), round(S_diff, 3)) \
+			log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
+				round(norm(u_, 'L2'), 2), round(norm(u_.vector(), 'linf'), 3), round(u_diff, 3), \
+				round(norm(p_, 'L2'), 2), round(norm(p_.vector(), 'linf'), 3), round(p_diff, 3), \
+				round(norm(T_, 'L2'), 2), round(norm(T_.vector(), 'linf'), 3), round(T_diff, 3), \
+				round(norm(S_, 'L2'), 2), round(norm(S_.vector(), 'linf'), 3), round(S_diff, 3)) \
 			)
+		
+		temp << T_
+		vel << u_
 		
 		convergence_threshold = 10**(args.simulation_precision)
 		if all(diff < convergence_threshold for diff in [u_diff, p_diff, T_diff, S_diff]):
-			print('--- Stopping simulation: all variables reached desired precision ---')
+			log('--- Stopping simulation at step %d: all variables reached desired precision ---' % n, True)
+			
+			log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
+				round(norm(u_, 'L2'), 2), round(norm(u_.vector(), 'linf'), 3), round(u_diff, 3), \
+				round(norm(p_, 'L2'), 2), round(norm(p_.vector(), 'linf'), 3), round(p_diff, 3), \
+				round(norm(T_, 'L2'), 2), round(norm(T_.vector(), 'linf'), 3), round(T_diff, 3), \
+				round(norm(S_, 'L2'), 2), round(norm(S_.vector(), 'linf'), 3), round(S_diff, 3)) \
+			)
+			
+			break
+		
+		if norm(u_, 'L2') != norm(u_, 'L2'):
+			log('--- Stopping simulation at step %d: velocity is NaN! ---' % n, True)
 			break
 
 		# Set solutions for next time-step
@@ -383,6 +400,9 @@ def run_simulation():
 		S_n.assign(S_)
 
 def plot_solution():
+	fig5 = plot(mesh)
+	plt.savefig(plot_path + 'mesh.png', dpi = 800)
+	plt.close()
 	fig1 = plot(u_, title='Velocity (km/h)')
 	plt.colorbar(fig1)
 	plt.savefig(plot_path + 'velxy.png', dpi = 800)
@@ -403,10 +423,6 @@ def plot_solution():
 	fig4 = plot(rho_0*p_, title='Pressure (Pa)')
 	plt.colorbar(fig4)
 	plt.savefig(plot_path + 'pressure.png', dpi = 500)
-	plt.close()
-
-	fig5 = plot(mesh)
-	plt.savefig(plot_path + 'mesh.png', dpi = 800)
 	plt.close()
 
 	fig6 = plot(T_, title='Temperature (°C)')
@@ -463,36 +479,33 @@ def plot_solution():
 	#plt.scatter(boundarycoords[:,0], boundarycoords[:,1])
 	'''
 
-def log(message):
-	if(args.verbose == True): 
+def log(message, always = False):
+	if(args.verbose == True or always == True): 
 		print('* %s' % message, flush=True)
 		log_file.write(message + '\n')
 
 if __name__ == '__main__':
-
-	start_time = time.time()
-	print('--- Started at %s --- ' % str(datetime.now()))
-
 	parse_commandline_args()
-
-	print('--- Parameters are: ---')
-	print(args)
-
+	#args_dict = {arg: getattr(args, arg) for arg in vars(args)}
+	
 	final_time = float(args.final_time)     				# final time
 	num_steps = int(args.steps_n)   						# number of time steps per time unit
 	dt_scalar = 1 / num_steps 								# time step size
 	simulation_precision = int(args.simulation_precision)	# precision at which converge is considered to be achieved (for all variables)
 	#mu_scalar = float(args.viscosity)      				# kinematic viscosity
 
-	plot_path = 'plots/%d --final-time %.0f --steps-n %d --mesh-resolution %d/' % (round(time.time()), final_time, num_steps, args.mesh_resolution)
-
-	#if(not pathlib.Path(plot_path).is_dir() and (args.plot or args.plot_BC)):
-	pathlib.Path(plot_path).mkdir(parents=True, exist_ok=True)
-		
-	log_file = open(plot_path + 'simulation.log', 'w')
-
 	# tolerance for near() function based on mesh resolution. Otherwise BC are not properly set
 	tolerance = pow(10, - round(math.log(args.mesh_resolution, 10)))
+	
+	plot_path = 'plots/%d --final-time %.0f --steps-n %d --mesh-resolution %d/' % (round(time.time()), final_time, num_steps, args.mesh_resolution)
+	pathlib.Path(plot_path).mkdir(parents=True, exist_ok=True)
+	log_file = open(plot_path + 'simulation.log', 'w')
+	
+	start_time = time.time()
+	log('--- Started at %s --- ' % str(datetime.now()), True)
+
+	log('--- Parameters are: ---', True)
+	log(str(args), True)
 
 	#Import correct set of boundaries depending on domain and set tolerance
 	bd = import_module('boundaries_' + args.domain)
@@ -511,8 +524,8 @@ if __name__ == '__main__':
 	boundary_conditions()
 	run_simulation()
 
-	print('--- Finished at %s --- ' % str(datetime.now()))
-	print('--- Duration: %s seconds --- ' % round((time.time() - start_time), 2))
+	log('--- Finished at %s --- ' % str(datetime.now()), True)
+	log('--- Duration: %s seconds --- ' % round((time.time() - start_time), 2), True)
 
 	if(args.plot == True):
 		plot_solution()
