@@ -59,6 +59,7 @@ def parse_commandline_args():
 	#parser.add_argument('--density', default=1000, type=int, help='Density (default: %(default)s)')
 	parser.add_argument('--domain', default='custom', help='What domain to use, either `square` or `custom` (default: %(default)s)')
 	parser.add_argument('--mesh-resolution', default=10, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
+	parser.add_argument('--store-sol', default=False, dest='store_solutions', action='store_true', help='Whether to save iteration solutions for display in Paraview (default: %(default)s)')
 	parser.add_argument('-v', '--verbose', default=True, dest='verbose', action='store_true', help='Whether to display debug info (default: %(default)s)')
 	parser.add_argument('-vv', '--very-verbose', default=False, dest='very_verbose', action='store_true', help='Whether to display debug info from FEniCS as well (default: %(default)s)')
 	add_bool_arg(parser, 'plot', default=True, help='Whether to plot solution (default: %(default)s)')
@@ -307,9 +308,11 @@ def run_simulation():
 
 	log('Starting simulation')
 
-	temp = File(plot_path+'temp.pvd')
-	temp << T_
-	vel = File(plot_path+'vel.pvd')
+	if args.store_solutions:
+		pathlib.Path(plot_path + 'paraview/').mkdir(parents=True, exist_ok=True)
+		temp = File(plot_path + 'paraview/temp.pvd')
+		temp << T_
+		vel = File(plot_path + 'paraview/vel.pvd')
 
 	# Assemble stiffness matrices (a4, a5 need to be assembled at every time step) and load vectors (except those whose coefficients change every iteration)
 	A1 = assemble(a1)
@@ -372,8 +375,9 @@ def run_simulation():
 				round(norm(S_, 'L2'), 2), round(norm(S_.vector(), 'linf'), 3), round(S_diff, 3)) \
 			)
 		
-		temp << T_
-		vel << u_
+		if args.store_solutions:
+			temp << T_
+			vel << u_
 		
 		convergence_threshold = 10**(args.simulation_precision)
 		if all(diff < convergence_threshold for diff in [u_diff, p_diff, T_diff, S_diff]):
