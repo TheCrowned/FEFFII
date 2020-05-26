@@ -35,8 +35,7 @@ import sys, getopt, argparse, pathlib
 import math
 import inspect
 from importlib import import_module
-import time
-import pickle
+import time, os
 
 def parse_commandline_args():
 	global args
@@ -529,3 +528,5 @@ if __name__ == '__main__':
 
 	if(args.plot == True):
 		plot_solution()
+	
+	os.system('xdg-open "' + plot_path + '"')
