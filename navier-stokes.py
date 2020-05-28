@@ -185,15 +185,8 @@ def define_variational_problems():
 	f_T = Constant(0)
 	f_S = Constant(0)
 	dt = Constant(dt_scalar)
-	nu = Constant(3.6*10**-1)
 	
-	g = 1.27*10**5
-	rho_0 = Constant(1.323*10**4) #https://en.wikipedia.org/wiki/Seawater#/media/File:WaterDensitySalinity.png
-	alpha = Constant(10**(-4))
-	beta = Constant(7.6*10**(-4))
-	T_0 = Constant(1)
-	S_0 = Constant(35)
-	buoyancy = Expression((0, 'g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))'), alpha=alpha, beta=beta, T_0=T_0, S_0=S_0, g=Constant(g), T_=T_, S_=S_, degree=2)
+	buoyancy = Expression((0, '-g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))'), alpha=alpha, beta=beta, T_0=T_0, S_0=S_0, g=Constant(g), T_=T_, S_=S_, degree=2)
 
 	# Define strain-rate tensor
 	def epsilon(u):
@@ -365,7 +358,7 @@ def run_simulation():
 		S_diff = np.linalg.norm(S_.vector().get_local() - S_n.vector().get_local())
 		
 		# Even if verbose, get progressively less verbose with the order of number of iterations
-		if(rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/10000) == 0)):
+		if(rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0)):
 			log('Step %s of %s' % (n, iterations_n))
 
 			log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
@@ -422,7 +415,6 @@ def plot_solution():
 	plt.close()
 
 	#avoid rho_0 in pressure term to avoid big terms in simulation, multiply accordingly to obtain right values in plot
-	rho_0 = Constant(1.323*10**4)
 	fig4 = plot(rho_0*p_, title='Pressure (Pa)')
 	plt.colorbar(fig4)
 	plt.savefig(plot_path + 'pressure.png', dpi = 500)
@@ -496,6 +488,15 @@ if __name__ == '__main__':
 	dt_scalar = 1 / num_steps 								# time step size
 	simulation_precision = int(args.simulation_precision)	# precision at which converge is considered to be achieved (for all variables)
 	#mu_scalar = float(args.viscosity)      				# kinematic viscosity
+	
+	# Values used in variational forms
+	nu = Constant(3.6*10**-1)
+	g = 1.27*10**5
+	rho_0 = Constant(1.323*10**4) #https://en.wikipedia.org/wiki/Seawater#/media/File:WaterDensitySalinity.png
+	alpha = Constant(10**(-4))
+	beta = Constant(7.6*10**(-4))
+	T_0 = Constant(1)
+	S_0 = Constant(35)
 
 	# tolerance for near() function based on mesh resolution. Otherwise BC are not properly set
 	tolerance = pow(10, - round(math.log(args.mesh_resolution, 10)))
