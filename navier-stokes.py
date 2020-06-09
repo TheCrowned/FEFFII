@@ -60,6 +60,7 @@ def parse_commandline_args():
 	parser.add_argument('--domain', default='custom', help='What domain to use, either `square` or `custom` (default: %(default)s)')
 	parser.add_argument('--mesh-resolution', default=10, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
 	parser.add_argument('--store-sol', default=False, dest='store_solutions', action='store_true', help='Whether to save iteration solutions for display in Paraview (default: %(default)s)')
+	parser.add_argument('--label', default='', help='Label to append to plots folder (default: %(default)s)')
 	parser.add_argument('-v', '--verbose', default=True, dest='verbose', action='store_true', help='Whether to display debug info (default: %(default)s)')
 	parser.add_argument('-vv', '--very-verbose', default=False, dest='very_verbose', action='store_true', help='Whether to display debug info from FEniCS as well (default: %(default)s)')
 	add_bool_arg(parser, 'plot', default=True, help='Whether to plot solution (default: %(default)s)')
@@ -186,7 +187,7 @@ def define_variational_problems():
 	f_S = Constant(0)
 	dt = Constant(dt_scalar)
 	
-	buoyancy = Expression((0, '-g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))'), alpha=alpha, beta=beta, T_0=T_0, S_0=S_0, g=Constant(g), T_=T_, S_=S_, degree=2)
+	buoyancy = Expression((0, '-g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))/rho_0'), alpha=alpha, beta=beta, T_0=T_0, S_0=S_0, g=Constant(g), T_=T_, S_=S_, rho_0=rho_0, degree=2)
 
 	# Define strain-rate tensor
 	def epsilon(u):
@@ -199,20 +200,20 @@ def define_variational_problems():
 	# Define variational problem for step 1
 	F1 = dot((u - u_n) / dt, v)*dx + \
 		 dot(dot(u_n, nabla_grad(u_n)), v)*dx \
-	   + inner(sigma(U, p_n), epsilon(v))*dx \
-	   + dot(p_n*n, v)*ds - dot(nu*nabla_grad(U)*n, v)*ds \
+	   + inner(sigma(U, p_n/rho_0), epsilon(v))*dx \
+	   + dot(p_n*n/rho_0, v)*ds - dot(nu*nabla_grad(U)*n, v)*ds \
 	   - dot(buoyancy, v)*dx
 	a1, L1 = lhs(F1), rhs(F1)
 
 	# Variational problem for pressure p with approximated velocity u
-	F = + dot(nabla_grad(p - p_n), nabla_grad(q))*dx \
+	F = + dot(nabla_grad(p - p_n), nabla_grad(q))/rho_0*dx \
 		+ div(u_)*q*(1/dt)*dx
 	a2, L2 = lhs(F), rhs(F)
 
 	# Variational problem for corrected velocity u with pressure p
 	F = dot(u, v)*dx \
 		- dot(u_, v)*dx \
-		+ dot(nabla_grad(p_ - p_n), v)*dt*dx # dx must be last multiplicative factor, it's the measure
+		+ dot(nabla_grad(p_ - p_n), v)/rho_0*dt*dx # dx must be last multiplicative factor, it's the measure
 	a3, L3 = lhs(F), rhs(F)
 
 	# Variational problem for temperature
@@ -255,7 +256,7 @@ def boundary_conditions():
 		bcu.append(DirichletBC(V, Expression((ux_sin, 0), degree = 2), right))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), bottom))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), left))
-		bcu.append(DirichletBC(V.sub(1), Constant(0.0), top))
+		bcu.append(DirichletBC(V.sub(1), Constant((0.0, 0.0)), top))
 
 		bcp.append(DirichletBC(Q, Constant(0), "near(x[1], 1) && x[0] < 0.5")) #applying BC on right corner yields problems
 
@@ -415,7 +416,9 @@ def plot_solution():
 	plt.close()
 
 	#avoid rho_0 in pressure term to avoid big terms in simulation, multiply accordingly to obtain right values in plot
-	fig4 = plot(rho_0*p_, title='Pressure (Pa)')
+	y = Expression('x[1]', degree = 2)
+	p_to_plot = p_# - rho_0*g*y
+	fig4 = plot(p_to_plot, title='Pressure (Pa)')
 	plt.colorbar(fig4)
 	plt.savefig(plot_path + 'pressure.png', dpi = 500)
 	plt.close()
@@ -500,8 +503,9 @@ if __name__ == '__main__':
 
 	# tolerance for near() function based on mesh resolution. Otherwise BC are not properly set
 	tolerance = pow(10, - round(math.log(args.mesh_resolution, 10)))
-	
-	plot_path = 'plots/%d --final-time %.0f --steps-n %d --mesh-resolution %d/' % (round(time.time()), final_time, num_steps, args.mesh_resolution)
+
+	label = " --label " + args.label if args.label else ""
+	plot_path = 'plots/%d --final-time %.0f --steps-n %d --mesh-resolution %d%s/' % (round(time.time()), final_time, num_steps, args.mesh_resolution, label)
 	pathlib.Path(plot_path).mkdir(parents=True, exist_ok=True)
 	log_file = open(plot_path + 'simulation.log', 'w')
 	
