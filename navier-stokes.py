@@ -256,7 +256,7 @@ def boundary_conditions():
 		bcu.append(DirichletBC(V, Expression((ux_sin, 0), degree = 2), right))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), bottom))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), left))
-		bcu.append(DirichletBC(V.sub(1), Constant((0.0, 0.0)), top))
+		bcu.append(DirichletBC(V.sub(1), Constant(0.0), top))
 
 		bcp.append(DirichletBC(Q, Constant(0), "near(x[1], 1) && x[0] < 0.5")) #applying BC on right corner yields problems
 
@@ -281,7 +281,7 @@ def boundary_conditions():
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), left))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), ice_shelf_bottom))
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), ice_shelf_right))
-		bcu.append(DirichletBC(V.sub(1), (0.0), sea_top))
+		bcu.append(DirichletBC(V.sub(1), Constant(0.0), sea_top))
 
 		bcp.append(DirichletBC(Q, Expression("0", degree=2), "near(x[1], 1) && x[0] > 0.4 && x[0] < 0.5")) #applying BC on right corner yields problems
 
