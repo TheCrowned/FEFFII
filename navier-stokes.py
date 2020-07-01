@@ -182,8 +182,8 @@ def define_variational_problems():
 	f_T = Constant(0)
 	f_S = Constant(0)
 	dt = Constant(dt_scalar)
-	
-	buoyancy = Expression((0, '-g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))/rho_0'), alpha=alpha, beta=beta, T_0=T_0, S_0=S_0, g=Constant(g), T_=T_, S_=S_, rho_0=rho_0, degree=2)
+
+	buoyancy = Expression((0, 'g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))/rho_0'), alpha=alpha, beta=beta, T_0=T_0, S_0=S_0, g=Constant(g), T_=T_, S_=S_, rho_0=rho_0, degree=2)
 
 	# Define strain-rate tensor
 	def epsilon(u):
@@ -249,14 +249,17 @@ def boundary_conditions():
 		right = bd.Bound_Right()
 
 		# Define boundary conditions
-		bcu.append(DirichletBC(V.sub(1), Constant(0), top))
+		bcu.append(DirichletBC(V, Constant((0, 0)), top))
 		bcu.append(DirichletBC(V, Constant((0, 0)), bottom))
 		bcu.append(DirichletBC(V, Constant((0, 0)), left))
-		bcu.append(DirichletBC(V, Constant((ux_sin, 0)), right))
+		bcu.append(DirichletBC(V, Constant((0, 0)), right))
 
-		bcp.append(DirichletBC(Q, Constant(0), "near(x[1], 1) && x[0] < 0.5")) #applying BC on right corner yields problems
+		bcp.append(DirichletBC(Q, Constant(rho_0*g), "x[0] < 0.2 && near(x[1], 1)")) #applying BC on right corner yields problems?
 
-		bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
+		#bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
+
+		bcT.append(DirichletBC(T_space, Constant("5"), right))
+		bcT.append(DirichletBC(T_space, Constant("-1.8"), left))
 
 		bcS.append(DirichletBC(S_space, Expression("35", degree=2), right))
 		bcS.append(DirichletBC(S_space, Expression("0", degree=2), left))
@@ -279,7 +282,7 @@ def boundary_conditions():
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), ice_shelf_right))
 		bcu.append(DirichletBC(V.sub(1), Constant(0.0), sea_top))
 
-		bcp.append(DirichletBC(Q, Expression("0", degree=2), "near(x[1], 1) && x[0] > 0.4 && x[0] < 0.5")) #applying BC on right corner yields problems
+		bcp.append(DirichletBC(Q, Expression("0", degree=2), "near(x[1], 1) && x[0] > 0.4 && x[0] < 0.5")) #applying BC on right corner yields problems?
 
 		bcT.append(DirichletBC(T_space, Expression("3", degree=2), right))
 		bcT.append(DirichletBC(T_space, Expression("-1.9", degree=2), left))
