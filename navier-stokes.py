@@ -55,10 +55,14 @@ def parse_commandline_args():
 	parser.add_argument('--final-time', default=10.0, type=float, dest='final_time', help='How long to run the simulation for (hours) (default: %(default)s)')
 	parser.add_argument('--steps-n', default=200, type=int, dest='steps_n', help='How many steps each of the "seconds" is made of (default: %(default)s)')
 	parser.add_argument('--precision', default=-3, type=int, dest='simulation_precision', help='Precision at which converge is achieved, for all variables (power of ten) (default: %(default)s)')
-	#parser.add_argument('--viscosity', default=0.36, type=float, help='Viscosity (default: %(default)s)')
-	#parser.add_argument('--density', default=1000, type=int, help='Density (default: %(default)s)')
-	parser.add_argument('--domain', default='custom', help='What domain to use, either `square` or `custom` (default: %(default)s)')
-	parser.add_argument('--mesh-resolution', default=10, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s)')
+	parser.add_argument('--viscosity', default=3.6*10**-1, type=float, dest='nu', help='Viscosity, km^2/h (default: %(default)s)')
+	parser.add_argument('--rho-0', default=1.323*10**4, type=float, dest='rho_0', help='Density, Pa*h^2/km^2 (default: %(default)s)')
+	parser.add_argument('--domain', default='custom', help='What domain to use, either `square`, `rectangle` or `custom` (default: %(default)s)')
+	parser.add_argument('--domain-size-x', default=60, type=int, dest='domain_size_x', help='Size of domain in x direction (i.e. width) (default: %(default)s)')
+	parser.add_argument('--domain-size-y', default=1, type=int, dest='domain_size_y', help='Size of domain in y direction (i.e. height) (default: %(default)s)')
+	parser.add_argument('--mesh-resolution', default=10, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s) - does not apply to `rectangle` domain')
+	parser.add_argument('--mesh-resolution-x', default=20, type=int, dest='mesh_x_resolution', help='Mesh resolution in x direction (default: %(default)s) - only applies to `rectangle` domain')
+	parser.add_argument('--mesh-resolution-y', default=4, type=int, dest='mesh_y_resolution', help='Mesh resolution in y direction (default: %(default)s) - only applies to `rectangle` domain')
 	parser.add_argument('--store-sol', default=False, dest='store_solutions', action='store_true', help='Whether to save iteration solutions for display in Paraview (default: %(default)s)')
 	parser.add_argument('--label', default='', help='Label to append to plots folder (default: %(default)s)')
 	parser.add_argument('-v', '--verbose', default=True, dest='verbose', action='store_true', help='Whether to display debug info (default: %(default)s)')
@@ -78,7 +82,10 @@ def create_mesh(domain, resolution):
 	if domain == "square":
 		mesh = UnitSquareMesh(resolution, resolution)
 
-	elif domain == 'custom':
+	if domain == "rectangle":
+		mesh = RectangleMesh(Point(0, 0), Point(args.domain_size_x, args.domain_size_y), args.mesh_x_resolution, args.mesh_y_resolution)
+
+	elif domain == "custom":
 		fenics_domain = Rectangle(Point(0., 0.), Point(1., 1.)) - \
 						Rectangle(Point(0.0, 0.9), Point(0.4, 1.0))
 		mesh = generate_mesh(fenics_domain, resolution, "cgal")
@@ -255,6 +262,30 @@ def boundary_conditions():
 		bcu.append(DirichletBC(V, Constant((0, 0)), right))
 
 		bcp.append(DirichletBC(Q, Constant(rho_0*g), "x[0] < 0.2 && near(x[1], 1)")) #applying BC on right corner yields problems?
+
+		#bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
+
+		bcT.append(DirichletBC(T_space, Constant("5"), right))
+		bcT.append(DirichletBC(T_space, Constant("-1.8"), left))
+
+		bcS.append(DirichletBC(S_space, Expression("35", degree=2), right))
+		bcS.append(DirichletBC(S_space, Expression("0", degree=2), left))
+
+	if(args.domain == 'rectangle'):
+
+		# Define boundaries
+		top = bd.Bound_Top()
+		bottom = bd.Bound_Bottom()
+		left = bd.Bound_Left()
+		right = bd.Bound_Right()
+
+		# Define boundary conditions
+		bcu.append(DirichletBC(V, Constant((0, 0)), top))
+		bcu.append(DirichletBC(V, Constant((0, 0)), bottom))
+		bcu.append(DirichletBC(V, Constant((0, 0)), left))
+		bcu.append(DirichletBC(V, Constant((0, 0)), right))
+
+		bcp.append(DirichletBC(Q, Constant(rho_0*g), top)) #applying BC on right corner yields problems?
 
 		#bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
 
@@ -491,10 +522,10 @@ if __name__ == '__main__':
 	simulation_precision = int(args.simulation_precision)	# precision at which converge is considered to be achieved (for all variables)
 	#mu_scalar = float(args.viscosity)      				# kinematic viscosity
 
-	# Values used in variational forms
-	nu = Constant(3.6*10**-1)
+	# Values used in variational forms, some provided as input from terminal
+	nu = Constant(args.nu)
+	rho_0 = Constant(args.rho_0) #https://en.wikipedia.org/wiki/Seawater#/media/File:WaterDensitySalinity.png
 	g = 1.27*10**5
-	rho_0 = Constant(1.323*10**4) #https://en.wikipedia.org/wiki/Seawater#/media/File:WaterDensitySalinity.png
 	alpha = Constant(10**(-4))
 	beta = Constant(7.6*10**(-4))
 	T_0 = Constant(1)
@@ -516,6 +547,7 @@ if __name__ == '__main__':
 
 	#Import correct set of boundaries depending on domain and set tolerance
 	bd = import_module('boundaries_' + args.domain)
+	bd.args = args
 	bd.tolerance = tolerance
 
 	if(args.very_verbose == True):
