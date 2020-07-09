@@ -1,0 +1,13 @@
+name: fenics_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - fenics
+  - mshr
+  - matplotlib
+  - ipython
+  - meshio
+  - pip
+  - pip:
+    - pygmsh
