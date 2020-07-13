@@ -28,7 +28,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import print_function
 from datetime import datetime
 from fenics import *
-from mshr import *
+#from mshr import *
 import numpy as np
 import matplotlib.pyplot as plt
 import sys, getopt, argparse, pathlib
@@ -36,6 +36,7 @@ import math
 import inspect
 from importlib import import_module
 import time, os
+from shelfgeometry import ShelfGeometry
 
 def parse_commandline_args():
 	global args
@@ -60,9 +61,12 @@ def parse_commandline_args():
 	parser.add_argument('--domain', default='custom', help='What domain to use, either `square`, `rectangle` or `custom` (default: %(default)s)')
 	parser.add_argument('--domain-size-x', default=60, type=int, dest='domain_size_x', help='Size of domain in x direction (i.e. width) (default: %(default)s)')
 	parser.add_argument('--domain-size-y', default=1, type=int, dest='domain_size_y', help='Size of domain in y direction (i.e. height) (default: %(default)s)')
+	parser.add_argument('--shelf-size-x', default=5, type=int, dest='shelf_size_x', help='Size of ice shelf in x direction (i.e. width) (default: %(default)s)')
+	parser.add_argument('--shelf-size-y', default=0.1, type=int, dest='shelf_size_y', help='Size of ice shelf in y direction (i.e. height) (default: %(default)s)')
 	parser.add_argument('--mesh-resolution', default=10, type=int, dest='mesh_resolution', help='Mesh resolution (default: %(default)s) - does not apply to `rectangle` domain')
-	parser.add_argument('--mesh-resolution-x', default=20, type=int, dest='mesh_x_resolution', help='Mesh resolution in x direction (default: %(default)s) - only applies to `rectangle` domain')
-	parser.add_argument('--mesh-resolution-y', default=4, type=int, dest='mesh_y_resolution', help='Mesh resolution in y direction (default: %(default)s) - only applies to `rectangle` domain')
+	parser.add_argument('--mesh-resolution-x', default=20, type=int, dest='mesh_resolution_x', help='Mesh resolution in x direction (default: %(default)s) - only applies to `rectangle` domain')
+	parser.add_argument('--mesh-resolution-y', default=4, type=int, dest='mesh_resolution_y', help='Mesh resolution in y direction (default: %(default)s) - only applies to `rectangle` domain')
+	parser.add_argument('--mesh-resolution-sea-top-y', default=2, type=int, dest='mesh_resolution_sea_y', help='Mesh resolution for sea top beside ice shelf in y direction (default: %(default)s) - only applies to `rectangle` domain')
 	parser.add_argument('--store-sol', default=False, dest='store_solutions', action='store_true', help='Whether to save iteration solutions for display in Paraview (default: %(default)s)')
 	parser.add_argument('--label', default='', help='Label to append to plots folder (default: %(default)s)')
 	parser.add_argument('-v', '--verbose', default=True, dest='verbose', action='store_true', help='Whether to display debug info (default: %(default)s)')
@@ -83,9 +87,51 @@ def create_mesh(domain, resolution):
 		mesh = UnitSquareMesh(resolution, resolution)
 
 	if domain == "rectangle":
-		mesh = RectangleMesh(Point(0, 0), Point(args.domain_size_x, args.domain_size_y), args.mesh_x_resolution, args.mesh_y_resolution)
+		# general domain, 2 wide, 1 high, shelf 0.5 wide and 0.1 thick
+		domain_params = [args.domain_size_x, args.domain_size_y, args.shelf_size_x, args.shelf_size_y]
+
+		# nx: 20 layers in horizontal (exact layering depends on position of ice-shelf)
+		sg = ShelfGeometry(
+			domain_params,
+			ny_ocean = args.mesh_resolution_y,          # 5 layers on "deep ocean" (y-dir)
+			ny_shelf = args.mesh_resolution_sea_y,      # 3 layers on "ice-shelf thickness" (y-dir)
+			nx = args.mesh_resolution_x
+		)
+
+		sg.generate_mesh()
+		mesh = sg.get_fenics_mesh()
+		'''
+		domain_params = [2.0, 1.0, 0.5, 0.1]
+
+		# nx: 20 layers in horizontal (exact layering depends on position of ice-shelf)
+		sg = ShelfGeometry(
+			domain_params,
+			ny_ocean=5,                         # 5 layers on "deep ocean" (y-dir)
+			ny_shelf=3,                          # 3 layers on "ice-shelf thickness" (y-dir)
+			nx=20)
+
+		sg.generate_mesh()
+		mesh = sg.get_fenics_mesh()
+		'''
+		mesh_add_sill(mesh, args.domain_size_x/2, args.domain_size_y/5, args.domain_size_x/5)
+
+		#mesh = RectangleMesh(Point(0, 0), Point(args.domain_size_x, args.domain_size_y), args.mesh_x_resolution, args.mesh_y_resolution)
 
 	elif domain == "custom":
+
+		domain_params = [1, 1, 0.4, 0.1]
+
+		# nx: 20 layers in horizontal (exact layering depends on position of ice-shelf)
+		sg = ShelfGeometry(
+			domain_params,
+			ny_ocean = args.mesh_resolution,          # 5 layers on "deep ocean" (y-dir)
+			ny_shelf = 1,      # 3 layers on "ice-shelf thickness" (y-dir)
+			nx = args.mesh_resolution
+		)
+
+		sg.generate_mesh()
+		mesh = sg.get_fenics_mesh()
+		'''
 		fenics_domain = Rectangle(Point(0., 0.), Point(1., 1.)) - \
 						Rectangle(Point(0.0, 0.9), Point(0.4, 1.0))
 		mesh = generate_mesh(fenics_domain, resolution, "cgal")
@@ -97,21 +143,31 @@ def create_mesh(domain, resolution):
 		mesh = refine_mesh_at_point(mesh, Point(1, 0), domain)
 		mesh = refine_mesh_at_point(mesh, Point(1, 1), domain)
 		mesh = refine_mesh_at_point(mesh, Point(0, 0.9), domain)
+		'''
 
 	log('Initialized mesh')
 
 	log('Final mesh: vertexes %d, max diameter %.2f' % (mesh.num_vertices(), mesh.hmax()), True)
 
-def deform_mesh_coords(mesh):
-	"""Deforms mesh coordinates to create the bottom bump"""
+def mesh_add_sill(mesh, center, height, length):
+ 	"""Deforms mesh coordinates to create the bottom bump"""
 
-	x = mesh.coordinates()[:, 0]
-	y = mesh.coordinates()[:, 1]
+ 	global sill
 
-	new_y = [y[i] + 0.1*np.sin(3*pi*(x[i]-(3/8)))*(1-y[i]) if(x[i] < 0.75 and x[i] > 0.3) else 0 for i in range(len(y))]
-	y = np.maximum(y, new_y)
+ 	x = mesh.coordinates()[:, 0]
+ 	y = mesh.coordinates()[:, 1]
 
-	mesh.coordinates()[:] = np.array([x, y]).transpose()
+ 	alpha = 4*height/length**2
+ 	sill_function = lambda x : ((-alpha*(x - center)**2) + height)
+ 	sill_left = center - sqrt(height/alpha)
+ 	sill_right = center + sqrt(height/alpha)
+
+ 	new_y = [y[i] + sill_function(x[i])*(1-y[i]) if(x[i] < sill_right and x[i] > sill_left) else 0 for i in range(len(y))]
+ 	y = np.maximum(y, new_y)
+
+ 	mesh.coordinates()[:] = np.array([x, y]).transpose()
+
+ 	sill = {'f':sill_function, 'left':sill_left, 'right':sill_right}
 
 def refine_mesh_at_point(mesh, target, domain):
 	"""Refines mesh at a given point, taking points in a ball of radius mesh.hmax() around the target.
@@ -271,31 +327,7 @@ def boundary_conditions():
 		bcS.append(DirichletBC(S_space, Expression("35", degree=2), right))
 		bcS.append(DirichletBC(S_space, Expression("0", degree=2), left))
 
-	if(args.domain == 'rectangle'):
-
-		# Define boundaries
-		top = bd.Bound_Top()
-		bottom = bd.Bound_Bottom()
-		left = bd.Bound_Left()
-		right = bd.Bound_Right()
-
-		# Define boundary conditions
-		bcu.append(DirichletBC(V, Constant((0, 0)), top))
-		bcu.append(DirichletBC(V, Constant((0, 0)), bottom))
-		bcu.append(DirichletBC(V, Constant((0, 0)), left))
-		bcu.append(DirichletBC(V, Constant((0, 0)), right))
-
-		bcp.append(DirichletBC(Q, Constant(rho_0*g), top)) #applying BC on right corner yields problems?
-
-		#bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
-
-		bcT.append(DirichletBC(T_space, Constant("5"), right))
-		bcT.append(DirichletBC(T_space, Constant("-1.8"), left))
-
-		bcS.append(DirichletBC(S_space, Expression("35", degree=2), right))
-		bcS.append(DirichletBC(S_space, Expression("0", degree=2), left))
-
-	elif(args.domain == 'custom'):
+	elif(args.domain == 'custom' or args.domain == 'rectangle'):
 
 		# Define boundaries
 		sea_top = bd.Bound_Sea_Top()
@@ -313,7 +345,7 @@ def boundary_conditions():
 		bcu.append(DirichletBC(V, Constant((0.0, 0.0)), ice_shelf_right))
 		bcu.append(DirichletBC(V.sub(1), Constant(0.0), sea_top))
 
-		bcp.append(DirichletBC(Q, Expression("0", degree=2), "near(x[1], 1) && x[0] > 0.4 && x[0] < 0.5")) #applying BC on right corner yields problems?
+		bcp.append(DirichletBC(Q, Expression("0", degree=2), sea_top)) #applying BC on right corner yields problems?
 
 		bcT.append(DirichletBC(T_space, Expression("3", degree=2), right))
 		bcT.append(DirichletBC(T_space, Expression("-1.9", degree=2), left))
@@ -427,6 +459,13 @@ def run_simulation():
 		S_n.assign(S_)
 
 def plot_solution():
+	fig5 = plt.figure()
+	ax1 = fig5.add_subplot(111)
+	pl1 = plot(mesh, title = 'Mesh')
+	ax1.set_aspect('auto')
+	plt.savefig(plot_path + 'mesh.png', dpi = 800)
+	plt.close()
+
 	fig1 = plot(u_, title='Velocity (km/h)')
 	plt.colorbar(fig1)
 	plt.savefig(plot_path + 'velxy.png', dpi = 800)
@@ -447,10 +486,6 @@ def plot_solution():
 	fig4 = plot(p_to_plot, title='Pressure (Pa)')
 	plt.colorbar(fig4)
 	plt.savefig(plot_path + 'pressure.png', dpi = 500)
-	plt.close()
-
-	fig5 = plot(mesh)
-	plt.savefig(plot_path + 'mesh.png', dpi = 800)
 	plt.close()
 
 	fig6 = plot(T_, title='Temperature (°C)')
@@ -516,6 +551,7 @@ if __name__ == '__main__':
 	parse_commandline_args()
 	#args_dict = {arg: getattr(args, arg) for arg in vars(args)}
 
+	sill = {}
 	final_time = float(args.final_time)     				# final time
 	num_steps = int(args.steps_n)   						# number of time steps per time unit
 	dt_scalar = 1 / num_steps 								# time step size
@@ -545,17 +581,18 @@ if __name__ == '__main__':
 	log('--- Parameters are: ---', True)
 	log(str(args), True)
 
-	#Import correct set of boundaries depending on domain and set tolerance
-	bd = import_module('boundaries_' + args.domain)
-	bd.args = args
-	bd.tolerance = tolerance
-
 	if(args.very_verbose == True):
 		set_log_active(True)
 		set_log_level(1)
 
 	create_mesh(args.domain, args.mesh_resolution)
 	define_function_spaces()
+
+	#Import correct set of boundaries depending on domain and set parameters
+	bd = import_module('boundaries_' + args.domain)
+	bd.args = args
+	bd.tolerance = tolerance
+	bd.sill = sill
 
 	start_time = time.time()
 
