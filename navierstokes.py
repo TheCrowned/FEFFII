@@ -35,6 +35,7 @@ from importlib import import_module
 import time, os
 from shelfgeometry import ShelfGeometry
 import yaml
+import signal
 
 class NavierStokes(object):
 
@@ -70,6 +71,9 @@ class NavierStokes(object):
 		if(self.args.very_verbose == True):
 			set_log_active(True)
 			set_log_level(1)
+
+		# Register SIGINT handler so we plot before exiting
+		signal.signal(signal.SIGINT, self.sigint_handler)
 
 		#Import correct set of boundaries depending on domain and set parameters
 		self.bd = import_module('boundaries_' + self.args.domain)
@@ -157,7 +161,6 @@ class NavierStokes(object):
 			mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)'''
 
 		self.log('Initialized mesh: vertexes %d, max diameter %.2f' % (self.mesh.num_vertices(), self.mesh.hmax()), True)
-		plot(self.mesh);plt.show();
 
 	def mesh_add_sill(self, center, height, length):
 		"""Deforms mesh coordinates to create the bottom bump"""
@@ -585,6 +588,17 @@ class NavierStokes(object):
 			print('* %s' % message, flush=True)
 			self.log_file.write(message + '\n')
 
+	def sigint_handler(self, sig, frame):
+		if(self.args.plot == True):
+			self.log('Simulation stopped -- jumping to plotting before exiting...')
+			self.plot_solution()
+			os.system('xdg-open "' + self.plot_path + '"')
+
+		sys.exit(0)
+
 	def __del__(self):
-		self.log('--- Finished at %s --- ' % str(datetime.now()), True)
-		self.log('--- Duration: %s seconds --- ' % round((time.time() - self.start_time), 2), True)
+		try:
+			self.log('--- Finished at %s --- ' % str(datetime.now()), True)
+			self.log('--- Duration: %s seconds --- ' % round((time.time() - self.start_time), 2), True)
+		except: # avoid errors when called only with -h flag
+			pass
