@@ -38,9 +38,10 @@ import yaml
 
 class NavierStokes(object):
 
-	def __init__(self, params):
+	def __init__(self):
 		self.config = yaml.safe_load(open("config.yml"))
 		#print(self.config)
+		#args_dict = {arg: getattr(args, arg) for arg in vars(args)}
 
 		self.args = self.parse_commandline_args()
 
@@ -62,19 +63,29 @@ class NavierStokes(object):
 		}
 
 		# tolerance for near() function based on mesh resolution. Otherwise BC are not properly set
+		# DO WE NEED THIS??
 		tolerance = pow(10, - round(math.log(self.args.mesh_resolution, 10)))
+
+		#If --very-verbose is requested, enable FEniCS debug mode
+		if(self.args.very_verbose == True):
+			set_log_active(True)
+			set_log_level(1)
 
 		#Import correct set of boundaries depending on domain and set parameters
 		self.bd = import_module('boundaries_' + self.args.domain)
 		self.bd.args = self.args
 		self.bd.tolerance = tolerance
-		self.bd.sill = {}#sill
 
 		self.function_spaces = {}
 		self.functions = {}
 		self.stiffness_mats = {}
 		self.load_vectors = {}
 		self.bcu, self.bcp, self.bcT, self.bcS = [], [], [], []
+
+		self.start_time = time.time()
+		self.log('--- Started at %s --- ' % str(datetime.now()), True)
+		self.log('--- Parameters are: ---', True)
+		self.log(str(self.args), True)
 
 	def parse_commandline_args(self):
 
@@ -109,11 +120,8 @@ class NavierStokes(object):
 		parser.add_argument('-v', '--verbose', default=self.config['verbose'], dest='verbose', action='store_true', help='Whether to display debug info (default: %(default)s)')
 		parser.add_argument('-vv', '--very-verbose', default=self.config['very_verbose'], dest='very_verbose', action='store_true', help='Whether to display debug info from FEniCS as well (default: %(default)s)')
 		add_bool_arg(parser, 'plot', default=self.config['plot'], help='Whether to plot solution (default: %(default)s)')
-		args = parser.parse_args()
 
-		self.args = args
-
-		return args
+		return parser.parse_args()
 
 	def create_mesh(self):
 		""" To create a Mesh, either use one of the built-in meshes https://fenicsproject.org/docs/dolfin/1.4.0/python/demo/documented/built-in_meshes/python/documentation.html or create a custom one.
@@ -125,67 +133,31 @@ class NavierStokes(object):
 		if self.args.domain == "square":
 			self.mesh = UnitSquareMesh(self.args.mesh_resolution, self.args.mesh_resolution)
 
-		if self.args.domain == "rectangle":
-			# general domain, 2 wide, 1 high, shelf 0.5 wide and 0.1 thick
+		if self.args.domain == "custom":
+			# general domain geometry: width, height, ice shelf width, ice shelf thickness
 			domain_params = [self.args.domain_size_x, self.args.domain_size_y, self.args.shelf_size_x, self.args.shelf_size_y]
 
-			# nx: 20 layers in horizontal (exact layering depends on position of ice-shelf)
 			sg = ShelfGeometry(
 				domain_params,
-				ny_ocean = self.args.mesh_resolution_y,          # 5 layers on "deep ocean" (y-dir)
-				ny_shelf = self.args.mesh_resolution_sea_y,      # 3 layers on "ice-shelf thickness" (y-dir)
-				nx = self.args.mesh_resolution_x
+				ny_ocean = self.args.mesh_resolution_y,          # layers on "deep ocean" (y-dir)
+				ny_shelf = self.args.mesh_resolution_sea_y,      # layers on "ice-shelf thickness" (y-dir)
+				nx = self.args.mesh_resolution_x				 # layers x-dir
 			)
 
 			sg.generate_mesh()
 			self.mesh = sg.get_fenics_mesh()
-			'''
-			domain_params = [2.0, 1.0, 0.5, 0.1]
 
-			# nx: 20 layers in horizontal (exact layering depends on position of ice-shelf)
-			sg = ShelfGeometry(
-				domain_params,
-				ny_ocean=5,                         # 5 layers on "deep ocean" (y-dir)
-				ny_shelf=3,                          # 3 layers on "ice-shelf thickness" (y-dir)
-				nx=20)
+			#self.refine_mesh_at_point(Point(self.args.shelf_size_x, self.args.domain_size_y - self.args.shelf_size_y))
 
-			sg.generate_mesh()
-			mesh = sg.get_fenics_mesh()
-			'''
-
-			#mesh = RectangleMesh(Point(0, 0), Point(args.domain_size_x, args.domain_size_y), args.mesh_x_resolution, args.mesh_y_resolution)
-
-		elif self.args.domain == "custom":
-
-			domain_params = [1, 1, 0.4, 0.1]
-
-			# nx: 20 layers in horizontal (exact layering depends on position of ice-shelf)
-			sg = ShelfGeometry(
-				domain_params,
-				ny_ocean = self.args.mesh_resolution,          # 5 layers on "deep ocean" (y-dir)
-				ny_shelf = 1,      # 3 layers on "ice-shelf thickness" (y-dir)
-				nx = self.args.mesh_resolution
-			)
-
-			sg.generate_mesh()
-			self.mesh = sg.get_fenics_mesh()
-			'''
-			fenics_domain = Rectangle(Point(0., 0.), Point(1., 1.)) - \
+			'''fenics_domain = Rectangle(Point(0., 0.), Point(1., 1.)) - \
 							Rectangle(Point(0.0, 0.9), Point(0.4, 1.0))
 			mesh = generate_mesh(fenics_domain, resolution, "cgal")
 			deform_mesh_coords(mesh)
 
-			mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)
-			#mesh = refine_mesh_at_point(mesh, Point(0.4, 1), domain)
-			#mesh = refine_mesh_at_point(mesh, Point(0, 0), domain)
-			mesh = refine_mesh_at_point(mesh, Point(1, 0), domain)
-			mesh = refine_mesh_at_point(mesh, Point(1, 1), domain)
-			mesh = refine_mesh_at_point(mesh, Point(0, 0.9), domain)
-			'''
+			mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)'''
 
-		self.log('Initialized mesh')
-
-		self.log('Final mesh: vertexes %d, max diameter %.2f' % (self.mesh.num_vertices(), self.mesh.hmax()), True)
+		self.log('Initialized mesh: vertexes %d, max diameter %.2f' % (self.mesh.num_vertices(), self.mesh.hmax()), True)
+		plot(self.mesh);plt.show();
 
 	def mesh_add_sill(self, center, height, length):
 		"""Deforms mesh coordinates to create the bottom bump"""
@@ -203,10 +175,10 @@ class NavierStokes(object):
 
 		self.mesh.coordinates()[:] = np.array([x, y]).transpose()
 
-		self.sill = {'f':sill_function, 'left':sill_left, 'right':sill_right}
-		self.bd.sill = self.sill
+		#self.sill = {'f':sill_function, 'left':sill_left, 'right':sill_right}
+		#self.bd.sill = self.sill
 
-	def refine_mesh_at_point(self, mesh, target, domain):
+	def refine_mesh_at_point(self, target):
 		"""Refines mesh at a given point, taking points in a ball of radius mesh.hmax() around the target.
 
 		A good resource https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html"""
@@ -215,19 +187,18 @@ class NavierStokes(object):
 
 		to_refine = MeshFunction("bool", self.mesh, self.mesh.topology().dim() - 1)
 		to_refine.set_all(False)
+		mesh = self.mesh #inside `to_refine_subdomain` `self.mesh` does not exist, as `self` is redefined
 
 		class to_refine_subdomain(SubDomain):
 			def inside(self, x, on_boundary):
-				return ((Point(x) - target).norm() < self.mesh.hmax())
+				return ((Point(x) - target).norm() < mesh.hmax())
 
 		D = to_refine_subdomain()
 		D.mark(to_refine, True)
 		#print(to_refine.array())
 		self.mesh = refine(self.mesh, to_refine)
 
-		return mesh
-
-	''' def refine_boundary_mesh(mesh, domain):
+		'''def refine_boundary_mesh(mesh, domain):
 		"""Refines mesh on ALL boundary points"""
 
 		boundary_domain = MeshFunction("bool", mesh, mesh.topology().dim() - 1)
@@ -245,8 +216,7 @@ class NavierStokes(object):
 
 		log('Refined mesh at boundaries')
 
-		return mesh
-	'''
+		return mesh'''
 
 	def define_function_spaces(self):
 		"""Define function spaces and create needed functions for simulation"""
@@ -368,7 +338,7 @@ class NavierStokes(object):
 			self.bcS.append(DirichletBC(self.function_spaces['S'], Expression("35", degree=2), right))
 			self.bcS.append(DirichletBC(self.function_spaces['S'], Expression("0", degree=2), left))
 
-		elif(self.args.domain == 'custom' or self.args.domain == 'rectangle'):
+		elif(self.args.domain == 'custom'):
 
 			# Define boundaries
 			sea_top = self.bd.Bound_Sea_Top()
@@ -386,7 +356,7 @@ class NavierStokes(object):
 			self.bcu.append(DirichletBC(self.function_spaces['V'], Constant((0.0, 0.0)), ice_shelf_right))
 			self.bcu.append(DirichletBC(self.function_spaces['V'].sub(1), Constant(0.0), sea_top))
 
-			self.bcp.append(DirichletBC(self.function_spaces['Q'], Constant(rho_0*g), sea_top)) #applying BC on right corner yields problems?
+			self.bcp.append(DirichletBC(self.function_spaces['Q'], Constant(self.const['rho_0']*self.const['g']), sea_top)) #applying BC on right corner yields problems?
 
 			self.bcT.append(DirichletBC(self.function_spaces['T'], Expression("3", degree=2), right))
 			self.bcT.append(DirichletBC(self.function_spaces['T'], Expression("-1.9", degree=2), left))
@@ -426,8 +396,10 @@ class NavierStokes(object):
 		# Time-stepping
 		iterations_n = self.args.steps_n*int(self.args.final_time)
 		rounded_iterations_n = pow(10, (round(math.log(self.args.steps_n*int(self.args.final_time), 10))))
+		last_run = 0
 
 		for n in range(iterations_n):
+			start = time.time()
 
 			# Applying IPC splitting scheme (IPCS)
 			# Step 1: Tentative velocity step
@@ -461,7 +433,11 @@ class NavierStokes(object):
 
 			# Even if verbose, get progressively less verbose with the order of number of iterations
 			if(rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0)):
-				self.log('Step %s of %s' % (n, iterations_n))
+				last_run = time.time() - start
+				#last_run = (last_run*(n/100 - 1) + (time.time() - start))/(n/100) if n != 0 else 0
+				eta = round(last_run*(iterations_n - n)) if last_run != 0 else '?'
+
+				self.log('Step %d of %d (ETA: ~ %s seconds)' % (n, iterations_n, eta))
 
 				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
 					round(norm(self.functions['u_'], 'L2'), 2), round(norm(self.functions['u_'].vector(), 'linf'), 3), round(u_diff, 3), \
@@ -497,48 +473,71 @@ class NavierStokes(object):
 			self.functions['T_n'].assign(self.functions['T_'])
 			self.functions['S_n'].assign(self.functions['S_'])
 
+		if(self.args.plot == True):
+			self.plot_solution()
+
+		os.system('xdg-open "' + self.plot_path + '"')
+
 	def plot_solution(self):
-		fig5 = plt.figure()
-		ax1 = fig5.add_subplot(111)
-		pl1 = plot(self.mesh, title = 'Mesh')
-		ax1.set_aspect('auto')
+		fig = plt.figure()
+		ax = fig.add_subplot(111)
+		pl = plot(self.mesh, title = 'Mesh')
+		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'mesh.png', dpi = 800)
 		plt.close()
 
-		fig1 = plot(self.functions['u_'], title='Velocity (km/h)')
-		plt.colorbar(fig1)
+		fig = plt.figure()
+		ax = fig.add_subplot(111)
+		pl = plot(self.functions['u_'], title='Velocity (km/h)')
+		plt.colorbar(pl)
+		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'velxy.png', dpi = 800)
 		plt.close()
 
-		fig2 = plot(self.functions['u_'][0], title='Velocity X-component (km/h)')
-		plt.colorbar(fig2)
+		fig = plt.figure()
+		ax = fig.add_subplot(111)
+		pl = plot(self.functions['u_'][0], title='Velocity X-component (km/h)')
+		plt.colorbar(pl)
+		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'velx.png', dpi = 500)
 		plt.close()
 
-		fig3 = plot(self.functions['u_'][1], title='Velocity Y-component (km/h)')
-		plt.colorbar(fig3)
+		fig = plt.figure()
+		ax = fig.add_subplot(111)
+		pl = plot(self.functions['u_'][1], title='Velocity Y-component (km/h)')
+		plt.colorbar(pl)
+		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'vely.png', dpi = 500)
 		plt.close()
 
 		y = Expression('x[1]', degree = 2)
 		p_to_plot = self.functions['p_'] - self.const['rho_0']*self.const['g']*y #p is redefined in variational problem to include a rho_0*g*y term
-		fig4 = plot(p_to_plot, title='Pressure (Pa)')
-		plt.colorbar(fig4)
+		fig = plt.figure()
+		ax = fig.add_subplot(111)
+		pl = plot(p_to_plot, title='Pressure (Pa)')
+		plt.colorbar(pl)
+		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'pressure.png', dpi = 500)
 		plt.close()
 
-		fig6 = plot(self.functions['T_'], title='Temperature (°C)')
-		plt.colorbar(fig6)
+		fig = plt.figure()
+		ax = fig.add_subplot(111)
+		pl = plot(self.functions['T_'], title='Temperature (°C)')
+		plt.colorbar(pl)
+		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'temperature.png', dpi = 500)
 		plt.close()
 
-		fig7 = plot(self.functions['S_'], title='Salinity (PSU)')
-		plt.colorbar(fig7)
+		fig = plt.figure()
+		ax = fig.add_subplot(111)
+		pl = plot(self.functions['S_'], title='Salinity (PSU)')
+		plt.colorbar(pl)
+		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'salinity.png', dpi = 500)
 		plt.close()
 
-		'''fig7 = plot(div(u_), title='Velocity divergence')
-		plt.colorbar(fig7)
+		'''fig = plot(div(u_), title='Velocity divergence')
+		plt.colorbar(fig)
 		plt.savefig(plot_path + 'div_u.png', dpi = 500)
 		plt.close()'''
 
@@ -585,3 +584,7 @@ class NavierStokes(object):
 		if(self.args.verbose == True or always == True):
 			print('* %s' % message, flush=True)
 			self.log_file.write(message + '\n')
+
+	def __del__(self):
+		self.log('--- Finished at %s --- ' % str(datetime.now()), True)
+		self.log('--- Duration: %s seconds --- ' % round((time.time() - self.start_time), 2), True)
