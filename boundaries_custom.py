@@ -48,7 +48,7 @@ class Bound_Ice_Shelf_Right(SubDomain):
 
 class Bound_Sea_Top(SubDomain):
 	def inside(self, x, on_boundary):
-		if(x[0] > args.shelf_size_x and near(x[1], args.domain_size_y) and on_boundary):
+		if(x[0] >= args.shelf_size_x and near(x[1], args.domain_size_y) and on_boundary):
 			return True
 
 		return False

@@ -371,6 +371,19 @@ class NavierStokes(object):
 			self.bcS.append(DirichletBC(self.function_spaces['S'], Expression("0", degree=2), ice_shelf_bottom))
 			self.bcS.append(DirichletBC(self.function_spaces['S'], Expression("0", degree=2), ice_shelf_right))
 
+		'''
+		# Enable to check subdomains are properly marked.
+
+		sub_domains = MeshFunction("size_t", self.mesh, self.mesh.topology().dim() - 1)
+		left.mark(sub_domains, 1)
+		bottom.mark(sub_domains, 2)
+		right.mark(sub_domains, 3)
+		sea_top.mark(sub_domains, 4)
+		ice_shelf_right.mark(sub_domains, 5)
+		ice_shelf_bottom.mark(sub_domains, 6)
+		File("boundaries.pvd") << sub_domains
+		'''
+
 	def run_simulation(self):
 		"""Actually run the simulation"""
 
