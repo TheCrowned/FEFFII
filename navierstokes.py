@@ -40,6 +40,8 @@ import signal
 class NavierStokes(object):
 
 	def __init__(self):
+		parameters['allow_extrapolation'] = True
+
 		self.config = yaml.safe_load(open("config.yml"))
 		#print(self.config)
 		#args_dict = {arg: getattr(args, arg) for arg in vars(args)}
@@ -390,10 +392,16 @@ class NavierStokes(object):
 		self.log('Starting simulation')
 
 		if self.args.store_solutions:
-			pathlib.Path(plot_path + 'paraview/').mkdir(parents=True, exist_ok=True)
-			temp = File(plot_path + 'paraview/temp.pvd')
-			temp << T_
-			vel = File(plot_path + 'paraview/vel.pvd')
+			pathlib.Path(self.plot_path + 'paraview/').mkdir(parents=True, exist_ok=True)
+			u_pvd = File(self.plot_path + 'paraview/velocity.pvd')
+			p_pvd = File(self.plot_path + 'paraview/pressure.pvd')
+			T_pvd = File(self.plot_path + 'paraview/temperature.pvd')
+			S_pvd = File(self.plot_path + 'paraview/salinity.pvd')
+
+			u_pvd << self.functions['u_']
+			p_pvd << self.functions['p_']
+			T_pvd << self.functions['T_']
+			S_pvd << self.functions['S_']
 
 		# Assemble stiffness matrices (a4, a5 need to be assembled at every time step) and load vectors (except those whose coefficients change every iteration)
 		A1 = assemble(self.stiffness_mats['a1'])
@@ -463,8 +471,10 @@ class NavierStokes(object):
 				)
 
 			if self.args.store_solutions:
-				temp << self.functions['T_']
-				vel << self.functions['u_']
+				u_pvd << self.functions['u_']
+				p_pvd << self.functions['p_']
+				T_pvd << self.functions['T_']
+				S_pvd << self.functions['S_']
 
 			convergence_threshold = 10**(self.args.simulation_precision)
 			if all(diff < convergence_threshold for diff in [u_diff, p_diff, T_diff, S_diff]):
