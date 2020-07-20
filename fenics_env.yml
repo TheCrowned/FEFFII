@@ -8,6 +8,7 @@ dependencies:
   - matplotlib
   - ipython
   - meshio
+  - pyyaml
   - pip
   - pip:
     - pygmsh
