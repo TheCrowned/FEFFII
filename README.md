@@ -5,45 +5,40 @@ Install [Miniconda](https://docs.conda.io/en/latest/miniconda.html) and use the 
 
 When you want to run the code, make sure the environment is activated through `conda activate fenics_env`.
 
-## Usage
-usage: run-navier-stokes.py [-h] [--final-time FINAL_TIME] [--steps-n STEPS_N] [--precision SIMULATION_PRECISION] [--viscosity NU] [--rho-0 RHO_0] [--domain DOMAIN]
-                            [--domain-size-x DOMAIN_SIZE_X] [--domain-size-y DOMAIN_SIZE_Y] [--shelf-size-x SHELF_SIZE_X] [--shelf-size-y SHELF_SIZE_Y]
-                            [--mesh-resolution MESH_RESOLUTION] [--mesh-resolution-x MESH_RESOLUTION_X] [--mesh-resolution-y MESH_RESOLUTION_Y]
-                            [--mesh-resolution-sea-top-y MESH_RESOLUTION_SEA_Y] [--store-sol] [--label LABEL] [-v] [-vv] [--plot | --no-plot]
+You should also make sure that [Gmsh](http://gmsh.info/) is installed.
 
-optional arguments:
-  -h, --help            show this help message and exit
-  --final-time FINAL_TIME
-                        How long to run the simulation for (hours) (default: 10)
-  --steps-n STEPS_N     How many steps each of the "seconds" is made of (default: 1000)
-  --precision SIMULATION_PRECISION
-                        Precision at which converge is achieved, for all variables (power of ten) (default: -3)
-  --viscosity NU        Viscosity, km^2/h (default: 0.36)
-  --rho-0 RHO_0         Density, Pa*h^2/km^2 (default: 13230)
-  --domain DOMAIN       What domain to use, either `square` or `custom` (default: custom)
-  --domain-size-x DOMAIN_SIZE_X
-                        Size of domain in x direction (i.e. width) (default: 1)
-  --domain-size-y DOMAIN_SIZE_Y
-                        Size of domain in y direction (i.e. height) (default: 1)
-  --shelf-size-x SHELF_SIZE_X
-                        Size of ice shelf in x direction (i.e. width) (default: 0.5)
-  --shelf-size-y SHELF_SIZE_Y
-                        Size of ice shelf in y direction (i.e. height) (default: 0.1)
-  --mesh-resolution MESH_RESOLUTION
-                        Mesh resolution (default: 10) - does not apply to `custom` domain
-  --mesh-resolution-x MESH_RESOLUTION_X
-                        Mesh resolution in x direction (default: 20) - only applies to `rectangle` domain
-  --mesh-resolution-y MESH_RESOLUTION_Y
-                        Mesh resolution in y direction (default: 4) - only applies to `rectangle` domain
-  --mesh-resolution-sea-top-y MESH_RESOLUTION_SEA_Y
-                        Mesh resolution for sea top beside ice shelf in y direction (default: 1) - only applies to `custom` domain
-  --store-sol           Whether to save iteration solutions for display in Paraview (default: False)
-  --label LABEL         Label to append to plots folder (default: )
-  -v, --verbose         Whether to display debug info (default: True)
-  -vv, --very-verbose   Whether to display debug info from FEniCS as well (default: False)
-  --plot                Whether to plot solution (default: True)
-  --no-plot             Whether to plot solution (default: True)
+## Usage
+Check `run-navier-stokes.py -h` for a list of arguments and documentation for each.
 
 ## Examples
 - `python run-navier-stokes.py --domain square`
 - `python run-navier-stokes.py --final-time 2 --steps-n 10000 --domain custom --domain-size-x 10 --mesh-resolution-x 100 --mesh-resolution-y 50 --mesh-resolution-sea-top-y 5 --precision -2`: will simulate 2 hours, each divided in 10000 time steps, in a domain 10x1 meters, with mesh resolution 100x50, with a y-resolution of 5 on sea top beside ice shelf, stopping when variables converge with precision 0.01
+
+## Parameters and units of measure
+Parameter defaults are stored in `config.yml`, where values can be freely edited. Here we list units of measures in which the model expects the physical parameters to be, which is mostly SI units. However, some conversions happen in the code to make aid and speed up convergence. For a full list of parameters, refer to the Usage section.
+- `final_time`: hours; total simulation time; default = 10.
+- `steps_n`: integer, specifies into how many steps each of the simulation hours should be broken into (ex. `--steps-n 6` means an hour is split into 10-minutes chunks); default = 10000.
+precision: integer, power of ten at which convergence is achieved; default = -3.
+- `nu`: m^2/s; kinematic viscosity; default = 0.36.
+- `rho_0`: kg/m^3; base density of Bousinessq approximation; default = 1028.
+- `domain_size_x`: km; domain width; default = 1.
+- `domain_size_y`: km; domain height; default = 1.
+- `shelf_size_x`: km; ice shelf width; default = 0.5.
+- `shelf_size_y`: km; ice shelf heigth; default = 0.1.
+- `mesh_resolution`: km; (average) distance between mesh nodes for unstructured mesh; default = 0.1.
+- `mesh_resolution_x`: km; distance between mesh nodes x-wise; default = 0.1.
+- `mesh_resolution_y`: distance between mesh nodes y-wise; default = 0.1.
+- `mesh_resolution_sea_top_y`: distance between mesh nodes y-wise beneath the ice shelf; default = 0.1.
+
+There are some more constants the values of which cannot be changed:
+- `g`: 9.81 m/s^2; gravitational acceleration.
+- `alpha`: 10^-4 1/°C; coefficient of thermal expansion.
+- `beta`: 7.6*10^-4 1/PSU; coefficient of saline contraction.
+- `T_0`: 1 °C reference value for temperature in Bousinessq approximation.
+- `S_0`: 35 PSU reference value for salinity in Bousinessq approximation.
+
+For what concerns simulated quantities:
+- velocity: km/h
+- pressure: Pascal
+- temperature: °C
+- salinity: PSU

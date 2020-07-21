@@ -54,10 +54,11 @@ class NavierStokes(object):
 		self.log_file = open(self.plot_path + 'simulation.log', 'w')
 
 		# Values used in variational forms, some provided as input from terminal
+		# For units of measure, see README.md
 		self.const = {
 			'dt': Constant(1 / self.args.steps_n),
-			'nu': Constant(self.args.nu),
-			'rho_0': Constant(self.args.rho_0),
+			'nu': Constant(self.args.nu*0.0036), 		# from m^2/s to km^2/h
+			'rho_0': Constant(self.args.rho_0*12.87), 	# from kg/m^3 to h^2*Pa/km^2
 			'g': Constant(1.27*10**5),
 			'alpha': Constant(10**(-4)),
 			'beta': Constant(7.6*10**(-4)),
