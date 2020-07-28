@@ -19,7 +19,7 @@ Parameter defaults are stored in `config.yml`, where values can be freely edited
 - `final_time`: hours; total simulation time; default = 10.
 - `steps_n`: integer, specifies into how many steps each of the simulation hours should be broken into (ex. `--steps-n 6` means an hour is split into 10-minutes chunks); default = 10000.
 precision: integer, power of ten at which convergence is achieved; default = -3.
-- `nu`: m^2/s; kinematic viscosity; default = 0.36.
+- `nu`: m^2/s; kinematic viscosity; expects either 1, 2 or 4 entries depending on whether a scalar, vector or tensor is wanted. For tensor, entries should given in the order _xx, xy, yx, yy_ (OR IS IT?). Default = 100.
 - `rho_0`: kg/m^3; base density of Bousinessq approximation; default = 1028.
 - `domain_size_x`: km; domain width; default = 1.
 - `domain_size_y`: km; domain height; default = 1.

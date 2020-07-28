@@ -53,18 +53,44 @@ class NavierStokes(object):
 		pathlib.Path(self.plot_path).mkdir(parents=True, exist_ok=True)
 		self.log_file = open(self.plot_path + 'simulation.log', 'w')
 
+		def assemble_viscosity():
+			nu = [i*0.0036 for i in self.args.nu] # from m^2/s to km^2/h
+
+			if len(nu) == 1:
+				viscosity = as_tensor((
+					(nu[0], 0),
+					(0, nu[0])
+				))
+
+			elif len(self.args.nu) == 2:
+				viscosity = as_tensor((
+					(nu[0], 0),
+					(0, nu[1])
+				))
+
+			elif len(self.args.nu) == 4:
+				viscosity = as_tensor((
+					(nu[0], nu[1]),
+					(nu[2], nu[3])
+				))
+
+			else:
+				raise ValueError("Viscosity needs 1, 2 or 4 entries input, %d given" % len(nu))
+
+			return viscosity
+
 		# Values used in variational forms, some provided as input from terminal
 		# For units of measure, see README.md
-		self.const = {
+		self.const = Bunch({
 			'dt': Constant(1 / self.args.steps_n),
-			'nu': Constant(self.args.nu*0.0036), 		# from m^2/s to km^2/h
+			'nu': assemble_viscosity(),
 			'rho_0': Constant(self.args.rho_0*12.87), 	# from kg/m^3 to h^2*Pa/km^2
 			'g': Constant(1.27*10**5),
 			'alpha': Constant(10**(-4)),
 			'beta': Constant(7.6*10**(-4)),
 			'T_0': Constant(1),
 			'S_0': Constant(35)
-		}
+		})
 
 		# tolerance for near() function based on mesh resolution. Otherwise BC are not properly set
 		# DO WE NEED THIS??
@@ -83,10 +109,10 @@ class NavierStokes(object):
 		self.bd.args = self.args
 		self.bd.tolerance = tolerance
 
-		self.function_spaces = {}
-		self.functions = {}
-		self.stiffness_mats = {}
-		self.load_vectors = {}
+		self.function_spaces = Bunch({})
+		self.functions = Bunch({})
+		self.stiffness_mats = Bunch({})
+		self.load_vectors = Bunch({})
 		self.bcu, self.bcp, self.bcT, self.bcS = [], [], [], []
 
 		self.start_time = time.time()
@@ -111,9 +137,9 @@ class NavierStokes(object):
 		parser.add_argument('--final-time', default=self.config['final_time'], type=float, dest='final_time', help='How long to run the simulation for (hours) (default: %(default)s)')
 		parser.add_argument('--steps-n', default=self.config['steps_n'], type=int, dest='steps_n', help='How many steps each of the "seconds" is made of (default: %(default)s)')
 		parser.add_argument('--precision', default=self.config['precision'], type=int, dest='simulation_precision', help='Precision at which converge is achieved, for all variables (power of ten) (default: %(default)s)')
-		parser.add_argument('--viscosity', default=self.config['nu'], type=float, dest='nu', help='Viscosity, km^2/h (default: %(default)s)')
-		parser.add_argument('--rho-0', default=self.config['rho_0'], type=float, dest='rho_0', help='Density, Pa*h^2/km^2 (default: %(default)s)')
-		parser.add_argument('--domain', default=self.config['domain'], help='What domain to use, either `square`, `rectangle` or `custom` (default: %(default)s)')
+		parser.add_argument('--viscosity', default=self.config['nu'], type=float, dest='nu', nargs="*", help='Viscosity, m^2/s. Expects 1, 2 or 4 space-separated entries, depending on whether a scalar, vector or tensor is wished (default: %(default)s)')
+		parser.add_argument('--rho-0', default=self.config['rho_0'], type=float, dest='rho_0', help='Density, kg/m^3 (default: %(default)s)')
+		parser.add_argument('--domain', default=self.config['domain'], help='What domain to use, either `square` (1km x 1km) or `custom` (default: %(default)s)')
 		parser.add_argument('--domain-size-x', default=self.config['domain_size_x'], type=int, dest='domain_size_x', help='Size of domain in x direction (i.e. width) (default: %(default)s)')
 		parser.add_argument('--domain-size-y', default=self.config['domain_size_y'], type=int, dest='domain_size_y', help='Size of domain in y direction (i.e. height) (default: %(default)s)')
 		parser.add_argument('--shelf-size-x', default=self.config['shelf_size_x'], type=float, dest='shelf_size_x', help='Size of ice shelf in x direction (i.e. width) (default: %(default)s)')
@@ -228,46 +254,46 @@ class NavierStokes(object):
 		"""Define function spaces and create needed functions for simulation"""
 
 		# Define function spaces
-		self.function_spaces = {
+		self.function_spaces.update({
 			'V': VectorFunctionSpace(self.mesh, 'P', 2),
 			'Q': FunctionSpace(self.mesh, 'P', 1),
 			'T': FunctionSpace(self.mesh, 'P', 2),
 			'S': FunctionSpace(self.mesh, 'P', 2)
-		}
+		})
 
 		# Define functions for solution computation
 		self.functions.update({
-			'u_n': Function(self.function_spaces['V']),
-			'u_': Function(self.function_spaces['V']),
-			'p_n': Function(self.function_spaces['Q']),
-			'p_': Function(self.function_spaces['Q']),
-			'T_n': Function(self.function_spaces['T']),
-			'T_': Function(self.function_spaces['T']),
-			'S_n': Function(self.function_spaces['S']),
-			'S_': Function(self.function_spaces['S'])
+			'u_n': Function(self.function_spaces.V),
+			'u_': Function(self.function_spaces.V),
+			'p_n': Function(self.function_spaces.Q),
+			'p_': Function(self.function_spaces.Q),
+			'T_n': Function(self.function_spaces.T),
+			'T_': Function(self.function_spaces.T),
+			'S_n': Function(self.function_spaces.S),
+			'S_': Function(self.function_spaces.S)
 		})
 
 	def define_variational_problems(self):
 
 		# Define trial and test functions
 		self.functions.update({
-			'u': TrialFunction(self.function_spaces['V']),
-			'v': TestFunction(self.function_spaces['V']),
-			'p': TrialFunction(self.function_spaces['Q']),
-			'q': TestFunction(self.function_spaces['Q']),
-			'T': TrialFunction(self.function_spaces['T']),
-			'T_v': TestFunction(self.function_spaces['T']),
-			'S': TrialFunction(self.function_spaces['S']),
-			'S_v': TestFunction(self.function_spaces['S'])
+			'u': TrialFunction(self.function_spaces.V),
+			'v': TestFunction(self.function_spaces.V),
+			'p': TrialFunction(self.function_spaces.Q),
+			'q': TestFunction(self.function_spaces.Q),
+			'T': TrialFunction(self.function_spaces.T),
+			'T_v': TestFunction(self.function_spaces.T),
+			'S': TrialFunction(self.function_spaces.S),
+			'S_v': TestFunction(self.function_spaces.S)
 		})
 
 		# Define expressions used in variational forms
-		U = 0.5*(self.functions['u_n'] + self.functions['u'])
+		U = 0.5*(self.functions.u_n + self.functions.u)
 		n = FacetNormal(self.mesh)
 		f_T = Constant(0)
 		f_S = Constant(0)
 
-		buoyancy = Expression((0, 'g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))/rho_0'), alpha=self.const['alpha'], beta=self.const['beta'], T_0=self.const['T_0'], S_0=self.const['S_0'], g=self.const['g'], T_=self.functions['T_'], S_=self.functions['S_'], rho_0=self.const['rho_0'], degree=2)
+		buoyancy = Expression((0, 'g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))/rho_0'), alpha=self.const.alpha, beta=self.const.beta, T_0=self.const.T_0, S_0=self.const.S_0, g=self.const.g, T_=self.functions.T_, S_=self.functions.S_, rho_0=self.const.rho_0, degree=2)
 
 		# Define strain-rate tensor
 		def epsilon(u):
@@ -275,40 +301,64 @@ class NavierStokes(object):
 
 		# Define stress tensor
 		def sigma(u, p):
-			return 2*self.const['nu']*epsilon(u) - p*Identity(len(u))
+			return 2*elem_mult(self.const.nu, epsilon(u)) - p*Identity(len(u))
+
+		# Element-wise multiplication (for viscosity)
+		'''def el_mult(u, c):
+			if ! (isinstance(u, function.argument.Argument) or isinstance(u, function.function.Function)):
+				raise ValueError("First argument is of type %s instead of fenics Function/TrialFunction" % type(u))
+
+			assert type(c) == tuple and size(c) == u.geometric_dimension(), "Second argument should be a constant of same size as first argument function"
+
+			temp = TrialFunction(V) if isinstance(u, function.argument.Argument) else Function(V)
+			for i in temp.geometric_dimension():
+				temp.sub(i).assign(u.sub(i)*c[i])
+
+			return temp
+
+		c=(1,2)
+		#print(el_mult(U,c))
+		'''
+
+		def get_matrix_diagonal(mat):
+			diag = []
+			for i in range(mat.ufl_shape[0]):
+				diag.append(mat[i][i])
+
+			return as_vector(diag)
 
 		# Define variational problem for step 1
-		F1 = dot((self.functions['u'] - self.functions['u_n'])/self.const['dt'], self.functions['v'])*dx + \
-			 dot(dot(self.functions['u_n'], nabla_grad(self.functions['u_n'])), self.functions['v'])*dx \
-		   + inner(sigma(U, self.functions['p_n']/self.const['rho_0']), epsilon(self.functions['v']))*dx \
-		   + dot(self.functions['p_n']*n/self.const['rho_0'], self.functions['v'])*ds - dot(self.const['nu']*nabla_grad(U)*n, self.functions['v'])*ds \
-		   - dot(buoyancy, self.functions['v'])*dx
-		self.stiffness_mats['a1'], self.load_vectors['L1'] = lhs(F1), rhs(F1)
+		F1 = dot((self.functions.u - self.functions.u_n)/self.const.dt, self.functions.v)*dx + \
+			 dot(dot(self.functions.u_n, nabla_grad(self.functions.u_n)), self.functions.v)*dx \
+		   + inner(sigma(U, self.functions.p_n/self.const.rho_0), epsilon(self.functions.v))*dx \
+		   + dot(self.functions.p_n*n/self.const.rho_0, self.functions.v)*ds - dot(elem_mult(self.const.nu, nabla_grad(U))*n, self.functions.v)*ds \
+		   - dot(buoyancy, self.functions.v)*dx
+		self.stiffness_mats.a1, self.load_vectors.L1 = lhs(F1), rhs(F1)
 
 		# Variational problem for pressure p with approximated velocity u
-		F = + dot(nabla_grad(self.functions['p'] - self.functions['p_n']), nabla_grad(self.functions['q']))/self.const['rho_0']*dx \
-			+ div(self.functions['u_'])*self.functions['q']*(1/self.const['dt'])*dx
-		self.stiffness_mats['a2'], self.load_vectors['L2'] = lhs(F), rhs(F)
+		F = + dot(nabla_grad(self.functions.p - self.functions.p_n), nabla_grad(self.functions.q))/self.const.rho_0*dx \
+			+ div(self.functions.u_)*self.functions.q*(1/self.const.dt)*dx
+		self.stiffness_mats.a2, self.load_vectors.L2 = lhs(F), rhs(F)
 
 		# Variational problem for corrected velocity u with pressure p
-		F = dot(self.functions['u'], self.functions['v'])*dx \
-			- dot(self.functions['u_'], self.functions['v'])*dx \
-			+ dot(nabla_grad(self.functions['p_'] - self.functions['p_n']), self.functions['v'])/self.const['rho_0']*self.const['dt']*dx # dx must be last multiplicative factor, it's the measure
-		self.stiffness_mats['a3'], self.load_vectors['L3'] = lhs(F), rhs(F)
+		F = dot(self.functions.u, self.functions.v)*dx \
+			- dot(self.functions.u_, self.functions.v)*dx \
+			+ dot(nabla_grad(self.functions.p_ - self.functions.p_n), self.functions.v)/self.const.rho_0*self.const.dt*dx # dx must be last multiplicative factor, it's the measure
+		self.stiffness_mats.a3, self.load_vectors.L3 = lhs(F), rhs(F)
 
 		# Variational problem for temperature
-		F = dot((self.functions['T'] - self.functions['T_n'])/self.const['dt'], self.functions['T_v'])*dx \
-			+ div(self.functions['u_']*self.functions['T'])*self.functions['T_v']*dx \
-			+ self.const['nu']*dot(grad(self.functions['T']), grad(self.functions['T_v']))*dx \
-			- f_T*self.functions['T_v']*dx
-		self.stiffness_mats['a4'], self.load_vectors['L4'] = lhs(F), rhs(F)
+		F = dot((self.functions.T - self.functions.T_n)/self.const.dt, self.functions.T_v)*dx \
+			+ div(self.functions.u_*self.functions.T)*self.functions.T_v*dx \
+			+ dot(elem_mult(get_matrix_diagonal(self.const.nu), grad(self.functions.T)), grad(self.functions.T_v))*dx \
+			- f_T*self.functions.T_v*dx
+		self.stiffness_mats.a4, self.load_vectors.L4 = lhs(F), rhs(F)
 
 		# Variational problem for salinity
-		F = dot((self.functions['S'] - self.functions['S_n'])/self.const['dt'], self.functions['S_v'])*dx \
-			+ div(self.functions['u_']*self.functions['S'])*self.functions['S_v']*dx \
-			+ self.const['nu']*dot(grad(self.functions['S']), grad(self.functions['S_v']))*dx \
-			- f_S*self.functions['S_v']*dx
-		self.stiffness_mats['a5'], self.load_vectors['L5'] = lhs(F), rhs(F)
+		F = dot((self.functions.S - self.functions.S_n)/self.const.dt, self.functions.S_v)*dx \
+			+ div(self.functions.u_*self.functions.S)*self.functions.S_v*dx \
+			+ dot(elem_mult(get_matrix_diagonal(self.const.nu), grad(self.functions.S)), grad(self.functions.S_v))*dx \
+			- f_S*self.functions.S_v*dx
+		self.stiffness_mats.a5, self.load_vectors.L5 = lhs(F), rhs(F)
 
 		self.log('Defined variational problems')
 
@@ -329,20 +379,20 @@ class NavierStokes(object):
 			right = self.bd.Bound_Right()
 
 			# Define boundary conditions
-			self.bcu.append(DirichletBC(self.function_spaces['V'], Constant((0, 0)), top))
-			self.bcu.append(DirichletBC(self.function_spaces['V'], Constant((0, 0)), bottom))
-			self.bcu.append(DirichletBC(self.function_spaces['V'], Constant((0, 0)), left))
-			self.bcu.append(DirichletBC(self.function_spaces['V'], Constant((0, 0)), right))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), top))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), bottom))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), left))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), right))
 
-			self.bcp.append(DirichletBC(self.function_spaces['Q'], Constant(self.const['rho_0']*self.const['g']), top)) #applying BC on right corner yields problems?
+			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(self.const.rho_0*self.const.g), top)) #applying BC on right corner yields problems?
 
 			#self.bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
 
-			self.bcT.append(DirichletBC(self.function_spaces['T'], Constant("5"), right))
-			self.bcT.append(DirichletBC(self.function_spaces['T'], Constant("-1.8"), left))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("5"), right))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("-1.8"), left))
 
-			self.bcS.append(DirichletBC(self.function_spaces['S'], Expression("35", degree=2), right))
-			self.bcS.append(DirichletBC(self.function_spaces['S'], Expression("0", degree=2), left))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), right))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("0", degree=2), left))
 
 		elif(self.args.domain == 'custom'):
 
@@ -355,24 +405,24 @@ class NavierStokes(object):
 			right = self.bd.Bound_Right()
 
 			# Define boundary conditions
-			self.bcu.append(DirichletBC(self.function_spaces['V'], Expression((ux_sin, 0), degree = 2), right))
-			self.bcu.append(DirichletBC(self.function_spaces['V'], Constant((0.0, 0.0)), bottom))
-			self.bcu.append(DirichletBC(self.function_spaces['V'], Constant((0.0, 0.0)), left))
-			self.bcu.append(DirichletBC(self.function_spaces['V'], Constant((0.0, 0.0)), ice_shelf_bottom))
-			self.bcu.append(DirichletBC(self.function_spaces['V'], Constant((0.0, 0.0)), ice_shelf_right))
-			self.bcu.append(DirichletBC(self.function_spaces['V'].sub(1), Constant(0.0), sea_top))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ux_sin, 0), degree = 2), right))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), bottom))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), left))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_bottom))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_right))
+			self.bcu.append(DirichletBC(self.function_spaces.V.sub(1), Constant(0.0), sea_top))
 
-			self.bcp.append(DirichletBC(self.function_spaces['Q'], Constant(self.const['rho_0']*self.const['g']), sea_top)) #applying BC on right corner yields problems?
+			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(self.const.rho_0*self.const.g), sea_top)) #applying BC on right corner yields problems?
 
-			self.bcT.append(DirichletBC(self.function_spaces['T'], Expression("3", degree=2), right))
-			self.bcT.append(DirichletBC(self.function_spaces['T'], Expression("-1.9", degree=2), left))
-			self.bcT.append(DirichletBC(self.function_spaces['T'], Expression("-1.9", degree=2), ice_shelf_bottom))
-			self.bcT.append(DirichletBC(self.function_spaces['T'], Expression("-1.9", degree=2), ice_shelf_right))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("3", degree=2), right))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), left))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_bottom))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_right))
 
-			self.bcS.append(DirichletBC(self.function_spaces['S'], Expression("35", degree=2), right))
-			self.bcS.append(DirichletBC(self.function_spaces['S'], Expression("0", degree=2), left))
-			self.bcS.append(DirichletBC(self.function_spaces['S'], Expression("0", degree=2), ice_shelf_bottom))
-			self.bcS.append(DirichletBC(self.function_spaces['S'], Expression("0", degree=2), ice_shelf_right))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), right))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("0", degree=2), left))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("0", degree=2), ice_shelf_bottom))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("0", degree=2), ice_shelf_right))
 
 		'''
 		# Enable to check subdomains are properly marked.
@@ -399,18 +449,18 @@ class NavierStokes(object):
 			T_pvd = File(self.plot_path + 'paraview/temperature.pvd')
 			S_pvd = File(self.plot_path + 'paraview/salinity.pvd')
 
-			u_pvd << self.functions['u_']
-			p_pvd << self.functions['p_']
-			T_pvd << self.functions['T_']
-			S_pvd << self.functions['S_']
+			u_pvd << self.functions.u_
+			p_pvd << self.functions.p_
+			T_pvd << self.functions.T_
+			S_pvd << self.functions.S_
 
 		# Assemble stiffness matrices (a4, a5 need to be assembled at every time step) and load vectors (except those whose coefficients change every iteration)
-		A1 = assemble(self.stiffness_mats['a1'])
-		A2 = assemble(self.stiffness_mats['a2'])
-		A3 = assemble(self.stiffness_mats['a3'])
+		A1 = assemble(self.stiffness_mats.a1)
+		A2 = assemble(self.stiffness_mats.a2)
+		A3 = assemble(self.stiffness_mats.a3)
 
-		b4 = assemble(self.load_vectors['L4'])
-		b5 = assemble(self.load_vectors['L5'])
+		b4 = assemble(self.load_vectors.L4)
+		b5 = assemble(self.load_vectors.L5)
 
 		# Apply boundary conditions
 		[bc.apply(A1) for bc in self.bcu]
@@ -428,33 +478,33 @@ class NavierStokes(object):
 
 			# Applying IPC splitting scheme (IPCS)
 			# Step 1: Tentative velocity step
-			b1 = assemble(self.load_vectors['L1'])
+			b1 = assemble(self.load_vectors.L1)
 			[bc.apply(b1) for bc in self.bcu]
-			solve(A1, self.functions['u_'].vector(), b1)
+			solve(A1, self.functions.u_.vector(), b1)
 
 			# Step 2: Pressure correction step
-			b2 = assemble(self.load_vectors['L2'])
+			b2 = assemble(self.load_vectors.L2)
 			[bc.apply(b2) for bc in self.bcp]
-			solve(A2, self.functions['p_'].vector(), b2)
+			solve(A2, self.functions.p_.vector(), b2)
 
 			# Step 3: Velocity correction step
-			b3 = assemble(self.load_vectors['L3'])
-			solve(A3, self.functions['u_'].vector(), b3)
+			b3 = assemble(self.load_vectors.L3)
+			solve(A3, self.functions.u_.vector(), b3)
 
 			# Step 4: Temperature step
-			A4 = assemble(self.stiffness_mats['a4']) # Reassemble stiffness matrix and re-set BC, as coefficients change due to u_
+			A4 = assemble(self.stiffness_mats.a4) # Reassemble stiffness matrix and re-set BC, as coefficients change due to u_
 			[bc.apply(A4) for bc in self.bcT]
-			solve(A4, self.functions['T_'].vector(), b4)
+			solve(A4, self.functions.T_.vector(), b4)
 
 			# Step 5: Salinity step
-			A5 = assemble(self.stiffness_mats['a5']) # Reassemble stiffness matrix and re-set BC, as coefficients change due to u_
+			A5 = assemble(self.stiffness_mats.a5) # Reassemble stiffness matrix and re-set BC, as coefficients change due to u_
 			[bc.apply(A5) for bc in self.bcS]
-			solve(A5, self.functions['S_'].vector(), b5)
+			solve(A5, self.functions.S_.vector(), b5)
 
-			u_diff = np.linalg.norm(self.functions['u_'].vector().get_local() - self.functions['u_n'].vector().get_local())
-			p_diff = np.linalg.norm(self.functions['p_'].vector().get_local() - self.functions['p_n'].vector().get_local())
-			T_diff = np.linalg.norm(self.functions['T_'].vector().get_local() - self.functions['T_n'].vector().get_local())
-			S_diff = np.linalg.norm(self.functions['S_'].vector().get_local() - self.functions['S_n'].vector().get_local())
+			u_diff = np.linalg.norm(self.functions.u_.vector().get_local() - self.functions.u_n.vector().get_local())
+			p_diff = np.linalg.norm(self.functions.p_.vector().get_local() - self.functions.p_n.vector().get_local())
+			T_diff = np.linalg.norm(self.functions.T_.vector().get_local() - self.functions.T_n.vector().get_local())
+			S_diff = np.linalg.norm(self.functions.S_.vector().get_local() - self.functions.S_n.vector().get_local())
 
 			# Even if verbose, get progressively less verbose with the order of number of iterations
 			if(rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0)):
@@ -465,40 +515,40 @@ class NavierStokes(object):
 				self.log('Step %d of %d (ETA: ~ %s seconds)' % (n, iterations_n, eta))
 
 				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
-					round(norm(self.functions['u_'], 'L2'), 2), round(norm(self.functions['u_'].vector(), 'linf'), 3), round(u_diff, 3), \
-					round(norm(self.functions['p_'], 'L2'), 2), round(norm(self.functions['p_'].vector(), 'linf'), 3), round(p_diff, 3), \
-					round(norm(self.functions['T_'], 'L2'), 2), round(norm(self.functions['T_'].vector(), 'linf'), 3), round(T_diff, 3), \
-					round(norm(self.functions['S_'], 'L2'), 2), round(norm(self.functions['S_'].vector(), 'linf'), 3), round(S_diff, 3)) \
+					round(norm(self.functions.u_, 'L2'), 2), round(norm(self.functions.u_.vector(), 'linf'), 3), round(u_diff, 3), \
+					round(norm(self.functions.p_, 'L2'), 2), round(norm(self.functions.p_.vector(), 'linf'), 3), round(p_diff, 3), \
+					round(norm(self.functions.T_, 'L2'), 2), round(norm(self.functions.T_.vector(), 'linf'), 3), round(T_diff, 3), \
+					round(norm(self.functions.S_, 'L2'), 2), round(norm(self.functions.S_.vector(), 'linf'), 3), round(S_diff, 3)) \
 				)
 
 			if self.args.store_solutions:
-				u_pvd << self.functions['u_']
-				p_pvd << self.functions['p_']
-				T_pvd << self.functions['T_']
-				S_pvd << self.functions['S_']
+				u_pvd << self.functions.u_
+				p_pvd << self.functions.p_
+				T_pvd << self.functions.T_
+				S_pvd << self.functions.S_
 
 			convergence_threshold = 10**(self.args.simulation_precision)
 			if all(diff < convergence_threshold for diff in [u_diff, p_diff, T_diff, S_diff]):
 				self.log('--- Stopping simulation at step %d: all variables reached desired precision ---' % n, True)
 
 				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
-					round(norm(self.functions['u_'], 'L2'), 2), round(norm(self.functions['u_'].vector(), 'linf'), 3), round(u_diff, 3), \
-					round(norm(self.functions['p_'], 'L2'), 2), round(norm(self.functions['p_'].vector(), 'linf'), 3), round(p_diff, 3), \
-					round(norm(self.functions['T_'], 'L2'), 2), round(norm(self.functions['T_'].vector(), 'linf'), 3), round(T_diff, 3), \
-					round(norm(self.functions['S_'], 'L2'), 2), round(norm(self.functions['S_'].vector(), 'linf'), 3), round(S_diff, 3)) \
+					round(norm(self.functions.u_, 'L2'), 2), round(norm(self.functions.u_.vector(), 'linf'), 3), round(u_diff, 3), \
+					round(norm(self.functions.p_, 'L2'), 2), round(norm(self.functions.p_.vector(), 'linf'), 3), round(p_diff, 3), \
+					round(norm(self.functions.T_, 'L2'), 2), round(norm(self.functions.T_.vector(), 'linf'), 3), round(T_diff, 3), \
+					round(norm(self.functions.S_, 'L2'), 2), round(norm(self.functions.S_.vector(), 'linf'), 3), round(S_diff, 3)) \
 				)
 
 				break
 
-			if norm(self.functions['u_'], 'L2') != norm(self.functions['u_'], 'L2'):
+			if norm(self.functions.u_, 'L2') != norm(self.functions.u_, 'L2'):
 				self.log('--- Stopping simulation at step %d: velocity is NaN! ---' % n, True)
 				break
 
 			# Set solutions for next time-step
-			self.functions['u_n'].assign(self.functions['u_'])
-			self.functions['p_n'].assign(self.functions['p_'])
-			self.functions['T_n'].assign(self.functions['T_'])
-			self.functions['S_n'].assign(self.functions['S_'])
+			self.functions.u_n.assign(self.functions.u_)
+			self.functions.p_n.assign(self.functions.p_)
+			self.functions.T_n.assign(self.functions.T_)
+			self.functions.S_n.assign(self.functions.S_)
 
 		if(self.args.plot == True):
 			self.plot_solution()
@@ -515,7 +565,7 @@ class NavierStokes(object):
 
 		fig = plt.figure()
 		ax = fig.add_subplot(111)
-		pl = plot(self.functions['u_'], title='Velocity (km/h)')
+		pl = plot(self.functions.u_, title='Velocity (km/h)')
 		plt.colorbar(pl)
 		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'velxy.png', dpi = 800)
@@ -523,7 +573,7 @@ class NavierStokes(object):
 
 		fig = plt.figure()
 		ax = fig.add_subplot(111)
-		pl = plot(self.functions['u_'][0], title='Velocity X-component (km/h)')
+		pl = plot(self.functions.u_[0], title='Velocity X-component (km/h)')
 		plt.colorbar(pl)
 		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'velx.png', dpi = 500)
@@ -531,14 +581,14 @@ class NavierStokes(object):
 
 		fig = plt.figure()
 		ax = fig.add_subplot(111)
-		pl = plot(self.functions['u_'][1], title='Velocity Y-component (km/h)')
+		pl = plot(self.functions.u_[1], title='Velocity Y-component (km/h)')
 		plt.colorbar(pl)
 		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'vely.png', dpi = 500)
 		plt.close()
 
 		y = Expression('x[1]', degree = 2)
-		p_to_plot = self.functions['p_'] - self.const['rho_0']*self.const['g']*y #p is redefined in variational problem to include a rho_0*g*y term
+		p_to_plot = self.functions.p_ - self.const.rho_0*self.const.g*y #p is redefined in variational problem to include a rho_0*g*y term
 		fig = plt.figure()
 		ax = fig.add_subplot(111)
 		pl = plot(p_to_plot, title='Pressure (Pa)')
@@ -549,7 +599,7 @@ class NavierStokes(object):
 
 		fig = plt.figure()
 		ax = fig.add_subplot(111)
-		pl = plot(self.functions['T_'], title='Temperature (°C)')
+		pl = plot(self.functions.T_, title='Temperature (°C)')
 		plt.colorbar(pl)
 		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'temperature.png', dpi = 500)
@@ -557,7 +607,7 @@ class NavierStokes(object):
 
 		fig = plt.figure()
 		ax = fig.add_subplot(111)
-		pl = plot(self.functions['S_'], title='Salinity (PSU)')
+		pl = plot(self.functions.S_, title='Salinity (PSU)')
 		plt.colorbar(pl)
 		ax.set_aspect('auto')
 		plt.savefig(self.plot_path + 'salinity.png', dpi = 500)
@@ -626,3 +676,16 @@ class NavierStokes(object):
 			self.log('--- Duration: %s seconds --- ' % round((time.time() - self.start_time), 2), True)
 		except: # avoid errors when called only with -h flag
 			pass
+
+class Bunch(object):
+	"""Allows to syntaxically handle dictionaries as objects, for pure convenience of writing.
+	Instead of the clumsy `adict['pippo']`, use `adict.pippo`."""
+
+	def __init__(self, adict):
+		self.__dict__.update(adict)
+
+	def update(self, adict):
+		self.__dict__.update(adict)
+
+	def __str__(self):
+		return str(self.__dict__)
