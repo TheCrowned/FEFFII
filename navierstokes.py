@@ -92,6 +92,8 @@ class NavierStokes(object):
 			'S_0': Constant(35)
 		})
 
+		self.round_precision = abs(self.args.simulation_precision) if self.args.simulation_precision <= 0 else 0
+
 		# tolerance for near() function based on mesh resolution. Otherwise BC are not properly set
 		# DO WE NEED THIS??
 		tolerance = pow(10, - round(math.log(self.args.mesh_resolution, 10)))
@@ -174,7 +176,7 @@ class NavierStokes(object):
 				domain_params,
 				ny_ocean = self.args.mesh_resolution_y,          # layers on "deep ocean" (y-dir)
 				ny_shelf = self.args.mesh_resolution_sea_y,      # layers on "ice-shelf thickness" (y-dir)
-				nx = self.args.mesh_resolution_x				 # layers x-dir
+				nx = self.args.mesh_resolution_x,				 # layers x-dir
 			)
 
 			sg.generate_mesh()
@@ -273,6 +275,10 @@ class NavierStokes(object):
 			'S_': Function(self.function_spaces.S)
 		})
 
+		# Try to set Temperature to mid-value to test diffusion
+		T_0 = Constant('0.5')
+		self.functions.T_n = interpolate(T_0, self.function_spaces.T)
+
 	def define_variational_problems(self):
 
 		# Define trial and test functions
@@ -368,7 +374,7 @@ class NavierStokes(object):
 		Draws boundaries from external module."""
 
 		# In/Out velocity flow sinusodial expression
-		ux_sin = "(0.3)*sin(2*pi*x[1])"
+		ux_sin = "(0.5)*sin(2*pi*x[1])"
 
 		if(self.args.domain == 'square'):
 
@@ -382,17 +388,17 @@ class NavierStokes(object):
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), top))
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), bottom))
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), left))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), right))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ux_sin, 0), degree = 2), right))
 
 			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(self.const.rho_0*self.const.g), top)) #applying BC on right corner yields problems?
 
 			#self.bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
 
-			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("5"), right))
-			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("-1.8"), left))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("3"), right))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("-1.9"), left))
 
 			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), right))
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("0", degree=2), left))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), left))
 
 		elif(self.args.domain == 'custom'):
 
@@ -408,21 +414,26 @@ class NavierStokes(object):
 			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ux_sin, 0), degree = 2), right))
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), bottom))
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), left))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_bottom))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_right))
 			self.bcu.append(DirichletBC(self.function_spaces.V.sub(1), Constant(0.0), sea_top))
 
 			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(self.const.rho_0*self.const.g), sea_top)) #applying BC on right corner yields problems?
 
 			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("3", degree=2), right))
 			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), left))
-			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_bottom))
-			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_right))
-
+			
 			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), right))
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("0", degree=2), left))
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("0", degree=2), ice_shelf_bottom))
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("0", degree=2), ice_shelf_right))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), left))
+
+			# Only set BCs for ice shelf if shelf is actually present
+			if self.args.shelf_size_x > 0 and self.args.shelf_size_y > 0:
+				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_bottom))
+				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_right))
+				
+				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_bottom))
+				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_right))
+				
+				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), ice_shelf_bottom))
+				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), ice_shelf_right))
 
 		'''
 		# Enable to check subdomains are properly marked.
@@ -471,11 +482,10 @@ class NavierStokes(object):
 		# Time-stepping
 		iterations_n = self.args.steps_n*int(self.args.final_time)
 		rounded_iterations_n = pow(10, (round(math.log(self.args.steps_n*int(self.args.final_time), 10))))
-		last_run = 0
+		start, last_run = 0, 0
 
 		for n in range(iterations_n):
-			start = time.time()
-
+			
 			# Applying IPC splitting scheme (IPCS)
 			# Step 1: Tentative velocity step
 			b1 = assemble(self.load_vectors.L1)
@@ -510,16 +520,18 @@ class NavierStokes(object):
 			if(rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0)):
 				last_run = time.time() - start
 				#last_run = (last_run*(n/100 - 1) + (time.time() - start))/(n/100) if n != 0 else 0
-				eta = round(last_run*(iterations_n - n)) if last_run != 0 else '?'
+				eta = round(last_run*(iterations_n - n))/100 if last_run != 0 else '?'
 
 				self.log('Step %d of %d (ETA: ~ %s seconds)' % (n, iterations_n, eta))
 
 				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
-					round(norm(self.functions.u_, 'L2'), 2), round(norm(self.functions.u_.vector(), 'linf'), 3), round(u_diff, 3), \
-					round(norm(self.functions.p_, 'L2'), 2), round(norm(self.functions.p_.vector(), 'linf'), 3), round(p_diff, 3), \
-					round(norm(self.functions.T_, 'L2'), 2), round(norm(self.functions.T_.vector(), 'linf'), 3), round(T_diff, 3), \
-					round(norm(self.functions.S_, 'L2'), 2), round(norm(self.functions.S_.vector(), 'linf'), 3), round(S_diff, 3)) \
+					round(norm(self.functions.u_, 'L2'), self.round_precision), round(norm(self.functions.u_.vector(), 'linf'), self.round_precision), round(u_diff, self.round_precision), \
+					round(norm(self.functions.p_, 'L2'), self.round_precision), round(norm(self.functions.p_.vector(), 'linf'), self.round_precision), round(p_diff, self.round_precision), \
+					round(norm(self.functions.T_, 'L2'), self.round_precision), round(norm(self.functions.T_.vector(), 'linf'), self.round_precision), round(T_diff, self.round_precision), \
+					round(norm(self.functions.S_, 'L2'), self.round_precision), round(norm(self.functions.S_.vector(), 'linf'), self.round_precision), round(S_diff, self.round_precision)) \
 				)
+
+				start = time.time()
 
 			if self.args.store_solutions:
 				u_pvd << self.functions.u_
@@ -532,10 +544,10 @@ class NavierStokes(object):
 				self.log('--- Stopping simulation at step %d: all variables reached desired precision ---' % n, True)
 
 				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
-					round(norm(self.functions.u_, 'L2'), 2), round(norm(self.functions.u_.vector(), 'linf'), 3), round(u_diff, 3), \
-					round(norm(self.functions.p_, 'L2'), 2), round(norm(self.functions.p_.vector(), 'linf'), 3), round(p_diff, 3), \
-					round(norm(self.functions.T_, 'L2'), 2), round(norm(self.functions.T_.vector(), 'linf'), 3), round(T_diff, 3), \
-					round(norm(self.functions.S_, 'L2'), 2), round(norm(self.functions.S_.vector(), 'linf'), 3), round(S_diff, 3)) \
+					round(norm(self.functions.u_, 'L2'), self.round_precision), round(norm(self.functions.u_.vector(), 'linf'), self.round_precision), round(u_diff, self.round_precision), \
+					round(norm(self.functions.p_, 'L2'), self.round_precision), round(norm(self.functions.p_.vector(), 'linf'), self.round_precision), round(p_diff, self.round_precision), \
+					round(norm(self.functions.T_, 'L2'), self.round_precision), round(norm(self.functions.T_.vector(), 'linf'), self.round_precision), round(T_diff, self.round_precision), \
+					round(norm(self.functions.S_, 'L2'), self.round_precision), round(norm(self.functions.S_.vector(), 'linf'), self.round_precision), round(S_diff, self.round_precision)) \
 				)
 
 				break
