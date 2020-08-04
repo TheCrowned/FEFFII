@@ -10,6 +10,8 @@ You should also make sure that [Gmsh](http://gmsh.info/) is installed.
 ## Usage
 Check `run-navier-stokes.py -h` for a list of arguments and documentation for each.
 
+Hit CTRL-C at any time during the simulation to quit it and have the results (up to that point) plotted. The plots folder opens up automatically.
+
 ## Examples
 - `python run-navier-stokes.py --domain square`
 - `python run-navier-stokes.py --final-time 2 --steps-n 10000 --domain custom --domain-size-x 10 --mesh-resolution-x 100 --mesh-resolution-y 50 --mesh-resolution-sea-top-y 5 --precision -2`: will simulate 2 hours, each divided in 10000 time steps, in a domain 10x1 meters, with mesh resolution 100x50, with a y-resolution of 5 on sea top beside ice shelf, stopping when variables converge with precision 0.01
