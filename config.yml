@@ -1,7 +1,8 @@
 final_time: 10
 steps_n: 10000
 precision: -3
-nu: 100
+nu: 
+- 100
 rho_0: 1028
 domain: custom
 domain_size_x: 2
