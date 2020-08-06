@@ -357,6 +357,7 @@ class NavierStokes(object):
 			+ div(self.functions.u_*self.functions.T)*self.functions.T_v*dx \
 			+ dot(elem_mult(get_matrix_diagonal(self.const.nu), grad(self.functions.T)), grad(self.functions.T_v))*dx \
 			- f_T*self.functions.T_v*dx
+
 		self.stiffness_mats.a4, self.load_vectors.L4 = lhs(F), rhs(F)
 
 		# Variational problem for salinity
@@ -420,7 +421,7 @@ class NavierStokes(object):
 
 			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("3", degree=2), right))
 			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), left))
-			
+
 			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), right))
 			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), left))
 
@@ -428,10 +429,10 @@ class NavierStokes(object):
 			if self.args.shelf_size_x > 0 and self.args.shelf_size_y > 0:
 				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_bottom))
 				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_right))
-				
+
 				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_bottom))
 				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_right))
-				
+
 				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), ice_shelf_bottom))
 				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), ice_shelf_right))
 
@@ -465,13 +466,11 @@ class NavierStokes(object):
 			T_pvd << self.functions.T_
 			S_pvd << self.functions.S_
 
-		# Assemble stiffness matrices (a4, a5 need to be assembled at every time step) and load vectors (except those whose coefficients change every iteration)
+		# Assemble stiffness matrices (a4, a5 need to be assembled at every time step)
+		# Load vectors have coefficients which change upon every iteration
 		A1 = assemble(self.stiffness_mats.a1)
 		A2 = assemble(self.stiffness_mats.a2)
 		A3 = assemble(self.stiffness_mats.a3)
-
-		b4 = assemble(self.load_vectors.L4)
-		b5 = assemble(self.load_vectors.L5)
 
 		# Apply boundary conditions
 		[bc.apply(A1) for bc in self.bcu]
@@ -485,7 +484,7 @@ class NavierStokes(object):
 		start, last_run = 0, 0
 
 		for n in range(iterations_n):
-			
+
 			# Applying IPC splitting scheme (IPCS)
 			# Step 1: Tentative velocity step
 			b1 = assemble(self.load_vectors.L1)
@@ -502,12 +501,18 @@ class NavierStokes(object):
 			solve(A3, self.functions.u_.vector(), b3)
 
 			# Step 4: Temperature step
-			A4 = assemble(self.stiffness_mats.a4) # Reassemble stiffness matrix and re-set BC, as coefficients change due to u_
+			# Reassemble stiffness matrix and re-set BC, same for load vector, as coefficients change due to u_
+			b4 = assemble(self.load_vectors.L4)
+			[bc.apply(b4) for bc in self.bcT]
+			A4 = assemble(self.stiffness_mats.a4)
 			[bc.apply(A4) for bc in self.bcT]
 			solve(A4, self.functions.T_.vector(), b4)
 
 			# Step 5: Salinity step
-			A5 = assemble(self.stiffness_mats.a5) # Reassemble stiffness matrix and re-set BC, as coefficients change due to u_
+			# Reassemble stiffness matrix and re-set BC, same for load vector, as coefficients change due to u_
+			b5 = assemble(self.load_vectors.L5)
+			[bc.apply(b5) for bc in self.bcS]
+			A5 = assemble(self.stiffness_mats.a5)
 			[bc.apply(A5) for bc in self.bcS]
 			solve(A5, self.functions.S_.vector(), b5)
 
