@@ -84,7 +84,7 @@ class NavierStokes(object):
 		self.const = Bunch({
 			'dt': Constant(1 / self.args.steps_n),
 			'nu': assemble_viscosity(),
-			'rho_0': Constant(self.args.rho_0*12.87), 	# from kg/m^3 to h^2*Pa/km^2
+			'rho_0': Constant(self.args.rho_0/(3.6**2)), 	# from kg/m^3 to h^2*Pa/km^2
 			'g': Constant(1.27*10**5),
 			'alpha': Constant(10**(-4)),
 			'beta': Constant(7.6*10**(-4)),
@@ -277,7 +277,7 @@ class NavierStokes(object):
 
 		# Try to set Temperature to mid-value to test diffusion
 		T_0 = Constant('0.5')
-		self.functions.T_n = interpolate(T_0, self.function_spaces.T)
+		self.functions.T_n.assign(interpolate(T_0, self.function_spaces.T))
 
 	def define_variational_problems(self):
 
@@ -475,8 +475,6 @@ class NavierStokes(object):
 		# Apply boundary conditions
 		[bc.apply(A1) for bc in self.bcu]
 		[bc.apply(A2) for bc in self.bcp]
-		[bc.apply(b4) for bc in self.bcT]
-		[bc.apply(b5) for bc in self.bcS]
 
 		# Time-stepping
 		iterations_n = self.args.steps_n*int(self.args.final_time)
