@@ -86,8 +86,8 @@ class NavierStokes(object):
 			'nu': assemble_viscosity(),
 			'rho_0': Constant(self.args.rho_0/(3.6**2)), 	# from kg/m^3 to h^2*Pa/km^2
 			'g': Constant(1.27*10**5),
-			'alpha': Constant(10**(-4)),
-			'beta': Constant(7.6*10**(-4)),
+			'alpha': Constant(10**(-4)*10**3/(3.6**2)),
+			'beta': Constant(7.6*10**(-4)*10**3/(3.6**2)),
 			'T_0': Constant(1),
 			'S_0': Constant(35)
 		})
