@@ -85,11 +85,12 @@ class NavierStokes(object):
 			'dt': Constant(1 / self.args.steps_n),
 			'nu': assemble_viscosity(),
 			'rho_0': Constant(self.args.rho_0/(3.6**2)), 	# from kg/m^3 to h^2*Pa/km^2
-			'g': Constant(1.27*10**5),
-			'alpha': Constant(10**(-4)*10**3/(3.6**2)),
-			'beta': Constant(7.6*10**(-4)*10**3/(3.6**2)),
-			'T_0': Constant(1),
-			'S_0': Constant(35)
+			'g': Constant(1.27*10**5),						# from m/s^2 to km/h^2
+			'alpha': Constant(self.args.alpha),
+			'beta': Constant(self.args.beta),
+			'T_0': Constant(self.args.T_0),
+			'S_0': Constant(self.args.S_0),
+			'ocean_bc': Constant(self.args.ocean_bc)
 		})
 
 		self.round_precision = abs(self.args.simulation_precision) if self.args.simulation_precision <= 0 else 0
@@ -141,6 +142,11 @@ class NavierStokes(object):
 		parser.add_argument('--precision', default=self.config['precision'], type=int, dest='simulation_precision', help='Precision at which converge is achieved, for all variables (power of ten) (default: %(default)s)')
 		parser.add_argument('--viscosity', default=self.config['nu'], type=float, dest='nu', nargs="*", help='Viscosity, m^2/s. Expects 1, 2 or 4 space-separated entries, depending on whether a scalar, vector or tensor is wished (default: %(default)s)')
 		parser.add_argument('--rho-0', default=self.config['rho_0'], type=float, dest='rho_0', help='Density, kg/m^3 (default: %(default)s)')
+		parser.add_argument('--alpha', default=self.config['alpha'], type=float, help='Water thermal expansion coefficient, 1/°C (default: %(default)s)')
+		parser.add_argument('--beta', default=self.config['beta'], type=float, help='Water salinity expansion coefficient, 1/PSU (default: %(default)s)')
+		parser.add_argument('--T-0', default=self.config['T_0'], type=float, dest='T_0', help='Reference temperature, °C (default: %(default)s)')
+		parser.add_argument('--S-0', default=self.config['S_0'], type=float, dest='S_0', help='Reference salinity, PSU (default: %(default)s)')
+		parser.add_argument('--ocean-bc', default=self.config['ocean_bc'], dest='ocean_bc', help='Regulates in/out flow at ocean boundary. If a number is given, it will be used as scaling-coefficient of the sinusodial BC on ocean boundary. If a string is given, it will be used as formula for the ocean BC (default: %(default)s)')
 		parser.add_argument('--domain', default=self.config['domain'], help='What domain to use, either `square` (1km x 1km) or `custom` (default: %(default)s)')
 		parser.add_argument('--domain-size-x', default=self.config['domain_size_x'], type=int, dest='domain_size_x', help='Size of domain in x direction (i.e. width) (default: %(default)s)')
 		parser.add_argument('--domain-size-y', default=self.config['domain_size_y'], type=int, dest='domain_size_y', help='Size of domain in y direction (i.e. height) (default: %(default)s)')
@@ -375,7 +381,11 @@ class NavierStokes(object):
 		Draws boundaries from external module."""
 
 		# In/Out velocity flow sinusodial expression
-		ux_sin = "(0.5)*sin(2*pi*x[1])"
+		try:
+			coeff = float(self.const.ocean_bc)
+			ocean_bc = str(coeff)+"*sin(2*pi*x[1])"
+		except ValueError:
+			ocean_bc = self.const.ocean_bc
 
 		if(self.args.domain == 'square'):
 
@@ -389,7 +399,7 @@ class NavierStokes(object):
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), top))
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), bottom))
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), left))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ux_sin, 0), degree = 2), right))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), right))
 
 			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(self.const.rho_0*self.const.g), top)) #applying BC on right corner yields problems?
 
@@ -412,7 +422,7 @@ class NavierStokes(object):
 			right = self.bd.Bound_Right()
 
 			# Define boundary conditions
-			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ux_sin, 0), degree = 2), right))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), right))
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), bottom))
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), left))
 			self.bcu.append(DirichletBC(self.function_spaces.V.sub(1), Constant(0.0), sea_top))
