@@ -4,6 +4,11 @@ precision: -3
 nu: 
 - 100
 rho_0: 1028
+alpha: 0.0001
+beta: 0.00076
+T_0: 1
+S_0: 35
+ocean_bc: 0.5
 domain: custom
 domain_size_x: 2
 domain_size_y: 1
