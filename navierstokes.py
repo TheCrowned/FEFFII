@@ -263,10 +263,10 @@ class NavierStokes(object):
 
 		# Define function spaces
 		self.function_spaces.update({
-			'V': VectorFunctionSpace(self.mesh, 'P', 2),
-			'Q': FunctionSpace(self.mesh, 'P', 1),
-			'T': FunctionSpace(self.mesh, 'P', 2),
-			'S': FunctionSpace(self.mesh, 'P', 2)
+			'V': VectorFunctionSpace(self.mesh, 'CG', 2),
+			'Q': FunctionSpace(self.mesh, 'CG', 1),
+			'T': FunctionSpace(self.mesh, 'CG', 2),
+			'S': FunctionSpace(self.mesh, 'CG', 2)
 		})
 
 		# Define functions for solution computation
