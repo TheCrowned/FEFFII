@@ -281,9 +281,9 @@ class NavierStokes(object):
 			'S_': Function(self.function_spaces.S)
 		})
 
-		# Try to set Temperature to mid-value to test diffusion
-		T_0 = Constant('0.5')
-		self.functions.T_n.assign(interpolate(T_0, self.function_spaces.T))
+		# Set T and S to reference values to speed up convergence
+		self.functions.T_n.assign(interpolate(Constant(self.const.T_0), self.function_spaces.T))
+		self.functions.S_n.assign(interpolate(Constant(self.const.S_0), self.function_spaces.S))
 
 	def define_variational_problems(self):
 
@@ -305,7 +305,7 @@ class NavierStokes(object):
 		f_T = Constant(0)
 		f_S = Constant(0)
 
-		buoyancy = Expression((0, 'g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))/rho_0'), alpha=self.const.alpha, beta=self.const.beta, T_0=self.const.T_0, S_0=self.const.S_0, g=self.const.g, T_=self.functions.T_, S_=self.functions.S_, rho_0=self.const.rho_0, degree=2)
+		buoyancy = Expression((0, '-g*(1 -alpha*(T_ - T_0) + beta*(S_ - S_0))'), alpha=self.const.alpha, beta=self.const.beta, T_0=self.const.T_0, S_0=self.const.S_0, g=self.const.g, T_=self.functions.T_, S_=self.functions.S_, rho_0=self.const.rho_0, degree=2)
 
 		# Define strain-rate tensor
 		def epsilon(u):
@@ -401,7 +401,7 @@ class NavierStokes(object):
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), left))
 			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), right))
 
-			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(self.const.rho_0*self.const.g), top)) #applying BC on right corner yields problems?
+			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), top)) #applying BC on right corner yields problems?
 
 			#self.bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
 
@@ -409,7 +409,7 @@ class NavierStokes(object):
 			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("-1.9"), left))
 
 			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), right))
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), left))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("34.5", degree=2), left))
 
 		elif(self.args.domain == 'custom'):
 
@@ -427,7 +427,7 @@ class NavierStokes(object):
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), left))
 			self.bcu.append(DirichletBC(self.function_spaces.V.sub(1), Constant(0.0), sea_top))
 
-			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(self.const.rho_0*self.const.g), sea_top)) #applying BC on right corner yields problems?
+			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), sea_top)) #applying BC on right corner yields problems?
 
 			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("3", degree=2), right))
 			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), left))
@@ -570,8 +570,9 @@ class NavierStokes(object):
 				break
 
 			# Set solutions for next time-step
+			#y = interpolate(Expression('-g*(1-x[1])', degree=2, g=self.const.g), self.function_spaces.Q)
 			self.functions.u_n.assign(self.functions.u_)
-			self.functions.p_n.assign(self.functions.p_)
+			self.functions.p_n.assign(self.functions.p_ )#+ self.const.rho_0*y)
 			self.functions.T_n.assign(self.functions.T_)
 			self.functions.S_n.assign(self.functions.S_)
 
@@ -613,7 +614,7 @@ class NavierStokes(object):
 		plt.close()
 
 		y = Expression('x[1]', degree = 2)
-		p_to_plot = self.functions.p_ - self.const.rho_0*self.const.g*y #p is redefined in variational problem to include a rho_0*g*y term
+		p_to_plot = self.functions.p_ #- self.const.rho_0*self.const.g*y #p is redefined in variational problem to include a rho_0*g*y term
 		fig = plt.figure()
 		ax = fig.add_subplot(111)
 		pl = plot(p_to_plot, title='Pressure (Pa)')
