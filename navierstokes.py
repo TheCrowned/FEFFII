@@ -100,9 +100,9 @@ class NavierStokes(object):
 		tolerance = pow(10, - round(math.log(self.args.mesh_resolution, 10)))
 
 		#If --very-verbose is requested, enable FEniCS debug mode
-		if(self.args.very_verbose == True):
-			set_log_active(True)
-			set_log_level(1)
+		#if(self.args.very_verbose == True):
+			#set_log_active(True)
+			#set_log_level(1)
 
 		# Register SIGINT handler so we plot before exiting
 		signal.signal(signal.SIGINT, self.sigint_handler)
@@ -284,6 +284,7 @@ class NavierStokes(object):
 		# Set T and S to reference values to speed up convergence
 		self.functions.T_n.assign(interpolate(Constant(self.const.T_0), self.function_spaces.T))
 		self.functions.S_n.assign(interpolate(Constant(self.const.S_0), self.function_spaces.S))
+		self.functions.p_n.assign(interpolate(Expression('rho_0*g*(1-x[1])', degree=2, rho_0=self.const.rho_0, g=self.const.g), self.function_spaces.Q))
 
 	def define_variational_problems(self):
 
@@ -530,7 +531,7 @@ class NavierStokes(object):
 			S_diff = np.linalg.norm(self.functions.S_.vector().get_local() - self.functions.S_n.vector().get_local())
 
 			# Even if verbose, get progressively less verbose with the order of number of iterations
-			if(rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0)):
+			if(self.args.very_verbose or (rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0))):
 				last_run = time.time() - start
 				#last_run = (last_run*(n/100 - 1) + (time.time() - start))/(n/100) if n != 0 else 0
 				eta = round(last_run*(iterations_n - n))/100 if last_run != 0 else '?'
