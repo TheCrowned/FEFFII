@@ -100,9 +100,9 @@ class NavierStokes(object):
 		tolerance = pow(10, - round(math.log(self.args.mesh_resolution, 10)))
 
 		#If --very-verbose is requested, enable FEniCS debug mode
-		if(self.args.very_verbose == True):
-			set_log_active(True)
-			set_log_level(1)
+		#if(self.args.very_verbose == True):
+			#set_log_active(True)
+			#set_log_level(1)
 
 		# Register SIGINT handler so we plot before exiting
 		signal.signal(signal.SIGINT, self.sigint_handler)
@@ -284,6 +284,7 @@ class NavierStokes(object):
 		# Set T and S to reference values to speed up convergence
 		self.functions.T_n.assign(interpolate(Constant(self.const.T_0), self.function_spaces.T))
 		self.functions.S_n.assign(interpolate(Constant(self.const.S_0), self.function_spaces.S))
+		self.functions.p_n.assign(interpolate(Expression('rho_0*g*(1-x[1])', degree=2, rho_0=self.const.rho_0, g=self.const.g), self.function_spaces.Q))
 
 	def define_variational_problems(self):
 
@@ -395,21 +396,29 @@ class NavierStokes(object):
 			left = self.bd.Bound_Left()
 			right = self.bd.Bound_Right()
 
-			# Define boundary conditions
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), top))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), bottom))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), left))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), right))
+			#Mark subdomains - useful for BCs setting in later mesh deformation
+			self.sub_domains = MeshFunction("size_t", self.mesh, self.mesh.topology().dim() - 1)
+			left.mark(self.sub_domains, 1)
+			bottom.mark(self.sub_domains, 2)
+			right.mark(self.sub_domains, 3)
+			top.mark(self.sub_domains, 4)
+			#File("boundaries.pvd") << self.sub_domains
 
-			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), top)) #applying BC on right corner yields problems?
+			# Define boundary conditions
+			self.bcu.append(DirichletBC(self.function_spaces.V.sub(1), Constant(0), self.sub_domains, 4))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), self.sub_domains, 1))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), self.sub_domains, 2))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), self.sub_domains, 3))
+
+			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), self.sub_domains, 4)) #applying BC on right corner yields problems?
 
 			#self.bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
 
-			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("3"), right))
-			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("-1.9"), left))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("3"), self.sub_domains, 3))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("-1.9"), self.sub_domains, 1))
 
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), right))
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("34.5", degree=2), left))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), self.sub_domains, 3))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("34.5", degree=2), self.sub_domains, 1))
 
 		elif(self.args.domain == 'custom'):
 
@@ -421,43 +430,40 @@ class NavierStokes(object):
 			left = self.bd.Bound_Left()
 			right = self.bd.Bound_Right()
 
+			#Mark subdomains - useful for BCs setting in later mesh deformation
+			self.sub_domains = MeshFunction("size_t", self.mesh, self.mesh.topology().dim() - 1)
+			left.mark(self.sub_domains, 1)
+			bottom.mark(self.sub_domains, 2)
+			right.mark(self.sub_domains, 3)
+			sea_top.mark(self.sub_domains, 4)
+			ice_shelf_right.mark(self.sub_domains, 5)
+			ice_shelf_bottom.mark(self.sub_domains, 6)
+			#File("boundaries.pvd") << self.sub_domains
+
 			# Define boundary conditions
-			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), right))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), bottom))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), left))
-			self.bcu.append(DirichletBC(self.function_spaces.V.sub(1), Constant(0.0), sea_top))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), self.sub_domains, 3))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), self.sub_domains, 2))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), self.sub_domains, 1))
+			self.bcu.append(DirichletBC(self.function_spaces.V.sub(1), Constant(0.0), self.sub_domains, 4))
 
-			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), sea_top)) #applying BC on right corner yields problems?
+			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), self.sub_domains, 4)) #applying BC on right corner yields problems?
 
-			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("3", degree=2), right))
-			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), left))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("3", degree=2), self.sub_domains, 3))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), self.sub_domains, 1))
 
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), right))
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), left))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), self.sub_domains, 3))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), self.sub_domains, 1))
 
 			# Only set BCs for ice shelf if shelf is actually present
 			if self.args.shelf_size_x > 0 and self.args.shelf_size_y > 0:
-				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_bottom))
-				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_right))
+				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), self.sub_domains, 6))
+				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), self.sub_domains, 5))
 
-				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_bottom))
-				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_right))
+				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), self.sub_domains, 6))
+				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), self.sub_domains, 5))
 
-				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), ice_shelf_bottom))
-				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), ice_shelf_right))
-
-		'''
-		# Enable to check subdomains are properly marked.
-
-		sub_domains = MeshFunction("size_t", self.mesh, self.mesh.topology().dim() - 1)
-		left.mark(sub_domains, 1)
-		bottom.mark(sub_domains, 2)
-		right.mark(sub_domains, 3)
-		sea_top.mark(sub_domains, 4)
-		ice_shelf_right.mark(sub_domains, 5)
-		ice_shelf_bottom.mark(sub_domains, 6)
-		File("boundaries.pvd") << sub_domains
-		'''
+				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), self.sub_domains, 6))
+				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), self.sub_domains, 5))
 
 	def run_simulation(self):
 		"""Actually run the simulation"""
@@ -530,7 +536,7 @@ class NavierStokes(object):
 			S_diff = np.linalg.norm(self.functions.S_.vector().get_local() - self.functions.S_n.vector().get_local())
 
 			# Even if verbose, get progressively less verbose with the order of number of iterations
-			if(rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0)):
+			if(self.args.very_verbose or (rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0))):
 				last_run = time.time() - start
 				#last_run = (last_run*(n/100 - 1) + (time.time() - start))/(n/100) if n != 0 else 0
 				eta = round(last_run*(iterations_n - n))/100 if last_run != 0 else '?'
@@ -576,10 +582,33 @@ class NavierStokes(object):
 			self.functions.T_n.assign(self.functions.T_)
 			self.functions.S_n.assign(self.functions.S_)
 
+			self.move_domain()
+
 		if(self.args.plot == True):
 			self.plot_solution()
 
 		os.system('xdg-open "' + self.plot_path + '"')
+
+	def move_domain(self):
+		'''
+		ALE examples
+		https://fenicsproject.org/qa/13874/problem-with-moving-mesh-ale-move/
+		https://fenicsproject.org/qa/13470/ale-move-class-and-meshes/
+		'''
+
+		bmesh = BoundaryMesh(self.mesh, "exterior")
+		for x in bmesh.coordinates():
+			x[0] += 0.00001*(1-x[0])
+
+		ALE.move(self.mesh, bmesh)
+
+		print(BoundaryMesh(self.mesh, "exterior").coordinates())
+
+		self.log('Mesh moved')
+		#plot(self.mesh)
+		#plt.show()
+
+		#File('boundaries.pvd') << boundaries
 
 	def plot_solution(self):
 		fig = plt.figure()
