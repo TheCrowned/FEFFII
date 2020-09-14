@@ -306,7 +306,8 @@ class NavierStokes(object):
 		f_T = Constant(0)
 		f_S = Constant(0)
 
-		buoyancy = Expression((0, '-g*(1 -alpha*(T_ - T_0) + beta*(S_ - S_0))'), alpha=self.const.alpha, beta=self.const.beta, T_0=self.const.T_0, S_0=self.const.S_0, g=self.const.g, T_=self.functions.T_, S_=self.functions.S_, rho_0=self.const.rho_0, degree=2)
+		buoyancy = Expression((0, '-g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))'), alpha=self.const.alpha, beta=self.const.beta, T_0=self.const.T_0, S_0=self.const.S_0, g=self.const.g, T_=self.functions.T_, S_=self.functions.S_, degree=2)
+		y = Expression("x[1]", degree=2) #can we do without this and have it directly in F1 ???
 
 		# Define strain-rate tensor
 		def epsilon(u):
@@ -315,23 +316,6 @@ class NavierStokes(object):
 		# Define stress tensor
 		def sigma(u, p):
 			return 2*elem_mult(self.const.nu, epsilon(u)) - p*Identity(len(u))
-
-		# Element-wise multiplication (for viscosity)
-		'''def el_mult(u, c):
-			if ! (isinstance(u, function.argument.Argument) or isinstance(u, function.function.Function)):
-				raise ValueError("First argument is of type %s instead of fenics Function/TrialFunction" % type(u))
-
-			assert type(c) == tuple and size(c) == u.geometric_dimension(), "Second argument should be a constant of same size as first argument function"
-
-			temp = TrialFunction(V) if isinstance(u, function.argument.Argument) else Function(V)
-			for i in temp.geometric_dimension():
-				temp.sub(i).assign(u.sub(i)*c[i])
-
-			return temp
-
-		c=(1,2)
-		#print(el_mult(U,c))
-		'''
 
 		def get_matrix_diagonal(mat):
 			diag = []
@@ -343,8 +327,8 @@ class NavierStokes(object):
 		# Define variational problem for step 1
 		F1 = dot((self.functions.u - self.functions.u_n)/self.const.dt, self.functions.v)*dx + \
 			 dot(dot(self.functions.u_n, nabla_grad(self.functions.u_n)), self.functions.v)*dx \
-		   + inner(sigma(U, self.functions.p_n/self.const.rho_0), epsilon(self.functions.v))*dx \
-		   + dot(self.functions.p_n*n/self.const.rho_0, self.functions.v)*ds - dot(elem_mult(self.const.nu, nabla_grad(U))*n, self.functions.v)*ds \
+		   + inner(sigma(U, (self.functions.p_n + self.const.rho_0*self.const.g*y)/self.const.rho_0), epsilon(self.functions.v))*dx \
+		   + dot((self.functions.p_n + self.const.rho_0*self.const.g*y)*n/self.const.rho_0, self.functions.v)*ds - dot(elem_mult(self.const.nu, nabla_grad(U))*n, self.functions.v)*ds \
 		   - dot(buoyancy, self.functions.v)*dx
 		self.stiffness_mats.a1, self.load_vectors.L1 = lhs(F1), rhs(F1)
 
