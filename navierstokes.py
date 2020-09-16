@@ -396,7 +396,7 @@ class NavierStokes(object):
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), self.sub_domains, 2))
 			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), self.sub_domains, 3))
 
-			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), self.sub_domains, 4)) #applying BC on right corner yields problems?
+			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), 'near(x[0], 1) && near(x[1], 1)', method='pointwise'))
 
 			#self.bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
 
@@ -432,7 +432,7 @@ class NavierStokes(object):
 			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), self.sub_domains, 1))
 			self.bcu.append(DirichletBC(self.function_spaces.V.sub(1), Constant(0.0), self.sub_domains, 4))
 
-			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), self.sub_domains, 4)) #applying BC on right corner yields problems?
+			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), 'near(x[0], %d) && near(x[1], %d)' % (self.args.domain_size_x, self.args.domain_size_y), method='pointwise'))
 
 			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("3", degree=2), self.sub_domains, 3))
 			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), self.sub_domains, 1))
