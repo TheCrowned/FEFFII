@@ -160,6 +160,7 @@ class NavierStokes(object):
 		parser.add_argument('--mesh-resolution-sea-top-y', default=self.config['mesh_resolution_sea_top_y'], type=int, dest='mesh_resolution_sea_y', help='Mesh resolution for sea top beside ice shelf in y direction (default: %(default)s) - only applies to `rectangle` domain')
 		parser.add_argument('--store-sol', default=self.config['store_sol'], dest='store_solutions', action='store_true', help='Whether to save iteration solutions for display in Paraview (default: %(default)s)')
 		parser.add_argument('--label', default='', help='Label to append to plots folder (default: %(default)s)')
+		parser.add_argument('--max-iter', default='', dest='max_iter', help='Stop simulation after given number of timesteps (default: %(default)s)')
 		parser.add_argument('-v', '--verbose', default=self.config['verbose'], dest='verbose', action='store_true', help='Whether to display debug info (default: %(default)s)')
 		parser.add_argument('-vv', '--very-verbose', default=self.config['very_verbose'], dest='very_verbose', action='store_true', help='Whether to display debug info from FEniCS as well (default: %(default)s)')
 		add_bool_arg(parser, 'plot', default=self.config['plot'], help='Whether to plot solution (default: %(default)s)')
@@ -541,6 +542,18 @@ class NavierStokes(object):
 			convergence_threshold = 10**(self.args.simulation_precision)
 			if all(diff < convergence_threshold for diff in [u_diff, p_diff, T_diff, S_diff]):
 				self.log('--- Stopping simulation at step %d: all variables reached desired precision ---' % n, True)
+
+				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
+					round(norm(self.functions.u_, 'L2'), self.round_precision), round(norm(self.functions.u_.vector(), 'linf'), self.round_precision), round(u_diff, self.round_precision), \
+					round(norm(self.functions.p_, 'L2'), self.round_precision), round(norm(self.functions.p_.vector(), 'linf'), self.round_precision), round(p_diff, self.round_precision), \
+					round(norm(self.functions.T_, 'L2'), self.round_precision), round(norm(self.functions.T_.vector(), 'linf'), self.round_precision), round(T_diff, self.round_precision), \
+					round(norm(self.functions.S_, 'L2'), self.round_precision), round(norm(self.functions.S_.vector(), 'linf'), self.round_precision), round(S_diff, self.round_precision)) \
+				)
+
+				break
+
+			if n >= int(self.args.max_iter):
+				self.log('--- Max iterations reached, stopping simulation at timestep %d ---' % n, True)
 
 				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
 					round(norm(self.functions.u_, 'L2'), self.round_precision), round(norm(self.functions.u_.vector(), 'linf'), self.round_precision), round(u_diff, self.round_precision), \
