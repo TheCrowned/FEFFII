@@ -53,41 +53,42 @@ class NavierStokes(object):
 		pathlib.Path(self.plot_path).mkdir(parents=True, exist_ok=True)
 		self.log_file = open(self.plot_path + 'simulation.log', 'w')
 
-		def assemble_viscosity():
-			nu = [i*0.0036 for i in self.args.nu] # from m^2/s to km^2/h
+		def assemble_viscosity(visc):
+			scaled_visc = [i*0.0036 for i in visc] # from m^2/s to km^2/h
 
-			if len(nu) == 1:
-				viscosity = as_tensor((
-					(nu[0], 0),
-					(0, nu[0])
+			if len(scaled_visc) == 1:
+				output = as_tensor((
+					(scaled_visc[0], 0),
+					(0, scaled_visc[0])
 				))
 
-			elif len(self.args.nu) == 2:
-				viscosity = as_tensor((
-					(nu[0], 0),
-					(0, nu[1])
+			elif len(scaled_visc) == 2:
+				output = as_tensor((
+					(scaled_visc[0], 0),
+					(0, scaled_visc[1])
 				))
 
-			elif len(self.args.nu) == 4:
+			elif len(scaled_visc) == 4:
 				viscosity = as_tensor((
-					(nu[0], nu[1]),
-					(nu[2], nu[3])
+					(scaled_visc[0], scaled_visc[1]),
+					(scaled_visc[2], scaled_visc[3])
 				))
 
 			else:
-				raise ValueError("Viscosity needs 1, 2 or 4 entries input, %d given" % len(nu))
+				raise ValueError("Viscosity needs 1, 2 or 4 entries input, %d given" % len(scaled_visc))
 
-			return viscosity
+			return output
 
 		# Values used in variational forms, some provided as input from terminal
 		# For units of measure, see README.md
 		self.const = Bunch({
 			'dt': Constant(1 / self.args.steps_n),
-			'nu': assemble_viscosity(),
+			'nu': assemble_viscosity(self.args.nu),
+			'alpha': assemble_viscosity(self.args.alpha),
 			'rho_0': Constant(self.args.rho_0/(3.6**2)), 	# from kg/m^3 to h^2*Pa/km^2
 			'g': Constant(1.27*10**5),						# from m/s^2 to km/h^2
-			'alpha': Constant(self.args.alpha),
 			'beta': Constant(self.args.beta),
+			'gamma': Constant(self.args.gamma),
 			'T_0': Constant(self.args.T_0),
 			'S_0': Constant(self.args.S_0),
 			'ocean_bc': Constant(self.args.ocean_bc)
@@ -140,10 +141,11 @@ class NavierStokes(object):
 		parser.add_argument('--final-time', default=self.config['final_time'], type=float, dest='final_time', help='How long to run the simulation for (hours) (default: %(default)s)')
 		parser.add_argument('--steps-n', default=self.config['steps_n'], type=int, dest='steps_n', help='How many steps each of the "seconds" is made of (default: %(default)s)')
 		parser.add_argument('--precision', default=self.config['precision'], type=int, dest='simulation_precision', help='Precision at which converge is achieved, for all variables (power of ten) (default: %(default)s)')
-		parser.add_argument('--viscosity', default=self.config['nu'], type=float, dest='nu', nargs="*", help='Viscosity, m^2/s. Expects 1, 2 or 4 space-separated entries, depending on whether a scalar, vector or tensor is wished (default: %(default)s)')
+		parser.add_argument('--nu', default=self.config['nu'], type=float, dest='nu', nargs="*", help='Viscosity coefficient for velocity, m^2/s. Expects 1, 2 or 4 space-separated entries, depending on whether a scalar, vector or tensor is wished (default: %(default)s)')
+		parser.add_argument('--alpha', default=self.config['alpha'], type=float, dest='alpha', nargs="*", help='Viscosity coefficient for temperature/salinity, m^2/s. Expects 1, 2 or 4 space-separated entries, depending on whether a scalar, vector or tensor is wished (default: %(default)s)')
 		parser.add_argument('--rho-0', default=self.config['rho_0'], type=float, dest='rho_0', help='Density, kg/m^3 (default: %(default)s)')
-		parser.add_argument('--alpha', default=self.config['alpha'], type=float, help='Water thermal expansion coefficient, 1/°C (default: %(default)s)')
-		parser.add_argument('--beta', default=self.config['beta'], type=float, help='Water salinity expansion coefficient, 1/PSU (default: %(default)s)')
+		parser.add_argument('--beta', default=self.config['beta'], type=float, help='Water thermal expansion coefficient, 1/°C (default: %(default)s)')
+		parser.add_argument('--gamma', default=self.config['gamma'], type=float, help='Water salinity expansion coefficient, 1/PSU (default: %(default)s)')
 		parser.add_argument('--T-0', default=self.config['T_0'], type=float, dest='T_0', help='Reference temperature, °C (default: %(default)s)')
 		parser.add_argument('--S-0', default=self.config['S_0'], type=float, dest='S_0', help='Reference salinity, PSU (default: %(default)s)')
 		parser.add_argument('--ocean-bc', default=self.config['ocean_bc'], dest='ocean_bc', help='Regulates in/out flow at ocean boundary. If a number is given, it will be used as scaling-coefficient of the sinusodial BC on ocean boundary. If a string is given, it will be used as formula for the ocean BC (default: %(default)s)')
@@ -158,6 +160,7 @@ class NavierStokes(object):
 		parser.add_argument('--mesh-resolution-sea-top-y', default=self.config['mesh_resolution_sea_top_y'], type=int, dest='mesh_resolution_sea_y', help='Mesh resolution for sea top beside ice shelf in y direction (default: %(default)s) - only applies to `rectangle` domain')
 		parser.add_argument('--store-sol', default=self.config['store_sol'], dest='store_solutions', action='store_true', help='Whether to save iteration solutions for display in Paraview (default: %(default)s)')
 		parser.add_argument('--label', default='', help='Label to append to plots folder (default: %(default)s)')
+		parser.add_argument('--max-iter', default='', dest='max_iter', help='Stop simulation after given number of timesteps (default: %(default)s)')
 		parser.add_argument('-v', '--verbose', default=self.config['verbose'], dest='verbose', action='store_true', help='Whether to display debug info (default: %(default)s)')
 		parser.add_argument('-vv', '--very-verbose', default=self.config['very_verbose'], dest='very_verbose', action='store_true', help='Whether to display debug info from FEniCS as well (default: %(default)s)')
 		add_bool_arg(parser, 'plot', default=self.config['plot'], help='Whether to plot solution (default: %(default)s)')
@@ -306,7 +309,7 @@ class NavierStokes(object):
 		f_T = Constant(0)
 		f_S = Constant(0)
 
-		buoyancy = Expression((0, '-g*(-alpha*(T_ - T_0) + beta*(S_ - S_0))'), alpha=self.const.alpha, beta=self.const.beta, T_0=self.const.T_0, S_0=self.const.S_0, g=self.const.g, T_=self.functions.T_, S_=self.functions.S_, degree=2)
+		buoyancy = Expression((0, '-g*(-beta*(T_ - T_0) + gamma*(S_ - S_0))'), beta=self.const.beta, gamma=self.const.gamma, T_0=self.const.T_0, S_0=self.const.S_0, g=self.const.g, T_=self.functions.T_, S_=self.functions.S_, degree=2)
 		y = Expression("x[1]", degree=2) #can we do without this and have it directly in F1 ???
 
 		# Define strain-rate tensor
@@ -346,15 +349,14 @@ class NavierStokes(object):
 		# Variational problem for temperature
 		F = dot((self.functions.T - self.functions.T_n)/self.const.dt, self.functions.T_v)*dx \
 			+ div(self.functions.u_*self.functions.T)*self.functions.T_v*dx \
-			+ dot(elem_mult(get_matrix_diagonal(self.const.nu), grad(self.functions.T)), grad(self.functions.T_v))*dx \
+			+ dot(elem_mult(get_matrix_diagonal(self.const.alpha), grad(self.functions.T)), grad(self.functions.T_v))*dx \
 			- f_T*self.functions.T_v*dx
-
 		self.stiffness_mats.a4, self.load_vectors.L4 = lhs(F), rhs(F)
 
 		# Variational problem for salinity
 		F = dot((self.functions.S - self.functions.S_n)/self.const.dt, self.functions.S_v)*dx \
 			+ div(self.functions.u_*self.functions.S)*self.functions.S_v*dx \
-			+ dot(elem_mult(get_matrix_diagonal(self.const.nu), grad(self.functions.S)), grad(self.functions.S_v))*dx \
+			+ dot(elem_mult(get_matrix_diagonal(self.const.alpha), grad(self.functions.S)), grad(self.functions.S_v))*dx \
 			- f_S*self.functions.S_v*dx
 		self.stiffness_mats.a5, self.load_vectors.L5 = lhs(F), rhs(F)
 
@@ -540,6 +542,18 @@ class NavierStokes(object):
 			convergence_threshold = 10**(self.args.simulation_precision)
 			if all(diff < convergence_threshold for diff in [u_diff, p_diff, T_diff, S_diff]):
 				self.log('--- Stopping simulation at step %d: all variables reached desired precision ---' % n, True)
+
+				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
+					round(norm(self.functions.u_, 'L2'), self.round_precision), round(norm(self.functions.u_.vector(), 'linf'), self.round_precision), round(u_diff, self.round_precision), \
+					round(norm(self.functions.p_, 'L2'), self.round_precision), round(norm(self.functions.p_.vector(), 'linf'), self.round_precision), round(p_diff, self.round_precision), \
+					round(norm(self.functions.T_, 'L2'), self.round_precision), round(norm(self.functions.T_.vector(), 'linf'), self.round_precision), round(T_diff, self.round_precision), \
+					round(norm(self.functions.S_, 'L2'), self.round_precision), round(norm(self.functions.S_.vector(), 'linf'), self.round_precision), round(S_diff, self.round_precision)) \
+				)
+
+				break
+
+			if n >= int(self.args.max_iter):
+				self.log('--- Max iterations reached, stopping simulation at timestep %d ---' % n, True)
 
 				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
 					round(norm(self.functions.u_, 'L2'), self.round_precision), round(norm(self.functions.u_.vector(), 'linf'), self.round_precision), round(u_diff, self.round_precision), \
