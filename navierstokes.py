@@ -382,21 +382,29 @@ class NavierStokes(object):
 			left = self.bd.Bound_Left()
 			right = self.bd.Bound_Right()
 
-			# Define boundary conditions
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), top))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), bottom))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), left))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), right))
+			#Mark subdomains - useful for BCs setting in later mesh deformation
+			self.sub_domains = MeshFunction("size_t", self.mesh, self.mesh.topology().dim() - 1)
+			left.mark(self.sub_domains, 1)
+			bottom.mark(self.sub_domains, 2)
+			right.mark(self.sub_domains, 3)
+			top.mark(self.sub_domains, 4)
+			#File("boundaries.pvd") << self.sub_domains
 
-			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), top)) #applying BC on right corner yields problems?
+			# Define boundary conditions
+			self.bcu.append(DirichletBC(self.function_spaces.V.sub(1), Constant(0), self.sub_domains, 4))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), self.sub_domains, 1))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0, 0)), self.sub_domains, 2))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), self.sub_domains, 3))
+
+			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), self.sub_domains, 4)) #applying BC on right corner yields problems?
 
 			#self.bcT.append(DirichletBC(T_space, Expression("7*x[1]-2", degree=2), right))
 
-			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("3"), right))
-			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("-1.9"), left))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("3"), self.sub_domains, 3))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Constant("-1.9"), self.sub_domains, 1))
 
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), right))
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("34.5", degree=2), left))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), self.sub_domains, 3))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("34.5", degree=2), self.sub_domains, 1))
 
 		elif(self.args.domain == 'custom'):
 
@@ -408,30 +416,40 @@ class NavierStokes(object):
 			left = self.bd.Bound_Left()
 			right = self.bd.Bound_Right()
 
+			#Mark subdomains - useful for BCs setting in later mesh deformation
+			self.sub_domains = MeshFunction("size_t", self.mesh, self.mesh.topology().dim() - 1)
+			left.mark(self.sub_domains, 1)
+			bottom.mark(self.sub_domains, 2)
+			right.mark(self.sub_domains, 3)
+			sea_top.mark(self.sub_domains, 4)
+			ice_shelf_right.mark(self.sub_domains, 5)
+			ice_shelf_bottom.mark(self.sub_domains, 6)
+			#File("boundaries.pvd") << self.sub_domains
+
 			# Define boundary conditions
-			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), right))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), bottom))
-			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), left))
-			self.bcu.append(DirichletBC(self.function_spaces.V.sub(1), Constant(0.0), sea_top))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Expression((ocean_bc, 0), degree = 2), self.sub_domains, 3))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), self.sub_domains, 2))
+			self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), self.sub_domains, 1))
+			self.bcu.append(DirichletBC(self.function_spaces.V.sub(1), Constant(0.0), self.sub_domains, 4))
 
-			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), sea_top)) #applying BC on right corner yields problems?
+			self.bcp.append(DirichletBC(self.function_spaces.Q, Constant(0), self.sub_domains, 4)) #applying BC on right corner yields problems?
 
-			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("3", degree=2), right))
-			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), left))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("3", degree=2), self.sub_domains, 3))
+			self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), self.sub_domains, 1))
 
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), right))
-			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), left))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("35", degree=2), self.sub_domains, 3))
+			self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), self.sub_domains, 1))
 
 			# Only set BCs for ice shelf if shelf is actually present
 			if self.args.shelf_size_x > 0 and self.args.shelf_size_y > 0:
-				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_bottom))
-				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), ice_shelf_right))
+				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), self.sub_domains, 6))
+				self.bcu.append(DirichletBC(self.function_spaces.V, Constant((0.0, 0.0)), self.sub_domains, 5))
 
-				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_bottom))
-				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), ice_shelf_right))
+				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), self.sub_domains, 6))
+				self.bcT.append(DirichletBC(self.function_spaces.T, Expression("-1.9", degree=2), self.sub_domains, 5))
 
-				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), ice_shelf_bottom))
-				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), ice_shelf_right))
+				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), self.sub_domains, 6))
+				self.bcS.append(DirichletBC(self.function_spaces.S, Expression("30", degree=2), self.sub_domains, 5))
 
 		'''
 		# Enable to check subdomains are properly marked.
