@@ -539,17 +539,10 @@ class NavierStokes(object):
 				last_run = time.time() - start
 				#last_run = (last_run*(n/100 - 1) + (time.time() - start))/(n/100) if n != 0 else 0
 				eta = round(last_run*(iterations_n - n))/100 if last_run != 0 else '?'
+				start = time.time()
 
 				self.log('Step %d of %d (ETA: ~ %s seconds)' % (n, iterations_n, eta))
-
-				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
-					round(norm(self.functions.u_, 'L2'), self.round_precision), round(norm(self.functions.u_.vector(), 'linf'), self.round_precision), round(u_diff, self.round_precision), \
-					round(norm(self.functions.p_, 'L2'), self.round_precision), round(norm(self.functions.p_.vector(), 'linf'), self.round_precision), round(p_diff, self.round_precision), \
-					round(norm(self.functions.T_, 'L2'), self.round_precision), round(norm(self.functions.T_.vector(), 'linf'), self.round_precision), round(T_diff, self.round_precision), \
-					round(norm(self.functions.S_, 'L2'), self.round_precision), round(norm(self.functions.S_.vector(), 'linf'), self.round_precision), round(S_diff, self.round_precision)) \
-				)
-
-				start = time.time()
+				self.log_progress()
 
 			if self.args.store_solutions:
 				u_pvd << self.functions.u_
@@ -560,26 +553,12 @@ class NavierStokes(object):
 			convergence_threshold = 10**(self.args.simulation_precision)
 			if all(diff < convergence_threshold for diff in [u_diff, p_diff, T_diff, S_diff]):
 				self.log('--- Stopping simulation at step %d: all variables reached desired precision ---' % n, True)
-
-				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
-					round(norm(self.functions.u_, 'L2'), self.round_precision), round(norm(self.functions.u_.vector(), 'linf'), self.round_precision), round(u_diff, self.round_precision), \
-					round(norm(self.functions.p_, 'L2'), self.round_precision), round(norm(self.functions.p_.vector(), 'linf'), self.round_precision), round(p_diff, self.round_precision), \
-					round(norm(self.functions.T_, 'L2'), self.round_precision), round(norm(self.functions.T_.vector(), 'linf'), self.round_precision), round(T_diff, self.round_precision), \
-					round(norm(self.functions.S_, 'L2'), self.round_precision), round(norm(self.functions.S_.vector(), 'linf'), self.round_precision), round(S_diff, self.round_precision)) \
-				)
-
+				self.log_progress()
 				break
 
 			if n >= int(self.args.max_iter):
 				self.log('--- Max iterations reached, stopping simulation at timestep %d ---' % n, True)
-
-				self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s" % ( \
-					round(norm(self.functions.u_, 'L2'), self.round_precision), round(norm(self.functions.u_.vector(), 'linf'), self.round_precision), round(u_diff, self.round_precision), \
-					round(norm(self.functions.p_, 'L2'), self.round_precision), round(norm(self.functions.p_.vector(), 'linf'), self.round_precision), round(p_diff, self.round_precision), \
-					round(norm(self.functions.T_, 'L2'), self.round_precision), round(norm(self.functions.T_.vector(), 'linf'), self.round_precision), round(T_diff, self.round_precision), \
-					round(norm(self.functions.S_, 'L2'), self.round_precision), round(norm(self.functions.S_.vector(), 'linf'), self.round_precision), round(S_diff, self.round_precision)) \
-				)
-
+				self.log_progress()
 				break
 
 			if norm(self.functions.u_, 'L2') != norm(self.functions.u_, 'L2'):
@@ -587,9 +566,8 @@ class NavierStokes(object):
 				break
 
 			# Set solutions for next time-step
-			#y = interpolate(Expression('-g*(1-x[1])', degree=2, g=self.const.g), self.function_spaces.Q)
 			self.functions.u_n.assign(self.functions.u_)
-			self.functions.p_n.assign(self.functions.p_ )#+ self.const.rho_0*y)
+			self.functions.p_n.assign(self.functions.p_ )
 			self.functions.T_n.assign(self.functions.T_)
 			self.functions.S_n.assign(self.functions.S_)
 
@@ -704,6 +682,19 @@ class NavierStokes(object):
 		if(self.args.verbose == True or always == True):
 			print('* %s' % message, flush=True)
 			self.log_file.write(message + '\n')
+
+	def log_progress(self):
+		u_diff = np.linalg.norm(self.functions.u_.vector().get_local() - self.functions.u_n.vector().get_local())
+		p_diff = np.linalg.norm(self.functions.p_.vector().get_local() - self.functions.p_n.vector().get_local())
+		T_diff = np.linalg.norm(self.functions.T_.vector().get_local() - self.functions.T_n.vector().get_local())
+		S_diff = np.linalg.norm(self.functions.S_.vector().get_local() - self.functions.S_n.vector().get_local())
+
+		self.log("||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||u-u_n||/||u|| = %s, \n  ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||p-p_n||/||p|| = %s, \n  ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||T-T_n||/||T|| = %s, \n  ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s, ||S - S_n||/||S|| = %s" % ( \
+			round(norm(self.functions.u_, 'L2'), self.round_precision), round(norm(self.functions.u_.vector(), 'linf'), self.round_precision), round(u_diff, self.round_precision), round(u_diff/norm(self.functions.u_, 'L2'), self.round_precision), \
+			round(norm(self.functions.p_, 'L2'), self.round_precision), round(norm(self.functions.p_.vector(), 'linf'), self.round_precision), round(p_diff, self.round_precision), round(p_diff/norm(self.functions.p_, 'L2'), self.round_precision), \
+			round(norm(self.functions.T_, 'L2'), self.round_precision), round(norm(self.functions.T_.vector(), 'linf'), self.round_precision), round(T_diff, self.round_precision), round(T_diff/norm(self.functions.T_, 'L2'), self.round_precision), \
+			round(norm(self.functions.S_, 'L2'), self.round_precision), round(norm(self.functions.S_.vector(), 'linf'), self.round_precision), round(S_diff, self.round_precision), round(S_diff/norm(self.functions.S_, 'L2'), self.round_precision)) \
+		)
 
 	def sigint_handler(self, sig, frame):
 		if(self.args.plot == True):
