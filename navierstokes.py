@@ -556,7 +556,7 @@ class NavierStokes(object):
 				self.log_progress()
 				break
 
-			if n >= int(self.args.max_iter):
+			if self.args.max_iter != '' and n >= int(self.args.max_iter):
 				self.log('--- Max iterations reached, stopping simulation at timestep %d ---' % n, True)
 				self.log_progress()
 				break
