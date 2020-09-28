@@ -1,11 +1,14 @@
 final_time: 10
 steps_n: 10000
 precision: -3
+g: 9.81
 nu: 
 - 100
+alpha:
+- 100
 rho_0: 1028
-alpha: 0.0001
-beta: 0.00076
+beta: 0.0001
+gamma: 0.00076
 T_0: 1
 S_0: 35
 ocean_bc: 0.5
@@ -22,3 +25,4 @@ store_sol: False
 verbose: True
 very_verbose: False
 plot: True
+label: ''

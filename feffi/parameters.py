@@ -1,4 +1,4 @@
-import os, yaml, logging, argparse, fenics
+import os, yaml, logging, argparse, fenics, time
 
 config = {}
 
@@ -29,8 +29,8 @@ def define_parameters(user_config={}, config_file=''):
 
 	global config
 
-	# Double call to parent_dir() reaches parent dir of current script
-	parent_dir = os.path.parent_dir(os.path.parent_dir(__file__))
+	# Double call to dirname() reaches parent dir of current script
+	parent_dir = os.path.dirname(os.path.dirname(__file__))
 
 	# If given, open custom config file...
 	if(config_file != ''):
@@ -56,7 +56,7 @@ def define_parameters(user_config={}, config_file=''):
 
 	# Set some further entries
 	label = " --label " + config['label'] if config['label'] else ""
-	config['plot_path'] = os.path.join(parent_dir, 'plots', '%d --final-time %.0f --steps-n %d --mesh-resolution %d%s/' % (round(time.time()), self.args.final_time, self.args.steps_n, self.args.mesh_resolution, label))
+	config['plot_path'] = os.path.join(parent_dir, 'plots', '%d --final-time %.0f --steps-n %d --mesh-resolution %d%s/' % (round(time.time()), config['final_time'], config['steps_n'], config['mesh_resolution'], label))
 
 def parse_commandline_args():
 	"""Provides support for command line arguments through argparse.
@@ -85,7 +85,7 @@ def parse_commandline_args():
 	parser.add_argument('--final-time', default=config['final_time'], type=float, dest='final_time', help='How long to run the simulation for (hours) (default: %(default)s)')
 	parser.add_argument('--steps-n', default=config['steps_n'], type=int, dest='steps_n', help='How many steps each of the "seconds" is made of (default: %(default)s)')
 	parser.add_argument('--precision', default=config['precision'], type=int, dest='simulation_precision', help='Precision at which converge is achieved, for all variables (power of ten) (default: %(default)s)')
-	parser.add_argument('--output', default=config['visc'], type=float, dest='visc', nargs="*", help='Viscosity, m^2/s. Expects 1, 2 or 4 space-separated entries, depending on whether a scalar, vector or tensor is wished (default: %(default)s)')
+	parser.add_argument('--nu', default=config['nu'], type=float, dest='nu', nargs="*", help='Viscosity, m^2/s. Expects 1, 2 or 4 space-separated entries, depending on whether a scalar, vector or tensor is wished (default: %(default)s)')
 	parser.add_argument('--rho-0', default=config['rho_0'], type=float, dest='rho_0', help='Density, kg/m^3 (default: %(default)s)')
 	parser.add_argument('--alpha', default=config['alpha'], type=float, help='Water thermal expansion coefficient, 1/°C (default: %(default)s)')
 	parser.add_argument('--beta', default=config['beta'], type=float, help='Water salinity expansion coefficient, 1/PSU (default: %(default)s)')
