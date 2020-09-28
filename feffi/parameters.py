@@ -1,4 +1,4 @@
-import os, yaml, logging, argparse
+import os, yaml, logging, argparse, fenics
 
 config = {}
 
@@ -21,20 +21,20 @@ def define_parameters(user_config={}, config_file=''):
         ----------
         1) Use config file located in ../config/default.yml, but using `20` as value for `final_time`.
 
-        feffi.parameters.define_parameters(
-            user_config = {'final_time' : 20},
-            config_file = os.path.join('config', 'default.yml')
-        )
+           feffi.parameters.define_parameters(
+               user_config = {'final_time' : 20},
+               config_file = os.path.join('config', 'default.yml')
+           )
     """
 
 	global config
 
-	# Double call to dirname() reaches parent dir of current script
-	dirname = os.path.dirname(os.path.dirname(__file__))
+	# Double call to parent_dir() reaches parent dir of current script
+	parent_dir = os.path.parent_dir(os.path.parent_dir(__file__))
 
 	# If given, open custom config file...
 	if(config_file != ''):
-		config_file_path = os.path.join(dirname, config_file) if not os.path.isabs(config_file) else config_file
+		config_file_path = os.path.join(parent_dir, config_file) if not os.path.isabs(config_file) else config_file
 
 		if(os.path.isfile(config_file_path)):
 			config = yaml.safe_load(open(config_file_path))
@@ -42,7 +42,7 @@ def define_parameters(user_config={}, config_file=''):
 			logging.warning('Given config file does not exist -- fallbacking to default one.')
 
 	# ...fallback to default one otherwise
-	config_file_path = os.path.join(dirname, 'config', 'default.yml')
+	config_file_path = os.path.join(parent_dir, 'config', 'default.yml')
 	if(config == {} and os.path.isfile(config_file_path)):
 		config = yaml.safe_load(open(config_file_path))
 	elif(config == {}):
@@ -53,6 +53,10 @@ def define_parameters(user_config={}, config_file=''):
 		config.update(user_config)
 	else:
 		logging.warning('Supplied non-dictionary user config')
+
+	# Set some further entries
+	label = " --label " + config['label'] if config['label'] else ""
+	config['plot_path'] = os.path.join(parent_dir, 'plots', '%d --final-time %.0f --steps-n %d --mesh-resolution %d%s/' % (round(time.time()), self.args.final_time, self.args.steps_n, self.args.mesh_resolution, label))
 
 def parse_commandline_args():
 	"""Provides support for command line arguments through argparse.
@@ -81,13 +85,13 @@ def parse_commandline_args():
 	parser.add_argument('--final-time', default=config['final_time'], type=float, dest='final_time', help='How long to run the simulation for (hours) (default: %(default)s)')
 	parser.add_argument('--steps-n', default=config['steps_n'], type=int, dest='steps_n', help='How many steps each of the "seconds" is made of (default: %(default)s)')
 	parser.add_argument('--precision', default=config['precision'], type=int, dest='simulation_precision', help='Precision at which converge is achieved, for all variables (power of ten) (default: %(default)s)')
-	parser.add_argument('--viscosity', default=config['nu'], type=float, dest='nu', nargs="*", help='Viscosity, m^2/s. Expects 1, 2 or 4 space-separated entries, depending on whether a scalar, vector or tensor is wished (default: %(default)s)')
+	parser.add_argument('--output', default=config['visc'], type=float, dest='visc', nargs="*", help='Viscosity, m^2/s. Expects 1, 2 or 4 space-separated entries, depending on whether a scalar, vector or tensor is wished (default: %(default)s)')
 	parser.add_argument('--rho-0', default=config['rho_0'], type=float, dest='rho_0', help='Density, kg/m^3 (default: %(default)s)')
 	parser.add_argument('--alpha', default=config['alpha'], type=float, help='Water thermal expansion coefficient, 1/°C (default: %(default)s)')
 	parser.add_argument('--beta', default=config['beta'], type=float, help='Water salinity expansion coefficient, 1/PSU (default: %(default)s)')
 	parser.add_argument('--T-0', default=config['T_0'], type=float, dest='T_0', help='Reference temperature, °C (default: %(default)s)')
 	parser.add_argument('--S-0', default=config['S_0'], type=float, dest='S_0', help='Reference salinity, PSU (default: %(default)s)')
-	parser.add_argument('--ocean-bc', default=config['ocean_bc'], dest='ocean_bc', help='Regulates in/out flow at ocean boundary. If a number is given, it will be used as scaling-coefficient of the sinusodial BC on ocean boundary. If a string is given, it will be used as formula for the ocean BC (default: %(default)s)')
+	parser.add_argument('--ocean-bc', default=config['ocean_bc'], dest='ocean_bc', help='Regulates in/out flow at ocean boundary. If a viscmber is given, it will be used as scaling-coefficient of the siviscsodial BC on ocean boundary. If a string is given, it will be used as formula for the ocean BC (default: %(default)s)')
 	parser.add_argument('--domain', default=config['domain'], help='What domain to use, either `square` (1km x 1km) or `custom` (default: %(default)s)')
 	parser.add_argument('--domain-size-x', default=config['domain_size_x'], type=int, dest='domain_size_x', help='Size of domain in x direction (i.e. width) (default: %(default)s)')
 	parser.add_argument('--domain-size-y', default=config['domain_size_y'], type=int, dest='domain_size_y', help='Size of domain in y direction (i.e. height) (default: %(default)s)')
@@ -109,3 +113,60 @@ def parse_commandline_args():
 	# Empty current config and set anew. Should make troubleshooting easier, since we don't want the config to be already populated if a custom config is provided
 	config = {}
 	define_parameters(commandline_args_dict, commandline_args_dict['config_file'])
+
+def assemble_viscosity_tensor(visc):
+	"""Creates a proper viscosity tensor given relevant values.
+	Notice that input must always be a list, even if it has only one element.
+
+        Parameters
+        ----------
+        visc : list (of floats)
+                If 1 entry is given, value will be used for all diagonal entries (other entries = 0).
+                If 2 entries are given, they will be used for diagonal entries (other entries = 0).
+                If 4 entries are given, they will compose the full tensor.
+
+        Examples
+        ----------
+        1) Obtain a tensor of the form
+           (a  0
+            0  a)
+
+           assemble_viscosity_tensor([a])
+
+        2) Obtain a tensor of the form
+           (a  0
+            0  b)
+
+           assemble_viscosity_tensor([a, b])
+
+		3) Obtain a tensor of the form
+           (a  b
+            c  d)
+
+           assemble_viscosity_tensor([a, b, c, d])
+	"""
+
+	visc = visc#[i*0.0036 for i in visc] # from m^2/s to km^2/h
+
+	if len(visc) == 1:
+		output = fenics.as_tensor((
+			(visc[0], 0),
+			(0, visc[0])
+		))
+
+	elif len(visc) == 2:
+		output = fenics.as_tensor((
+			(visc[0], 0),
+			(0, visc[1])
+		))
+
+	elif len(visc) == 4:
+		output = fenics.as_tensor((
+			(visc[0], visc[1]),
+			(visc[2], visc[3])
+		))
+
+	else:
+		raise ValueError("Viscosity needs 1, 2 or 4 entries input, %d given" % len(visc))
+
+	return output
