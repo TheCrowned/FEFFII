@@ -60,21 +60,25 @@ def define_functions(f_spaces):
 
 	return f
 
-def init_functions(f):
+def init_functions(f, **kwargs):
 	"""Set function values to closest stable state to speed up convergence.
 
 	Parameters
 	----------
 	f : dict
 	    Functions to initialize
+	kwargs : `T_0`, `S_0`, `rho_0`, `g` (refer to README for info).
 	"""
 
+	# Allow function arguments to overwrite wide config (but keep it local)
 	config = feffi.parameters.config
+	config_l = dict(config); config_l.update(kwargs)
 
-	f['T_n'].assign(fenics.interpolate(fenics.Constant(config['T_0']), f['T_n'].ufl_function_space()))
-	f['S_n'].assign(fenics.interpolate(fenics.Constant(config['S_0']), f['S_n'].ufl_function_space()))
+	f['T_n'].assign(fenics.interpolate(fenics.Constant(config_l['T_0']), f['T_n'].ufl_function_space()))
+	f['S_n'].assign(fenics.interpolate(fenics.Constant(config_l['S_0']), f['S_n'].ufl_function_space()))
+	f['p_n'].assign(fenics.interpolate(fenics.Expression('rho_0*g*(1-x[1])', degree=2, rho_0=config_l['rho_0'], g=config_l['g']), f['p_n'].ufl_function_space()))
 
-def define_variational_problems(f, mesh):
+def define_variational_problems(f, mesh, **kwargs):
 	"""Define variational problems to be solved in simulation.
 
 	We use a modified version of Chorin's method, the so-called incremental pressure correction scheme (IPCS) due to Goda (1979).
@@ -85,6 +89,7 @@ def define_variational_problems(f, mesh):
 	    Functions dictionary (as output, for example, by feffi.parameters.define_functions())
 	mesh : fenics-compatible mesh object
 	    Mesh to use for simulation
+	 kwargs : `rho_0`, `nu`, `alpha`, `steps_n`, `g`, `beta`, `gamma`, `T_0`, `S_0`.
 
 	Return
 	------
@@ -94,23 +99,25 @@ def define_variational_problems(f, mesh):
 	    Load vectors ready for assembly.
 	"""
 
+	# Allow function arguments to overwrite wide config (but keep it local)
 	config = feffi.parameters.config
+	config_l = dict(config); config_l.update(kwargs)
 
 	# Shorthand for functions used in variational forms
 	u = f['u'];	u_n = f['u_n'];	v = f['v']; u_ = f['u_']
 	p = f['p'];	p_n = f['p_n']; q = f['q']; p_ = f['p_']
 	T = f['T'];	T_n = f['T_n']; T_v = f['T_v']
 	S = f['S'];	S_n = f['S_n']; S_v = f['S_v']
-	rho_0 = config['rho_0'];
+	rho_0 = config_l['rho_0'];
 
 	# Assemble tensor viscosity/diffusivity
-	nu = feffi.parameters.assemble_viscosity_tensor(config['nu']);
-	alpha = feffi.parameters.assemble_viscosity_tensor(config['alpha']);
+	nu = feffi.parameters.assemble_viscosity_tensor(config_l['nu']);
+	alpha = feffi.parameters.assemble_viscosity_tensor(config_l['alpha']);
 
 	# Define expressions used in variational forms
 	U = 0.5*(u_n + u)
 	n = fenics.FacetNormal(mesh)
-	dt = 1/config['steps_n']
+	dt = 1/config_l['steps_n']
 
 	# Define strain-rate tensor
 	def epsilon(u):
@@ -130,7 +137,7 @@ def define_variational_problems(f, mesh):
 	stiffness_mats = {}; load_vectors = {}
 
 	# Define variational problem for approximated velocity
-	buoyancy = fenics.Expression((0, '-g*(1 -beta*(T_ - T_0) + gamma*(S_ - S_0))'), beta=config['beta'], gamma=config['gamma'], T_0=config['T_0'], S_0=config['S_0'], g=config['g'], T_=f['T_'], S_=f['S_'], rho_0=config['rho_0'], degree=2)
+	buoyancy = fenics.Expression((0, '-g*(1 -beta*(T_ - T_0) + gamma*(S_ - S_0))'), beta=config_l['beta'], gamma=config_l['gamma'], T_0=config_l['T_0'], S_0=config_l['S_0'], g=config_l['g'], T_=f['T_'], S_=f['S_'], degree=2)
 	F1 = + dot((u - u_n)/dt, v)*dx \
 		 + dot(dot(u_n, nabla_grad(u_n)), v)*dx \
 	     + inner(sigma(U, p_n/rho_0), epsilon(v))*dx \
