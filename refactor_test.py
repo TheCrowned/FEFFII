@@ -9,12 +9,12 @@ start_time = time.time()
 logging.info('Started at %s ' % str(datetime.now()))
 
 feffi.parameters.define_parameters(
-	user_config={'final_time':20},
-	config_file=os.path.join('config', 'default.yml')
+    user_config={'final_time':20},
+    config_file=os.path.join('config', 'default.yml')
 )
 
 if __name__ == '__main__':
-	feffi.parameters.parse_commandline_args()
+    feffi.parameters.parse_commandline_args()
 
 logging.info('Parameters are: ' + str(feffi.parameters.config))
 
