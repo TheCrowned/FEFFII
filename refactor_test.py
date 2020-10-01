@@ -25,3 +25,7 @@ f = feffi.functions.define_functions(f_spaces)
 feffi.functions.init_functions(f)
 
 feffi.functions.define_variational_problems(f, mesh)
+
+import examples.boundaries.square as user_imported_boundaries
+
+domain = feffi.boundaries.Domain(mesh, f_spaces, feffi.parameters.config['boundaries'], {})
