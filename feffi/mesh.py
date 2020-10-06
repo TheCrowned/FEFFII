@@ -1,6 +1,6 @@
 import fenics, logging
 from shelfgeometry import ShelfGeometry
-import feffi.parameters
+from . import parameters
 
 def create_mesh(**kwargs):
     """Generates domain and mesh.
@@ -29,21 +29,20 @@ def create_mesh(**kwargs):
     """
 
     # Allow function arguments to overwrite wide config (but keep it local)
-    config = feffi.parameters.config
-    config_l = dict(config); config_l.update(kwargs)
+    config = dict(parameters.config); config.update(kwargs)
 
-    if config_l['domain'] == "square":
-        mesh = fenics.UnitSquareMesh(config_l['mesh_resolution'], config_l['mesh_resolution'])
+    if config['domain'] == "square":
+        mesh = fenics.UnitSquareMesh(config['mesh_resolution'], config['mesh_resolution'])
 
-    if config_l['domain'] == "custom":
+    if config['domain'] == "fjord":
         # general domain geometry: width, height, ice shelf width, ice shelf thickness
-        domain_params = [config_l['domain_size_x'], config_l['domain_size_y'], config_l['shelf_size_x'], config_l['shelf_size_y']]
+        domain_params = [config['domain_size_x'], config['domain_size_y'], config['shelf_size_x'], config['shelf_size_y']]
 
         sg = ShelfGeometry(
             domain_params,
-            ny_ocean = config_l['mesh_resolution_y'],          # layers on "deep ocean" (y-dir)
-            ny_shelf = config_l['mesh_resolution_sea_y'],      # layers on "ice-shelf thickness" (y-dir)
-            nx = config_l['mesh_resolution_x'],              # layers x-dir
+            ny_ocean = config['mesh_resolution_y'],          # layers on "deep ocean" (y-dir)
+            ny_shelf = config['mesh_resolution_sea_y'],      # layers on "ice-shelf thickness" (y-dir)
+            nx = config['mesh_resolution_x'],              # layers x-dir
         )
 
         sg.generate_mesh()
@@ -62,3 +61,61 @@ def create_mesh(**kwargs):
 
     return mesh
 
+    '''def mesh_add_sill(self, center, height, length):
+        """Deforms mesh coordinates to create the bottom bump"""
+
+        x = self.mesh.coordinates()[:, 0]
+        y = self.mesh.coordinates()[:, 1]
+
+        alpha = 4*height/length**2
+        sill_function = lambda x : ((-alpha*(x - center)**2) + height)
+        sill_left = center - sqrt(height/alpha)
+        sill_right = center + sqrt(height/alpha)
+
+        new_y = [y[i] + sill_function(x[i])*(1-y[i]) if(x[i] < sill_right and x[i] > sill_left) else 0 for i in range(len(y))]
+        y = np.maximum(y, new_y)
+
+        self.mesh.coordinates()[:] = np.array([x, y]).transpose()
+
+        #self.sill = {'f':sill_function, 'left':sill_left, 'right':sill_right}
+        #self.bd.sill = self.sill
+
+    def refine_mesh_at_point(self, target):
+        """Refines mesh at a given point, taking points in a ball of radius mesh.hmax() around the target.
+
+        A good resource https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html"""
+
+        self.log('Refining mesh at (%.0f, %.0f)' % (target[0], target[1]))
+
+        to_refine = MeshFunction("bool", self.mesh, self.mesh.topology().dim() - 1)
+        to_refine.set_all(False)
+        mesh = self.mesh #inside `to_refine_subdomain` `self.mesh` does not exist, as `self` is redefined
+
+        class to_refine_subdomain(SubDomain):
+            def inside(self, x, on_boundary):
+                return ((Point(x) - target).norm() < mesh.hmax())
+
+        D = to_refine_subdomain()
+        D.mark(to_refine, True)
+        #print(to_refine.array())
+        self.mesh = refine(self.mesh, to_refine)'''
+
+    '''def refine_boundary_mesh(mesh, domain):
+        """Refines mesh on ALL boundary points"""
+
+        boundary_domain = MeshFunction("bool", mesh, mesh.topology().dim() - 1)
+        boundary_domain.set_all(False)
+
+        #Get all members of imported boundary and select only the boundary classes (i.e. exclude all other imported functions, such as from fenics).
+        #Mark boundary cells as to be refined and do so.
+        members = inspect.getmembers(bd, inspect.isclass) #bd is boundary module (included with this code)
+        for x in members:
+            if 'Bound_' in x[0]:
+                obj = getattr(bd, x[0])()
+                obj.mark(boundary_domain, True)
+
+        mesh = refine(mesh, boundary_domain)
+
+        log('Refined mesh at boundaries')
+
+        return mesh'''

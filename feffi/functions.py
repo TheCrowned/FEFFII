@@ -81,8 +81,8 @@ def init_functions(f, **kwargs):
 def define_variational_problems(f, mesh, **kwargs):
     """Define variational problems to be solved in simulation.
 
-    We use a modified version of Chorin's method, the so-called incremental
-    pressure correction scheme (IPCS) due to Goda (1979).
+    We use a modified version of Chorin's method, the so-called
+    Incremental Pressure Correction Splitting (IPCS) scheme due to Goda (1979).
 
     Parameters
     ----------
@@ -100,11 +100,20 @@ def define_variational_problems(f, mesh, **kwargs):
         Stiffness matrices ready for assembly
     load_vectors : dict
         Load vectors ready for assembly.
+
+    Examples
+    --------
+    1) Define IPCS variational forms over a square:
+
+        mesh = feffi.mesh.create_mesh(domain='square')
+        f_spaces = feffi.functions.define_function_spaces(mesh)
+        f = feffi.functions.define_functions(f_spaces)
+        feffi.functions.init_functions(f)
+        (stiffness_mats, load_vectors) = feffi.functions.define_variational_problems(f, mesh)
     """
 
     # Allow function arguments to overwrite wide config (but keep it local)
-    config = feffi.parameters.config
-    config_l = dict(config); config_l.update(kwargs)
+    config_l = dict(feffi.parameters.config); config_l.update(kwargs)
 
     # Shorthand for functions used in variational forms
     u = f['u']; u_n = f['u_n']; v = f['v']; u_ = f['u_']

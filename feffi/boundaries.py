@@ -1,6 +1,10 @@
 from fenics import MeshFunction, File, DirichletBC, Constant, Expression
 from os import system
 from numpy import max
+import logging
+from . import parameters
+from examples.boundaries import square as domain_square
+from examples.boundaries import fjord as domain_fjord
 
 class Domain(object):
     """ Creates a simulation domain given its boundaries definitions and
@@ -15,12 +19,9 @@ class Domain(object):
         f_spaces : dict
                 Function spaces dictionary, for example as output by
                 `feffi.functions.define_function_spaces()`.
-        boundaries : dict
-                Dictionary defining boundaries as `fenics.SubDomain`s or as
-                to-be-`fenics.CompiledSubDomain`. If boundaries are defined
-                through sub-classes of `fenics.SubDomain`, they should all
-                live inside an external module (manually) imported as
-                `user_imported_boundaries`.
+
+        kwargs
+        ------
         BCs : dict
                 Dictionary defining boundary conditions. Should contain one
                 sub-dictionary per each function space, with matching labels.
@@ -37,58 +38,64 @@ class Domain(object):
         --------
         1)  Square with in/outflow on right side:
 
-            import examples.boundaries.square as user_imported_boundaries
-            mesh = fenics.UnitSquareMesh(1,1)
+            mesh = feffi.mesh.create_mesh(domain='square')
             f_spaces = feffi.functions.define_function_spaces()
             domain = feffi.boundaries.Domain(
                 mesh,
                 f_spaces,
-                { 'top' : 'Square_Bound_Top'
-                  'right' : 'Square_Bound_Right'
-                  'bottom' : 'Square_Bound_Bottom'
-                  'left' : 'near(x[0], 1)' #example of mixed formulation
-                },
                 { 'top' : [0, 'null']
                   'right' : [0, '0.5*sin(2*pi*x[1])']
                   'bottom' : [0, 0]
                   'left' : [0, 0]
                 },
+                domain='square'
             )
 
-            #domain.BCs contains the BCs ready to be enforced in simulation
+            # domain.BCs contains the BCs ready to be enforced in simulation
         """
 
-    def __init__(self, mesh, f_spaces, boundaries, BCs):
+    def __init__(self, mesh, f_spaces, **kwargs):
         self.mesh = mesh
+        self.f_spaces = f_spaces
 
-        self.define_boundaries(boundaries)
-        self.define_BCs(f_spaces, BCs)
+        # Allow function arguments to overwrite wide config (but keep it local)
+        self.config = dict(parameters.config); self.config.update(kwargs)
 
-    def define_boundaries(self, boundaries):
+        self.define_boundaries()
+        self.define_BCs()
+
+    def define_boundaries(self):
         """Defines boundaries as SubDomains.
 
         Boundaries are marked through a `fenics.MeshFunction`, which is useful
         for BCs setting in later mesh deformation.
-        Association between boundaries and markers ints is stored into `self.subdomains_markers`.
-
-        Parameters
-        ----------
-        boundaries : dict; see `__init__`.
+        Association between boundaries and markers is stored into `self.subdomains_markers`.
         """
 
-        #Associate a marker integer to each boundary, and store this matching
+        # Define subdomains
+        subdomains = {
+            'right' : domain_square.Bound_Right(),
+            'bottom' : domain_square.Bound_Bottom(),
+            'left' : domain_square.Bound_Left()
+        }
+
+        if(self.config['domain'] == 'square'):
+            subdomains['top'] = domain_square.Bound_Top()
+        elif(self.config['domain'] == 'fjord'):
+            subdomains.update({
+                'sea_top' : domain_fjord.Bound_Sea_Top(),
+                'ice_shelf_bottom' : domain_fjord.Bound_Ice_Shelf_Bottom(),
+                'ice_shelf_right' : domain_fjord.Bound_Ice_Shelf_Right()
+            })
+
+        # Mark subdomains and store this matching
         i = 1
-        self.subdomains_markers = dict(boundaries)
-        for (name, val) in self.subdomains_markers.items():
+        self.marked_subdomains = MeshFunction("size_t", self.mesh, self.mesh.topology().dim() - 1)
+        self.subdomains_markers = {}
+        for (name, subdomain) in subdomains.items():
+            subdomain.mark(self.marked_subdomains, i)
             self.subdomains_markers[name] = i
             i += 1
-
-        #Effectively mark subdomains
-        self.marked_subdomains = MeshFunction("size_t", self.mesh, self.mesh.topology().dim() - 1)
-        for (name, subdomain_callback) in boundaries.items():
-            subdomain = getattr(user_imported_boundaries, subdomain_callback)()
-            # ! TODO check if subdomain_callback is really an existent function, or if we should compile it as a CompiledSubDomain
-            subdomain.mark(self.marked_subdomains, self.subdomains_markers[name])
 
     def show_boundaries(self):
         """
@@ -102,28 +109,38 @@ class Domain(object):
         system('paraview "boundaries.pvd"')
         # It would be nice to call `paraview --data=boundaries.pvd --script=SMTH` with a python script that would apply the view, maybe.
 
-    def define_BCs(self, f_spaces, BCs):
-        """Define boundary conditions.
-
-        Parameters
-        ----------
-        f_spaces : dict
-        BCs : dict; see `__init__`.
+    def define_BCs(self):
+        """Defines boundary conditions.
         """
 
         self.BCs = {}
 
-        for (f_space_name, BCs_set) in BCs.items():
+        for (f_space_name, BCs_set) in self.config['BCs'].items():
+            self.BCs[f_space_name] = []
+
             for (subdomain_name, BC_value) in BCs_set.items():
-                self.BCs[f_space_name].append(
-                    DirichletBC(
-                        f_spaces[f_space_name],
-                        self.parse_BC(BC_value),
-                        self.marked_subdomains,
-                        self.subdomains_markers[subdomain_name]
+                if self.f_spaces[f_space_name].num_sub_spaces() != 0:
+                    for i in range(self.f_spaces[f_space_name].num_sub_spaces()):
+                        if BC_value[i] != 'null':
+                            self.BCs[f_space_name].append(
+                                DirichletBC(
+                                    self.f_spaces[f_space_name].sub(i),
+                                    self.parse_BC(BC_value[i]),
+                                    self.marked_subdomains,
+                                    self.subdomains_markers[subdomain_name]
+                                )
+                            )
+                            logging.info('BCs - Boundary %s, space %s[%d] (marker %d), value %s' % (subdomain_name, f_space_name, i, self.subdomains_markers[subdomain_name], BC_value[i]))
+                else:
+                    self.BCs[f_space_name].append(
+                        DirichletBC(
+                            self.f_spaces[f_space_name],
+                            self.parse_BC(BC_value),
+                            self.marked_subdomains,
+                            self.subdomains_markers[subdomain_name]
+                        )
                     )
-                )
-                # ! TODO support velocity BC on one component only
+                    logging.info('BCs - Boundary %s, space %s (marker %d), value %s' % (subdomain_name, f_space_name, self.subdomains_markers[subdomain_name], BC_value))
 
         top_right_corner = max(self.mesh.coordinates(), 0)
         """Works because of how mesh vertices are ordered, for example:
@@ -143,9 +160,24 @@ class Domain(object):
 
         self.BCs['Q'] = [
             DirichletBC(
-                f_spaces['Q'],
+                self.f_spaces['Q'],
                 Constant(0),
                 'near(x[0], %f) && near(x[1], %f)' % (top_right_corner[0], top_right_corner[1]), #np.max returns max over given axis in the form of a n-1 dimensional array, from which we only need
                 method='pointwise'
             )
         ]
+        logging.info('BCs - Top-right corner (%f, %f), space Q, value 0' % (top_right_corner[0], top_right_corner[1]))
+
+    def parse_BC(self, BC):
+        """Parses a single string-represented BC into a Fenics-ready one.
+
+        Makes a given BC into either a fenics.Constant or a fenics.Expression
+        of degree 2.
+        """
+
+        try:
+            parsed_BC = Constant(float(BC))
+        except ValueError:
+            parsed_BC = Expression(BC, degree = 2)
+
+        return parsed_BC
