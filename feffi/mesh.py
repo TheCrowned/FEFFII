@@ -7,25 +7,25 @@ def create_mesh(**kwargs):
 
     Relies on global config, but parameters can be passed overwriting the globals.
 
-        Parameters
-        ----------
-        kwargs : `domain`, `mesh_resolution`, `domain_size_x`, `domain_size_y`,
-        `shelf_size_x`, `shelf_size_y`, `mesh_resolution_x`, `mesh_resolution_y`,
-        `mesh_resolution_sea_y` (refer to README for info).
+    Parameters
+    ----------
+    kwargs : `domain`, `mesh_resolution`, `domain_size_x`, `domain_size_y`,
+    `shelf_size_x`, `shelf_size_y`, `mesh_resolution_x`, `mesh_resolution_y`,
+    `mesh_resolution_sea_y` (refer to README for info).
 
-        Examples
-        --------
-        1) Generate mesh on 1x1 square domain, with mesh resolution 15x15:
+    Examples
+    --------
+    1) Generate mesh on 1x1 square domain, with mesh resolution 15x15:
 
-           feffi.mesh(domain = 'square', mesh_resolution = 15)
+       feffi.mesh(domain = 'square', mesh_resolution = 15)
 
-        1) Generate mesh on 3x2 domain, using globals for all other configs:
+    1) Generate mesh on 3x2 domain, using globals for all other configs:
 
-           feffi.mesh(domain = 'custom', domain_size_x = 3, domain_size_y = 2)
+       feffi.mesh(domain = 'custom', domain_size_x = 3, domain_size_y = 2)
 
-        Return
-        ------
-        mesh : fenics mesh.
+    Return
+    ------
+    mesh : fenics mesh.
     """
 
     # Allow function arguments to overwrite wide config (but keep it local)

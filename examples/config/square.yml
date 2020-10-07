@@ -20,7 +20,7 @@ mesh_resolution: 10
 mesh_resolution_x: 20
 mesh_resolution_y: 10
 mesh_resolution_sea_y: 1
-store_sol: False
+store_solutions: False
 label: ''
 max_iter: 0
 BCs:

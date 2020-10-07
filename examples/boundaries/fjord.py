@@ -14,7 +14,7 @@ class Bound_Left(SubDomain):
 
 class Bound_Right(SubDomain):
     def inside(self, x, on_boundary):
-        return near(x[0], 1) and on_boundary
+        return near(x[0], parameters.config['domain_size_x']) and on_boundary
 
 class Bound_Ice_Shelf_Bottom(SubDomain):
     def inside(self, x, on_boundary):

@@ -223,6 +223,9 @@ class Simulation(object):
         self.pvds['S'] << self.f['S_']
 
     def sigint_handler(self, sig, frame):
+        """Catches CTRL-C when Simulation.run() is going,
+        and plot solutions before exiting."""
+
         logging.info('Simulation stopped -- jumping to plotting before exiting')
         plot.plot_solutions(self.f)
         system('xdg-open "' + self.config['plot_path'] + '"')

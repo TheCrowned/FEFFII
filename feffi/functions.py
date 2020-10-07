@@ -6,14 +6,14 @@ import logging
 def define_function_spaces(mesh):
     """Define function spaces for velocity, pressure, temperature and salinity.
 
-        Parameters
-        ----------
-        mesh : a fenics-compatible mesh object
-            Mesh on which to define function spaces.
+    Parameters
+    ----------
+    mesh : a fenics-compatible mesh object
+        Mesh on which to define function spaces.
 
-        Return
-        ------
-        function_spaces : dictionary
+    Return
+    ------
+    function_spaces : dictionary
     """
 
     f_spaces = {
@@ -28,14 +28,14 @@ def define_function_spaces(mesh):
 def define_functions(f_spaces):
     """Define solution functions for velocity, pressure, temperature and salinity.
 
-        Parameters
-        ----------
-        f_spaces : dict
-            Function spaces for velocity, pressure, temperature and salinity.
+    Parameters
+    ----------
+    f_spaces : dict
+        Function spaces for velocity, pressure, temperature and salinity.
 
-        Return
-        ------
-        functions : dictionary
+    Return
+    ------
+    functions : dictionary
     """
 
     # Define functions needed for solution computation

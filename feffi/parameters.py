@@ -13,25 +13,28 @@ def define_parameters(user_config={}):
     If a non-empty dictionary is supplied as well, its entries will
     complete/overwrite the ones coming from the config.
 
-        Parameters
-        ----------
-        user_config : dictionary, optional
-                If non-empty, entries from this dictionary have priority
-                in parameters definition.
-                Can contain a `config_file` entry pointing to a YAML file
-                containing configuration (either absolute or relative path).
+    Notice that just the act of `import feffi` already sets up a default
+    configuration.
 
-        Examples
-        ----------
-        1)  Use config file located in ../config/default.yml,
-            but using `20` as value for `final_time`.
+    Parameters
+    ----------
+    user_config : dictionary, optional
+            If non-empty, entries from this dictionary have priority in
+            parameters definition.
+            Can contain a `config_file` entry pointing to a YAML file
+            containing configuration (either absolute or relative path).
 
-            feffi.parameters.define_parameters(
-                user_config = {
-                    'final_time' : 20,
-                    'config_file' : os.path.join('config', 'default.yml')
-                }
-            )
+    Examples
+    ----------
+    1)  Use config file located in ../config/default.yml,
+        but using `20` as value for `final_time`.
+
+        feffi.parameters.define_parameters(
+            user_config = {
+                'final_time' : 20,
+                'config_file' : os.path.join('config', 'default.yml')
+            }
+        )
     """
 
     global config
@@ -40,7 +43,7 @@ def define_parameters(user_config={}):
     parent_dir = os.path.dirname(os.path.dirname(__file__))
 
     config_file_path = os.path.join(parent_dir, 'examples', 'config', 'square.yml')
-    print(user_config.get('config_file'))
+
     # If given, open custom config file...
     if(user_config.get('config_file') != None and user_config['config_file'] != ''):
         config_file_path = os.path.join(parent_dir, user_config['config_file']) if not os.path.isabs(user_config['config_file']) else user_config['config_file']
@@ -121,7 +124,6 @@ def parse_commandline_args():
 
     commandline_args = parser.parse_args()
     commandline_args_dict = {arg: getattr(commandline_args, arg) for arg in vars(commandline_args)}
-    print(commandline_args_dict)
 
     # Empty current config and set anew. Should make troubleshooting easier, since we don't want the config to be already populated if a custom config is provided
     config = {}
@@ -131,32 +133,32 @@ def assemble_viscosity_tensor(visc):
     """Creates a proper viscosity tensor given relevant values.
     Notice that input must always be a list, even if it has only one element.
 
-        Parameters
-        ----------
-        visc : list (of floats)
-                If 1 entry is given, value will be used for all diagonal entries (other entries = 0).
-                If 2 entries are given, they will be used for diagonal entries (other entries = 0).
-                If 4 entries are given, they will compose the full tensor.
+    Parameters
+    ----------
+    visc : list (of floats)
+            If 1 entry is given, value will be used for all diagonal entries (other entries = 0).
+            If 2 entries are given, they will be used for diagonal entries (other entries = 0).
+            If 4 entries are given, they will compose the full tensor.
 
-        Examples
-        ----------
-        1) Obtain a tensor of the form
-           (a  0
-            0  a)
+    Examples
+    ----------
+    1) Obtain a tensor of the form
+       (a  0
+        0  a)
 
-           assemble_viscosity_tensor([a])
+       assemble_viscosity_tensor([a])
 
-        2) Obtain a tensor of the form
-           (a  0
-            0  b)
+    2) Obtain a tensor of the form
+       (a  0
+        0  b)
 
-           assemble_viscosity_tensor([a, b])
+       assemble_viscosity_tensor([a, b])
 
-        3) Obtain a tensor of the form
-           (a  b
-            c  d)
+    3) Obtain a tensor of the form
+       (a  b
+        c  d)
 
-           assemble_viscosity_tensor([a, b, c, d])
+       assemble_viscosity_tensor([a, b, c, d])
     """
 
     visc = visc#[i*0.0036 for i in visc] # from m^2/s to km^2/h

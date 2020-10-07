@@ -1,8 +1,6 @@
 import feffi
 import os, logging
 
-logging.basicConfig(level=logging.INFO)
-
 feffi.parameters.define_parameters(
     user_config = {
         'final_time' : 20,

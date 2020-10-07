@@ -73,20 +73,22 @@ class Domain(object):
         """
 
         # Define subdomains
-        subdomains = {
-            'right' : domain_square.Bound_Right(),
-            'bottom' : domain_square.Bound_Bottom(),
-            'left' : domain_square.Bound_Left()
-        }
-
         if(self.config['domain'] == 'square'):
-            subdomains['top'] = domain_square.Bound_Top()
+            subdomains = {
+                'right' : domain_square.Bound_Right(),
+                'bottom' : domain_square.Bound_Bottom(),
+                'left' : domain_square.Bound_Left(),
+                'top' : domain_square.Bound_Top()
+            }
         elif(self.config['domain'] == 'fjord'):
-            subdomains.update({
-                'sea_top' : domain_fjord.Bound_Sea_Top(),
+            subdomains = {
+                'right' : domain_fjord.Bound_Right(),
+                'bottom' : domain_fjord.Bound_Bottom(),
+                'left' : domain_fjord.Bound_Left(),
                 'ice_shelf_bottom' : domain_fjord.Bound_Ice_Shelf_Bottom(),
-                'ice_shelf_right' : domain_fjord.Bound_Ice_Shelf_Right()
-            })
+                'ice_shelf_right' : domain_fjord.Bound_Ice_Shelf_Right(),
+                'sea_top' : domain_fjord.Bound_Sea_Top()
+            }
 
         # Mark subdomains and store this matching
         i = 1

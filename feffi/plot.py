@@ -1,5 +1,5 @@
 from . import parameters
-from fenics import plot
+from fenics import plot, norm
 from pathlib import Path
 import logging
 import matplotlib.pyplot as plt
@@ -42,6 +42,7 @@ def plot_single(to_plot, **kwargs):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     pl = plot(to_plot, title = title)
+    plt.colorbar(pl)
 
     if config['domain'] == 'fjord':
         ax.set_aspect('auto')
