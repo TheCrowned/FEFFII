@@ -1,5 +1,5 @@
 import fenics, logging
-from shelfgeometry import ShelfGeometry
+from feffi.shelfgeometry import ShelfGeometry
 from . import parameters
 
 def create_mesh(**kwargs):

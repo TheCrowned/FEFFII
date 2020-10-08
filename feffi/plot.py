@@ -42,7 +42,12 @@ def plot_single(to_plot, **kwargs):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     pl = plot(to_plot, title = title)
-    plt.colorbar(pl)
+
+    # Add colorbar if possible (i.e. if it is a Function), no worries otherwise
+    try:
+        plt.colorbar(pl)
+    except:
+        pass
 
     if config['domain'] == 'fjord':
         ax.set_aspect('auto')

@@ -3,8 +3,8 @@ from os import system
 from numpy import max
 import logging
 from . import parameters
-from examples.boundaries import square as domain_square
-from examples.boundaries import fjord as domain_fjord
+from boundaries import square as domain_square
+from boundaries import fjord as domain_fjord
 
 class Domain(object):
     """ Creates a simulation domain given its boundaries definitions and

@@ -42,7 +42,7 @@ def define_parameters(user_config={}):
     # Double call to dirname() reaches parent dir of current script
     parent_dir = os.path.dirname(os.path.dirname(__file__))
 
-    config_file_path = os.path.join(parent_dir, 'examples', 'config', 'square.yml')
+    config_file_path = os.path.join(parent_dir, 'config', 'square.yml')
 
     # If given, open custom config file...
     if(user_config.get('config_file') != None and user_config['config_file'] != ''):
@@ -62,8 +62,7 @@ def define_parameters(user_config={}):
     # Purge None entries before we merge. This is needed because if you provide a --config-file from commandline,
     # then the defaults None would overwrite previous settings.
     if isinstance(user_config, dict):
-        purged_user_config = {key : val for key, val in user_config.items() if val != None}
-        config.update(purged_user_config)
+        config.update(user_config)
     else:
         logging.warning('Supplied non-dictionary user config')
 
@@ -125,9 +124,10 @@ def parse_commandline_args():
     commandline_args = parser.parse_args()
     commandline_args_dict = {arg: getattr(commandline_args, arg) for arg in vars(commandline_args)}
 
-    # Empty current config and set anew. Should make troubleshooting easier, since we don't want the config to be already populated if a custom config is provided
-    config = {}
-    define_parameters(commandline_args_dict)
+    # Purge None values before we send them for merge, otherwise they would overwrite legit previous config values
+    purged_commandline_args_dict = {key : val for key, val in commandline_args_dict.items() if val != None}
+
+    define_parameters(purged_commandline_args_dict)
 
 def assemble_viscosity_tensor(visc):
     """Creates a proper viscosity tensor given relevant values.
