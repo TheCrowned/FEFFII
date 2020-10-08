@@ -26,3 +26,4 @@ verbose: True
 very_verbose: False
 plot: True
 label: ''
+max_iter: 0
