@@ -73,6 +73,7 @@ class Simulation(object):
         [bc.apply(self.A1) for bc in BCs['V']]
         [bc.apply(self.A2) for bc in BCs['Q']]
 
+        self.n = 0
         self.iterations_n = self.config['steps_n']*int(self.config['final_time'])
         self.rounded_iterations_n = pow(10, (round(log(self.config['steps_n']*int(self.config['final_time']), 10))))
 
@@ -98,9 +99,10 @@ class Simulation(object):
         start_time = time()
         logging.info('Running full simulation; started at %s ' % str(datetime.now()))
 
-        for self.n in range(self.iterations_n):
+        while self.n <= self.iterations_n:
+            #plot.plot_solutions(self.f, display=True)
             self.timestep()
-            start, last_run = 0, 0
+            #start, last_run = 0, 0
 
             if self.maybe_stop():
                 self.log_progress()
@@ -129,19 +131,22 @@ class Simulation(object):
 
         # Step 4: Temperature step
         # Reassemble stiffness matrix and re-set BC, same for load vector, as coefficients change due to u_
-        b4 = assemble(self.load_vectors['L4'])
-        [bc.apply(b4) for bc in self.BCs['T']]
-        A4 = assemble(self.stiffness_mats['a4'])
-        [bc.apply(A4) for bc in self.BCs['T']]
-        solve(A4, self.f['T_'].vector(), b4)
+        if self.config['beta'] != 0: #do not run if not coupled with velocity
+            b4 = assemble(self.load_vectors['L4'])
+            [bc.apply(b4) for bc in self.BCs['T']]
+            A4 = assemble(self.stiffness_mats['a4'])
+            [bc.apply(A4) for bc in self.BCs['T']]
+            solve(A4, self.f['T_'].vector(), b4)
 
         # Step 5: Salinity step
         # Reassemble stiffness matrix and re-set BC, same for load vector, as coefficients change due to u_
-        b5 = assemble(self.load_vectors['L5'])
-        [bc.apply(b5) for bc in self.BCs['S']]
-        A5 = assemble(self.stiffness_mats['a5'])
-        [bc.apply(A5) for bc in self.BCs['S']]
-        solve(A5, self.f['S_'].vector(), b5)
+        if self.config['gamma'] != 0: #do not run if not coupled with velocity
+            b5 = assemble(self.load_vectors['L5'])
+            [bc.apply(b5) for bc in self.BCs['S']]
+            A5 = assemble(self.stiffness_mats['a5'])
+            [bc.apply(A5) for bc in self.BCs['S']]
+            solve(A5, self.f['S_'].vector(), b5)
+
 
         self.errors = {
             'u' : np.linalg.norm(self.f['u_'].vector().get_local() - self.f['u_n'].vector().get_local()),
@@ -167,6 +172,7 @@ class Simulation(object):
             self.save_pvds()
 
         # Prepare next timestep
+        self.n = self.n + 1
         self.f['u_n'].assign(self.f['u_'])
         self.f['p_n'].assign(self.f['p_'])
         self.f['T_n'].assign(self.f['T_'])
