@@ -67,9 +67,10 @@ class Domain(object):
     def define_boundaries(self):
         """Defines boundaries as SubDomains.
 
-        Boundaries are marked through a `fenics.MeshFunction`, which is useful
-        for BCs setting in later mesh deformation.
-        Association between boundaries and markers is stored into `self.subdomains_markers`.
+        Boundaries are marked through a `fenics.MeshFunction`, which is
+        useful for BCs setting in later mesh deformation.
+        Association between boundaries and markers is stored into
+        `self.subdomains_markers`.
         """
 
         # Define subdomains
@@ -91,9 +92,13 @@ class Domain(object):
             }
 
         # Mark subdomains and store this matching
-        i = 1
-        self.marked_subdomains = MeshFunction("size_t", self.mesh, self.mesh.topology().dim() - 1)
+        self.marked_subdomains = MeshFunction(
+            "size_t",
+            self.mesh,
+            self.mesh.topology().dim() - 1)
+
         self.subdomains_markers = {}
+        i = 1
         for (name, subdomain) in subdomains.items():
             subdomain.mark(self.marked_subdomains, i)
             self.subdomains_markers[name] = i
@@ -104,16 +109,18 @@ class Domain(object):
         Exports boundaries data and open Paraview for display.
 
         Unfortunately there doesn't seem to be a way to just `plot` them, see:
-        https://fenicsproject.discourse.group/t/plotting-the-boundary-function-of-a-2d-mesh/140
+        https://fenicsproject.discourse.group/t/
+        plotting-the-boundary-function-of-a-2d-mesh/140
         """
 
         File("boundaries.pvd") << self.marked_subdomains
         system('paraview "boundaries.pvd"')
-        # It would be nice to call `paraview --data=boundaries.pvd --script=SMTH` with a python script that would apply the view, maybe.
+        # It would be nice to call
+        # `paraview --data=boundaries.pvd --script=SMTH`
+        # with a python script that would apply the view, maybe.
 
     def define_BCs(self):
-        """Defines boundary conditions.
-        """
+        """Defines boundary conditions."""
 
         self.BCs = {}
 
@@ -121,6 +128,9 @@ class Domain(object):
             self.BCs[f_space_name] = []
 
             for (subdomain_name, BC_value) in BCs_set.items():
+
+                # Vector valued function spaces should have BCs applied
+                # on both components, if they are provided.
                 if self.f_spaces[f_space_name].num_sub_spaces() != 0:
                     for i in range(self.f_spaces[f_space_name].num_sub_spaces()):
                         if BC_value[i] != 'null':
@@ -132,7 +142,14 @@ class Domain(object):
                                     self.subdomains_markers[subdomain_name]
                                 )
                             )
-                            logging.info('BCs - Boundary %s, space %s[%d] (marker %d), value %s' % (subdomain_name, f_space_name, i, self.subdomains_markers[subdomain_name], BC_value[i]))
+                            logging.info(
+                                ('BCs - Boundary {}, space {}[{}] ' +
+                                 '(marker {}), value {}').format(
+                                    subdomain_name, f_space_name, i,
+                                    self.subdomains_markers[subdomain_name],
+                                    BC_value[i]))
+
+                # Scalar valued function spaces BCs
                 else:
                     self.BCs[f_space_name].append(
                         DirichletBC(
@@ -142,7 +159,12 @@ class Domain(object):
                             self.subdomains_markers[subdomain_name]
                         )
                     )
-                    logging.info('BCs - Boundary %s, space %s (marker %d), value %s' % (subdomain_name, f_space_name, self.subdomains_markers[subdomain_name], BC_value))
+                    logging.info(
+                        ('BCs - Boundary {}, space {}' +
+                         '(marker {}), value {}').format(
+                            subdomain_name, f_space_name,
+                            self.subdomains_markers[subdomain_name],
+                            BC_value))
 
         # top_right_corner = max(self.mesh.coordinates(), 0)
         top_right_corner = [0, 0]
@@ -165,11 +187,15 @@ class Domain(object):
             DirichletBC(
                 self.f_spaces['Q'],
                 Constant(0),
-                'near(x[0], %f) && near(x[1], %f)' % (top_right_corner[0], top_right_corner[1]), #np.max returns max over given axis in the form of a n-1 dimensional array, from which we only need
+                'near(x[0], %f) && near(x[1], %f)'.format(
+                    top_right_corner[0], top_right_corner[1]),
+                    #np.max returns max over given axis in the form
+                    #of a n-1 dimensional array, from which we only need
                 method='pointwise'
             )
         ]
-        logging.info('BCs - Top-right corner (%f, %f), space Q, value 0' % (top_right_corner[0], top_right_corner[1]))
+        logging.info('BCs - Top-right corner (%f, %f), space Q, value 0'.format(
+            top_right_corner[0], top_right_corner[1]))
 
     def parse_BC(self, BC):
         """Parses a single string-represented BC into a Fenics-ready one.
