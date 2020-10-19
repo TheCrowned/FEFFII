@@ -144,7 +144,8 @@ class Domain(object):
                     )
                     logging.info('BCs - Boundary %s, space %s (marker %d), value %s' % (subdomain_name, f_space_name, self.subdomains_markers[subdomain_name], BC_value))
 
-        top_right_corner = max(self.mesh.coordinates(), 0)
+        # top_right_corner = max(self.mesh.coordinates(), 0)
+        top_right_corner = [0, 0]
         """Works because of how mesh vertices are ordered, for example:
         >>> m.coordinates()
         array([[0. , 0. ],

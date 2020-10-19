@@ -46,3 +46,23 @@ For what concerns simulated quantities:
 - pressure: Pascal
 - temperature: °C
 - salinity: PSU
+
+## TODO
+### Short term (comments by CH)
+- Double check, for real, how the tensors of `assemble_viscosity_tensor` should be formulated. This was incorrect (I assume) for the scalar case, and have been ad-hoc extended to the vector and tensor case by CH. SO must finalize.
+- Implement that the user can set `DirichletBC`s. Probably not as a part of the smoother command-line arguments, but if one would make your own `.py` file that contains a configuration. That is, by creating a mesh, getting function spaces, and then applying "custom" Dirichlet BCs.
+- I don't see a reason why `boundaries/` and `configs/` should *not* be part of the module, rathern than being external as they are now.
+- Is is good logic to have `--steps-n` to be "per unit time". If so (and I don't have a strong oppinion about this), make this very clear in the help, maybe even change the argument name. To me, if I see `--final-time` and `--steps-n`, I kinda put them together.
+
+### Long term (no stress) 
+- **Clean up code**. I have started this in `parameters.py` to show a bit, but it is not complete. To me, this makes the code more organized, easier to read and troubleshoot. I have, to some extent, applied the below points:
+    + Start using a syntax checker that conforms to PEP standards. I think I use `autopep8`, but that is kinda a personal choice.
+    + Make sure to have lines that don't exceed pep8 standard (<79 chars, or whatever)
+    + Use `.format` rather than the old `%` sytax, i.e. `"Hello {:s} {:4.2f}".format('Christian', 0.15654)`
+    + Check over some superflous logic and statments.
+    + Maybe we could use the `fenics` class `Parameters` for the config (once it is inside `feffi`). Not sure this is the smoothest, so take it with a grain of salt. Will check out.
+    + For saving, a very nice feature would be to:
+
+        1. Save the config settings that were used (by writing the configs to file just after simulation).
+        2. Adding to the saved configuration the git commit that this was done under and if it is modified.
+		This way, one could (almost) always go back to a particular simulation.
