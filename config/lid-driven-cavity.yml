@@ -1,5 +1,5 @@
-final_time: 10
-steps_n: 10000
+final_time: 8
+steps_n: 100
 simulation_precision: -3
 g: 0
 nu: 
