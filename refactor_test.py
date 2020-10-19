@@ -4,7 +4,7 @@ import os, logging
 feffi.parameters.define_parameters(
     user_config = {
         'final_time' : 20,
-        'config_file' : os.path.join('examples', 'config', 'square.yml')
+        'config_file' : os.path.join('config', 'square.yml')
     }
 )
 
