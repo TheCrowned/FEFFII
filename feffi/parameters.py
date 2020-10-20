@@ -7,13 +7,12 @@ import time
 
 config = {}
 
-
 def define_parameters(user_config={}):
     """Defines running parameters for model.
 
     Parameters are stored in a global variable named `config`.
     The default location for config files is in a `config` dir located
-    just out of the model code dir (i.e. `feffi/../config/`).
+    inside the model code dir (i.e. `feffi/config/`).
     A config file is first used to load configuration and, if none is
     given/found, a default one is used.
     If a non-empty dictionary is supplied as well, its entries will
@@ -32,13 +31,13 @@ def define_parameters(user_config={}):
 
     Examples
     ----------
-    1)  Use config file located in ../config/default.yml,
+    1)  Use config file located in feffi/config/default.yml,
         but using `20` as value for `final_time`.
 
         feffi.parameters.define_parameters(
             user_config = {
                 'final_time' : 20,
-                'config_file' : os.path.join('config', 'default.yml')
+                'config_file' : os.path.join('feffi', 'config', 'default.yml')
             }
         )
     """
@@ -48,7 +47,7 @@ def define_parameters(user_config={}):
     # Double call to dirname() reaches parent dir of current script
     parent_dir = os.path.dirname(os.path.dirname(__file__))
 
-    config_file_path = os.path.join(parent_dir, 'config', 'square.yml')
+    config_file_path = os.path.join('feffi', 'config', 'square.yml')
 
     # If given, open custom config file...
     if user_config.get('config_file'):
@@ -63,16 +62,15 @@ def define_parameters(user_config={}):
             logging.warning(
                 'Config file: \n{}\n does not exist\n'
                 'Falling back to default one.'.format(config_file_path))
-            config_file_path = os.path.join(
-                parent_dir, 'config', 'default.yml')
+            config_file_path = os.path.join('feffi', 'config', 'square.yml')
 
-            if(not os.path.isfile(config_file_path)):
-                print(
-                    'No valid config file found. Make sure to pass '
-                    'ALL required config arguments as dict.')
-
-    config = yaml.safe_load(open(config_file_path))
-    config['config_file'] = config_file_path
+    if(not os.path.isfile(config_file_path)):
+        print(
+            'No valid config file found. Things are likely to break.'
+            'Make sure to pass ALL required config arguments as dict.')
+    else:
+        config = yaml.safe_load(open(config_file_path))
+        config['config_file'] = config_file_path
 
     # If (some) dictionary config is provided as class init parameter,
     # that overwrites the default config
@@ -264,10 +262,8 @@ def assemble_viscosity_tensor(visc):
     Parameters
     ----------
     visc : list (of floats)
-            If 1 entry is given, value will be used for all diagonal
-            entries (other entries = 0).
-            If 2 entries are given, they will be used for diagonal
-            entries (other entries = 0).
+            If 1 entry is given, value will be used for all matrix entries.
+            If 2 entries are given, they will be repeated row-wise.
             If 4 entries are given, they will compose the full tensor.
 
     Examples

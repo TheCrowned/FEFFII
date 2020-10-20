@@ -1,10 +1,8 @@
-from fenics import MeshFunction, File, DirichletBC, Constant, Expression
+from fenics import MeshFunction, File, DirichletBC, Constant, Expression, SubDomain, near
 from os import system
 from numpy import max
 import logging
 from . import parameters
-from boundaries import square as domain_square
-from boundaries import fjord as domain_fjord
 
 class Domain(object):
     """ Creates a simulation domain given its boundaries definitions and
@@ -28,11 +26,11 @@ class Domain(object):
                 Each sub-dictionary should have keys matching `boundaries`
                 keys and values either int/floats, or strings if they are
                 to be compiled into a `fenics.Expression`.
+                If you want to set a point-wise BC, enter the relevant point
+                in the form of a tuple as BC label.
                 Note: velocity BCs should be vector valued and provided as
                 a list. If you want NO BC to be enforced on one component,
                 write `'null'`.
-                Note: pressure BCs are not supported. A default BC of null
-                pressure is automatically applied on the top-right corner.
 
         Examples
         --------
@@ -73,23 +71,23 @@ class Domain(object):
         `self.subdomains_markers`.
         """
 
+        subdomains = {
+            'right' : Bound_Right(),
+            'bottom' : Bound_Bottom(),
+            'left' : Bound_Left()
+        }
+
         # Define subdomains
-        if(self.config['domain'] == 'square'):
-            subdomains = {
-                'right' : domain_square.Bound_Right(),
-                'bottom' : domain_square.Bound_Bottom(),
-                'left' : domain_square.Bound_Left(),
-                'top' : domain_square.Bound_Top()
-            }
-        elif(self.config['domain'] == 'fjord'):
-            subdomains = {
-                'right' : domain_fjord.Bound_Right(),
-                'bottom' : domain_fjord.Bound_Bottom(),
-                'left' : domain_fjord.Bound_Left(),
-                'ice_shelf_bottom' : domain_fjord.Bound_Ice_Shelf_Bottom(),
-                'ice_shelf_right' : domain_fjord.Bound_Ice_Shelf_Right(),
-                'sea_top' : domain_fjord.Bound_Sea_Top()
-            }
+        if self.config['domain'] == 'square':
+            subdomains.update({
+                'top' : Bound_Top()
+            })
+        elif self.config['domain'] == 'fjord':
+            subdomains.update({
+                'ice_shelf_bottom' : Bound_Ice_Shelf_Bottom(),
+                'ice_shelf_right' : Bound_Ice_Shelf_Right(),
+                'sea_top' : Bound_Sea_Top()
+            })
 
         # Mark subdomains and store this matching
         self.marked_subdomains = MeshFunction(
@@ -129,8 +127,8 @@ class Domain(object):
 
             for (subdomain_name, BC_value) in BCs_set.items():
 
-                # Vector valued function spaces should have BCs applied
-                # on both components, if they are provided.
+                # Vector valued function spaces (i.e. velocity) should have
+                # BCs applied on both components, if given.
                 if self.f_spaces[f_space_name].num_sub_spaces() != 0:
                     for i in range(self.f_spaces[f_space_name].num_sub_spaces()):
                         if BC_value[i] != 'null':
@@ -140,8 +138,7 @@ class Domain(object):
                                     self.parse_BC(BC_value[i]),
                                     self.marked_subdomains,
                                     self.subdomains_markers[subdomain_name]
-                                )
-                            )
+                                ))
                             logging.info(
                                 ('BCs - Boundary {}, space {}[{}] ' +
                                  '(marker {}), value {}').format(
@@ -151,51 +148,41 @@ class Domain(object):
 
                 # Scalar valued function spaces BCs
                 else:
-                    self.BCs[f_space_name].append(
-                        DirichletBC(
-                            self.f_spaces[f_space_name],
-                            self.parse_BC(BC_value),
-                            self.marked_subdomains,
-                            self.subdomains_markers[subdomain_name]
-                        )
-                    )
-                    logging.info(
-                        ('BCs - Boundary {}, space {}' +
+
+                    # If label correspond to a subdomain, apply to that
+                    if self.subdomains_markers.get(subdomain_name):
+                        self.BCs[f_space_name].append(
+                            DirichletBC(
+                                self.f_spaces[f_space_name],
+                                self.parse_BC(BC_value),
+                                self.marked_subdomains,
+                                self.subdomains_markers[subdomain_name]
+                            ))
+                        logging.info(
+                        ('BCs - Boundary {}, space {} ' +
                          '(marker {}), value {}').format(
                             subdomain_name, f_space_name,
                             self.subdomains_markers[subdomain_name],
                             BC_value))
 
-        # top_right_corner = max(self.mesh.coordinates(), 0)
-        top_right_corner = [0, 0]
-        """Works because of how mesh vertices are ordered, for example:
-        >>> m.coordinates()
-        array([[0. , 0. ],
-               [0.3, 0. ],
-               [0.6, 0. ],
-               ...
-               [0.0, 0.1],
-               [0.3, 0.1],
-               ...
-               [0.0, 0.9],
-               ...
-               [2.7, 1. ],
-               [3. , 1. ]])
-        """
+                    # Otherwise, we assume it's a pointwise condition,
+                    # and evaluate the label expecting a tuple back.
+                    # It makes sense to apply pointwise BCS only to pressure,
+                    # but we leave it general.
+                    else:
+                        point = eval(subdomain_name)
+                        self.BCs[f_space_name].append(
+                            DirichletBC(
+                                self.f_spaces[f_space_name],
+                                self.parse_BC(BC_value),
+                                'near(x[0], {}) && near(x[1], {})'.format(
+                                    point[0], point[1]),
+                                method='pointwise'
+                            ))
+                        logging.info(
+                            'BCs - Point ({}, {}), space Q, value {}'.format(
+                                point[0], point[1], BC_value))
 
-        self.BCs['Q'] = [
-            DirichletBC(
-                self.f_spaces['Q'],
-                Constant(0),
-                'near(x[0], %f) && near(x[1], %f)'.format(
-                    top_right_corner[0], top_right_corner[1]),
-                    #np.max returns max over given axis in the form
-                    #of a n-1 dimensional array, from which we only need
-                method='pointwise'
-            )
-        ]
-        logging.info('BCs - Top-right corner (%f, %f), space Q, value 0'.format(
-            top_right_corner[0], top_right_corner[1]))
 
     def parse_BC(self, BC):
         """Parses a single string-represented BC into a Fenics-ready one.
@@ -210,3 +197,43 @@ class Domain(object):
             parsed_BC = Expression(BC, degree = 2)
 
         return parsed_BC
+
+
+### SUBDOMAIN DEFINITIONS ###
+
+class Bound_Top(SubDomain):
+    def inside(self, x, on_boundary):
+        return near(x[1], 1) and on_boundary
+
+class Bound_Bottom(SubDomain):
+    def inside(self, x, on_boundary):
+        return near(x[1], 0) and on_boundary
+
+class Bound_Left(SubDomain):
+    def inside(self, x, on_boundary):
+        return near(x[0], 0) and on_boundary
+
+class Bound_Right(SubDomain):
+    def inside(self, x, on_boundary):
+        if parameters.config['domain'] == 'square':
+            return near(x[0], 1) and on_boundary
+        elif parameters.config['domain'] == 'fjord':
+             return near(x[0], parameters.config['domain_size_x']) \
+             and on_boundary
+
+class Bound_Ice_Shelf_Bottom(SubDomain):
+    def inside(self, x, on_boundary):
+        return  x[0] >= 0 and x[0] <= parameters.config['shelf_size_x'] and \
+                near(x[1], parameters.config['domain_size_y'] - parameters.config['shelf_size_y']) \
+                and on_boundary
+
+class Bound_Ice_Shelf_Right(SubDomain):
+    def inside(self, x, on_boundary):
+        return  near(x[0], parameters.config['shelf_size_x']) and \
+                x[1] >= parameters.config['domain_size_y'] - parameters.config['shelf_size_y'] and \
+                x[1] <= parameters.config['domain_size_y'] and on_boundary
+
+class Bound_Sea_Top(SubDomain):
+    def inside(self, x, on_boundary):
+        return  x[0] >= parameters.config['shelf_size_x'] and \
+                near(x[1], parameters.config['domain_size_y']) and on_boundary
