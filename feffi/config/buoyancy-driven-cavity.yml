@@ -1,13 +1,13 @@
-final_time: 8
-steps_n: 100
+final_time: 10
+steps_n: 10000
 simulation_precision: -3
-g: 0
+g: 1
 nu: 
-- 0.01
+- 1
 alpha:
 - 1
 rho_0: 1
-beta: 0
+beta: -1000
 gamma: 0
 T_0: 0
 S_0: 35
@@ -28,7 +28,7 @@ BCs:
         right: [0,0]
         bottom: [0,0]
         left: [0,0]
-        top: [1,0]
+        top: [0,0]
     T:
         right: 0
         left: 1
