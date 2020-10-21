@@ -252,7 +252,7 @@ def parse_commandline_args():
         key: val for key, val in commandline_args_dict.items()
         if val is not None}
 
-    define_parameters(purged_commandline_args_dict)
+    config.update(purged_commandline_args_dict)
 
 
 def assemble_viscosity_tensor(visc):
