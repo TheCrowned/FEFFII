@@ -15,6 +15,7 @@ parameters.define_parameters({
     'config_file' : 'feffi/config/lid-driven-cavity.yml',
     #'max_iter' : 20
 })
+parameters.parse_commandline_args()
 
 mesh = mesh.create_mesh()
 f_spaces = functions.define_function_spaces(mesh)
