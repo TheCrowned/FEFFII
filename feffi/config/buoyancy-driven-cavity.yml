@@ -1,13 +1,13 @@
-final_time: 10
-steps_n: 10000
-simulation_precision: -3
+final_time: 1
+steps_n: 50000
+simulation_precision: -4
 g: 1
 nu: 
 - 1
 alpha:
 - 1
 rho_0: 1
-beta: -1000
+beta: 1000000
 gamma: 0
 T_0: 0
 S_0: 35
@@ -16,7 +16,7 @@ domain_size_x: 2
 domain_size_y: 1
 shelf_size_x: 0.7
 shelf_size_y: 0.1
-mesh_resolution: 10
+mesh_resolution: 15
 mesh_resolution_x: 20
 mesh_resolution_y: 10
 mesh_resolution_sea_y: 1
@@ -29,9 +29,8 @@ BCs:
         bottom: [0,0]
         left: [0,0]
         top: [0,0]
+    Q:
+        '(1,1)': 0
     T:
         right: 0
         left: 1
-    S:
-        right: 35
-        left: 34.5
