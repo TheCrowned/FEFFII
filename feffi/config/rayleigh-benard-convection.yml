@@ -25,9 +25,9 @@ label: ''
 max_iter: 0
 BCs:
     V:
-        right: [0,'null']
+        right: [0,0]
         bottom: [0,0]
-        left: [0,'null']
+        left: [0,0]
         sea_top: [0,0]
     Q:
         (0,0): 0
