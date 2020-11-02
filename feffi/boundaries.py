@@ -67,7 +67,9 @@ class Domain(object):
                not self.config['BCs'].get('Q') or
                not self.config['BCs'].get('T') or
                not self.config['BCs'].get('S')):
-                logging.warning('BCs were only given for {}.'.format(', '.join(list(self.config['BCs'].keys()))))
+                logging.warning(
+                    'BCs were only given for {} spaces.'.format(
+                        ', '.join(list(self.config['BCs'].keys()))))
 
         self.define_boundaries()
         self.define_BCs()
