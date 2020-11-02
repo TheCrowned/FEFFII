@@ -1,28 +1,17 @@
 final_time: 8
-steps_n: 1000
+steps_n: 5000
 simulation_precision: -4
 g: 0
 nu: 
-- 0.01
+- 0.0001
 alpha:
 - 1
 rho_0: 1
 beta: 0
 gamma: 0
-T_0: 0
-S_0: 35
 domain: square
-domain_size_x: 2
-domain_size_y: 1
-shelf_size_x: 0.7
-shelf_size_y: 0.1
-mesh_resolution: 25
-mesh_resolution_x: 20
-mesh_resolution_y: 10
-mesh_resolution_sea_y: 1
-store_solutions: False
-label: ''
-max_iter: 0
+mesh_resolution: 10
+max_iter: 5000
 BCs:
     V:
         right: [0,0]

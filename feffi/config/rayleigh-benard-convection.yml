@@ -10,18 +10,14 @@ rho_0: 1
 beta: 2000
 gamma: 0
 T_0: 0
-S_0: 35
 domain: fjord
 domain_size_x: 4
 domain_size_y: 1
 shelf_size_x: 0
 shelf_size_y: 0
-mesh_resolution: 25
 mesh_resolution_x: 60
 mesh_resolution_y: 25
 mesh_resolution_sea_y: 1
-store_solutions: False
-label: ''
 max_iter: 0
 BCs:
     V:
