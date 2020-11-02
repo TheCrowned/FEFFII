@@ -10,18 +10,8 @@ rho_0: 1
 beta: 1000000
 gamma: 0
 T_0: 0
-S_0: 35
 domain: square
-domain_size_x: 2
-domain_size_y: 1
-shelf_size_x: 0.7
-shelf_size_y: 0.1
 mesh_resolution: 15
-mesh_resolution_x: 20
-mesh_resolution_y: 10
-mesh_resolution_sea_y: 1
-store_solutions: False
-label: ''
 max_iter: 0
 BCs:
     V:
