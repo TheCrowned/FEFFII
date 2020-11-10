@@ -12,6 +12,8 @@ import os, logging
 # All feffi functions take this config by default, but tweaks to the config
 # can be made locally to each function by passing the relevant kwargs to
 # each function call.
+feffi.parameters.define_parameters({
+    'config_file' : os.path.join('feffi', 'config', 'square.yml') })
 
 # If run from console, accept commandline arguments
 if __name__ == '__main__':

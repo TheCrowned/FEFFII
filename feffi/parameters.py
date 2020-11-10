@@ -13,10 +13,8 @@ def define_parameters(user_config={}):
     Parameters are stored in a global variable named `config`.
     The default location for config files is in a `config` dir located
     inside the model code dir (i.e. `feffi/config/`).
-    A config file is first used to load configuration and, if none is
-    given/found, a default one is used.
-    If a non-empty dictionary is supplied as well, its entries will
-    complete/overwrite the ones coming from the config.
+    Takes a default config file to begin with and overwrites any of its
+    entries which are also supplied through a user-given config file or dict.
 
     Notice that just the act of `import feffi` already sets up a default
     configuration.
@@ -31,13 +29,13 @@ def define_parameters(user_config={}):
 
     Examples
     ----------
-    1)  Use config file located in feffi/config/default.yml,
+    1)  Use config file located in feffi/config/square.yml,
         but using `20` as value for `final_time`.
 
         feffi.parameters.define_parameters(
             user_config = {
                 'final_time' : 20,
-                'config_file' : os.path.join('feffi', 'config', 'default.yml')
+                'config_file' : os.path.join('feffi', 'config', 'square.yml')
             }
         )
     """
@@ -47,7 +45,18 @@ def define_parameters(user_config={}):
     # Double call to dirname() reaches parent dir of current script
     parent_dir = os.path.dirname(os.path.dirname(__file__))
 
-    config_file_path = os.path.join('feffi', 'config', 'square.yml')
+    config_file_path = os.path.join('feffi', 'config', 'default.yml')
+
+    # Load default config file
+    # These values will be overwritten by later-fetched user config
+    if(not os.path.isfile(config_file_path)):
+        print(
+            'Default config file not found. Things are likely to break.'
+            'Make sure to pass ALL required config arguments as dict '
+            'or through another config file.')
+    else:
+        config = yaml.safe_load(open(config_file_path))
+        config['config_file'] = config_file_path
 
     # If given, open custom config file...
     if user_config.get('config_file'):
@@ -62,25 +71,16 @@ def define_parameters(user_config={}):
             logging.warning(
                 'Config file: \n{}\n does not exist\n'
                 'Falling back to default one.'.format(config_file_path))
-            config_file_path = os.path.join('feffi', 'config', 'square.yml')
-
-    if(not os.path.isfile(config_file_path)):
-        print(
-            'No valid config file found. Things are likely to break.'
-            'Make sure to pass ALL required config arguments as dict.')
-    else:
-        config = yaml.safe_load(open(config_file_path))
-        config['config_file'] = config_file_path
+        else:
+            config.update(yaml.safe_load(open(config_file_path)))
+            config['config_file'] = config_file_path
 
     # If (some) dictionary config is provided as class init parameter,
-    # that overwrites the default config
-    # Purge None entries before we merge. This is needed because if
-    # you provide a --config-file from commandline,
-    # then the defaults None would overwrite previous settings.
+    # that overwrites the default config.
     if isinstance(user_config, dict):
         config.update(user_config)
     else:
-        logging.warning('Supplied non-dictionary user config')
+        logging.error('Supplied non-dictionary user config')
 
     # Set some further entries
     label = " --label " + config['label'] if config['label'] else ""
@@ -252,7 +252,7 @@ def parse_commandline_args():
         key: val for key, val in commandline_args_dict.items()
         if val is not None}
 
-    config.update(purged_commandline_args_dict)
+    define_parameters(purged_commandline_args_dict)
 
 
 def assemble_viscosity_tensor(visc):
