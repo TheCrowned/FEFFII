@@ -59,6 +59,18 @@ class Domain(object):
         # Allow function arguments to overwrite wide config (but keep it local)
         self.config = dict(parameters.config); self.config.update(kwargs)
 
+        # Check BCs status
+        if(not isinstance(self.config['BCs'], dict)):
+            logging.error('No BCs given (at least not as dict).')
+        else:
+            if(not self.config['BCs'].get('V') or
+               not self.config['BCs'].get('Q') or
+               not self.config['BCs'].get('T') or
+               not self.config['BCs'].get('S')):
+                logging.warning(
+                    'BCs were only given for {} spaces.'.format(
+                        ', '.join(list(self.config['BCs'].keys()))))
+
         self.define_boundaries()
         self.define_BCs()
 
