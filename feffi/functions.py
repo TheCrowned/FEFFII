@@ -159,14 +159,6 @@ def define_variational_problems(f, mesh, **kwargs):
     n = fenics.FacetNormal(mesh)
     dt = 1/config['steps_n']
 
-    # Define strain-rate tensor
-    def epsilon(u):
-        return sym(nabla_grad(u))
-
-    # Define stress tensor
-    def sigma(u, p):
-        return 2*elem_mult(nu, epsilon(u)) - p*Identity(len(u))
-
     def get_matrix_diagonal(mat):
         diag = []
         for i in range(mat.ufl_shape[0]):
@@ -187,7 +179,8 @@ def define_variational_problems(f, mesh, **kwargs):
     y = fenics.Expression("1-x[1]", degree=2)
     F1 = + dot((u - u_n)/dt, v)*dx \
          + dot(dot(u_n, nabla_grad(u_n)), v)*dx \
-         + inner(sigma(U, (p_n - rho_0*g*y)/rho_0), epsilon(v))*dx \
+         + inner(2*elem_mult(nu, sym(nabla_grad(U))), sym(nabla_grad(v)))*dx \
+         - inner((p_n - rho_0*g*y)/rho_0*Identity(len(U)), sym(nabla_grad(v)))*dx \
          + dot((p_n - rho_0*g*y)*n/rho_0, v)*ds \
          - dot(elem_mult(nu, nabla_grad(U))*n, v)*ds \
          - dot(buoyancy, v)*dx
