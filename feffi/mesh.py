@@ -57,7 +57,7 @@ def create_mesh(**kwargs):
 
         mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)'''
 
-    logging.info('Initialized mesh: vertexes %d, max diameter %.2f' % (mesh.num_vertices(), mesh.hmax()))
+    logging.info('Initialized mesh: vertexes %d, hmax %.2f, hmin %.2f' % (mesh.num_vertices(), mesh.hmax(), mesh.hmin()))
 
     return mesh
 

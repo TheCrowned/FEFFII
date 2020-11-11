@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 parameters.define_parameters({
     'config_file' : 'feffi/config/lid-driven-cavity.yml',
-    #'max_iter' : 20
+    'max_iter' : 1000
 })
 parameters.parse_commandline_args()
 
@@ -31,6 +31,7 @@ logging.info(
 simul = simulation.Simulation(f, stiffness_mats, load_vectors, domain.BCs)
 simul.run()
 
+
 plot.plot_single(
     f['u_'],
     title='Velocity (nu = {})'.format(parameters.config['nu']),
@@ -43,16 +44,15 @@ plot.plot_single(
 # Export solutions for comparison
 #fenics.File('lid-driven-cavity_u_{}.xml'.format(parameters.config['nu'])) << f['u_']
 #fenics.File('lid-driven-cavity_p_{}.xml'.format(parameters.config['nu'])) << f['p_']
-#precision reached at 6954 step
 
 # Compare with reference solutions
 ref_u = fenics.Function(f_spaces['V'])
 ref_p = fenics.Function(f_spaces['Q'])
 fenics.File(
-    'feffi/reference-solutions/lid-driven-cavity_u_{}.xml'.format(
+    'lid-driven-cavity_u_{}.xml'.format(
         parameters.config['nu'])) >> ref_u
 fenics.File(
-    'feffi/reference-solutions/lid-driven-cavity_p_{}.xml'.format(
+    'lid-driven-cavity_p_{}.xml'.format(
         parameters.config['nu'])) >> ref_p
 
 fig = plt.figure()
