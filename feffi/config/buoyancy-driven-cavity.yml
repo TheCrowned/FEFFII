@@ -1,0 +1,26 @@
+final_time: 1
+steps_n: 50000
+simulation_precision: -4
+g: 1
+nu: 
+- 1
+alpha:
+- 1
+rho_0: 1
+beta: 1000000
+gamma: 0
+T_0: 0
+domain: square
+mesh_resolution: 15
+max_iter: 0
+BCs:
+    V:
+        right: [0,0]
+        bottom: [0,0]
+        left: [0,0]
+        top: [0,0]
+    Q:
+        '(1,1)': 0
+    T:
+        right: 0
+        left: 1

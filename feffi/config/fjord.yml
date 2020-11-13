@@ -1,0 +1,43 @@
+final_time: 10
+steps_n: 10000
+simulation_precision: -3
+g: 9.81
+nu: 
+- 100
+alpha:
+- 100
+rho_0: 1028
+beta: 0.0001
+gamma: 0.00076
+T_0: 1
+S_0: 35
+domain: fjord
+domain_size_x: 2
+domain_size_y: 1
+shelf_size_x: 0.7
+shelf_size_y: 0.1
+mesh_resolution_x: 20
+mesh_resolution_y: 10
+mesh_resolution_sea_y: 1
+store_solutions: False
+max_iter: 0
+BCs:
+    V:
+        right: ['0.5*sin(2*pi*x[1])', 0]
+        bottom: [0,0]
+        left: [0,0]
+        ice_shelf_right: [0,0]
+        ice_shelf_bottom: [0,0]
+        sea_top: ['null', 0]
+    Q:
+        '(2,1)': 0
+    T:
+        right: 3
+        left: -1.9
+        ice_shelf_right: -1.9
+        ice_shelf_bottom: -1.9
+    S:
+        right: 35
+        left: 34.5
+        ice_shelf_right: 34.5
+        ice_shelf_bottom: 34.5
