@@ -1,9 +1,9 @@
 from fenics import *
 import matplotlib.pyplot as plt
 
-mesh = UnitSquareMesh(10,10)
+mesh = UnitSquareMesh(30,30)
 
-for thresh in [0.3, 0.2, 0.1, 0.025]:
+for thresh in [0.2, 0.1, 0.05, 0.025]:
     class Bound_Top(SubDomain):
         def inside(self, x, on_boundary):
             return x[1] >= 1-thresh and x[0] <= 1-thresh
