@@ -1,6 +1,9 @@
-import fenics, logging
+import fenics
+import logging
 from feffi.shelfgeometry import ShelfGeometry
 from . import parameters
+
+flog = logging.getLogger('feffi')
 
 def create_mesh(**kwargs):
     """Generates domain and mesh.
@@ -57,7 +60,7 @@ def create_mesh(**kwargs):
 
         mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)'''
 
-    logging.info('Initialized mesh: vertexes %d, max diameter %.2f' % (mesh.num_vertices(), mesh.hmax()))
+    flog.info('Initialized mesh: vertexes %d, max diameter %.2f' % (mesh.num_vertices(), mesh.hmax()))
 
     return mesh
 

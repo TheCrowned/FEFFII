@@ -7,7 +7,6 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
 from feffi import *
-import logging
 import fenics
 import matplotlib.pyplot as plt
 
@@ -47,6 +46,9 @@ plot.plot_single(
     f['T_'],
     title='Temperature (Ra = {})'.format(parameters.config['beta']),
     display=True)
+
+flog.info('Moving log file to plot folder')
+system('mv simulation.log "' + parameters.config['plot_path'] + '/simulation.log"')
 
 # Export solutions for comparison
 #fenics.File('buoyancy-driven-cavity_u_{}.xml'.format(parameters.config['beta'])) << f['u_']

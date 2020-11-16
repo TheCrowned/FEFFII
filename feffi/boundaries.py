@@ -3,6 +3,7 @@ from os import system
 from numpy import max
 import logging
 from . import parameters
+flog = logging.getLogger('feffi')
 
 class Domain(object):
     """ Creates a simulation domain given its boundaries definitions and
@@ -61,13 +62,13 @@ class Domain(object):
 
         # Check BCs status
         if(not isinstance(self.config['BCs'], dict)):
-            logging.error('No BCs given (at least not as dict).')
+            flog.error('No BCs given (at least not as dict).')
         else:
             if(not self.config['BCs'].get('V') or
                not self.config['BCs'].get('Q') or
                not self.config['BCs'].get('T') or
                not self.config['BCs'].get('S')):
-                logging.warning(
+                flog.warning(
                     'BCs were only given for {} spaces.'.format(
                         ', '.join(list(self.config['BCs'].keys()))))
 
@@ -151,7 +152,7 @@ class Domain(object):
                                     self.marked_subdomains,
                                     self.subdomains_markers[subdomain_name]
                                 ))
-                            logging.info(
+                            flog.info(
                                 ('BCs - Boundary {}, space {}[{}] ' +
                                  '(marker {}), value {}').format(
                                     subdomain_name, f_space_name, i,
@@ -170,7 +171,7 @@ class Domain(object):
                                 self.marked_subdomains,
                                 self.subdomains_markers[subdomain_name]
                             ))
-                        logging.info(
+                        flog.info(
                         ('BCs - Boundary {}, space {} ' +
                          '(marker {}), value {}').format(
                             subdomain_name, f_space_name,
@@ -191,7 +192,7 @@ class Domain(object):
                                     point[0], point[1]),
                                 method='pointwise'
                             ))
-                        logging.info(
+                        flog.info(
                             'BCs - Point ({}, {}), space Q, value {}'.format(
                                 point[0], point[1], BC_value))
 
@@ -230,8 +231,8 @@ class Bound_Right(SubDomain):
         if parameters.config['domain'] == 'square':
             return near(x[0], 1) and on_boundary
         elif parameters.config['domain'] == 'fjord':
-             return near(x[0], parameters.config['domain_size_x']) \
-             and on_boundary
+            return near(x[0], parameters.config['domain_size_x']) \
+            and on_boundary
 
 class Bound_Ice_Shelf_Bottom(SubDomain):
     def inside(self, x, on_boundary):
