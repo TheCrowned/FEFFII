@@ -1,3 +1,4 @@
+plot_path: 'anti_turbulence'
 final_time: 1
 steps_n: 20000
 simulation_precision: -3
@@ -23,9 +24,9 @@ store_solutions: False
 max_iter: 0
 BCs:
     V:
-        right: [0,0]
-        bottom: [0,0]
-        left: [0,0]
+        right: [0,'null']
+        bottom: ['null',0]
+        left: [0,'null']
         sea_top: ['null', 0]
     Q:
         '(2,1)': 0
