@@ -19,7 +19,7 @@ feffi.parameters.define_parameters(
 if __name__ == '__main__':
     feffi.parameters.parse_commandline_args()
 
-logging.info('Parameters are: ' + str(feffi.parameters.config))
+feffi.flog.info('Parameters are: ' + str(feffi.parameters.config))
 
 # Create mesh over simulation domain
 mesh = feffi.mesh.create_mesh()

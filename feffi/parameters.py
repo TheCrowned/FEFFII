@@ -78,26 +78,23 @@ def define_parameters(user_config={}):
 
     # If (some) dictionary config is provided as class init parameter,
     # that overwrites the default config.
-    #if isinstance(user_config, dict):
-    #    config.update(user_config)
-    #else:
-    #    logging.error('Supplied non-dictionary user config')
-    
-    # set default plot path
-    label = " --label " + config['label'] if config['label'] else ""
-    config['plot_path'] = os.path.join(
-        parent_dir,
-        'plots',
-        '%d --final-time %.0f --steps-n %d --mesh-resolution %d%s/' % (
-            round(time.time()), config['final_time'],
-            config['steps_n'], config['mesh_resolution'],
-            label))
-
-
     if isinstance(user_config, dict):
         config.update(user_config)
     else:
         logging.error('Supplied non-dictionary user config')
+    
+    # set default plot path
+    print(config['plot_path'])
+    
+    label = " --label " + config['label'] if config['label'] else ""
+    if config['plot_path']==1:
+        config['plot_path'] = os.path.join(
+            parent_dir,
+            'plots',
+            '%d --final-time %.0f --steps-n %d --mesh-resolution %d%s/' % (
+                round(time.time()), config['final_time'],
+                config['steps_n'], config['mesh_resolution'],
+                label))
 
 def parse_commandline_args():
     """Provides support for command line arguments through argparse.
