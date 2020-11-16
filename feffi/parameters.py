@@ -5,6 +5,7 @@ import argparse
 import fenics
 import time
 
+flog = logging.getLogger('feffi')
 config = {}
 
 def define_parameters(user_config={}):

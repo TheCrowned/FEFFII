@@ -1,7 +1,8 @@
 from fenics import dot, inner, elem_mult, grad, nabla_grad, div, dx, ds, sym, Identity
 import fenics
-import feffi.parameters
+from . import parameters
 import logging
+flog = logging.getLogger('feffi')
 
 def define_function_spaces(mesh):
     """Define function spaces for velocity, pressure, temperature and salinity.
@@ -72,7 +73,7 @@ def init_functions(f, **kwargs):
     """
 
     # Allow function arguments to overwrite wide config (but keep it local)
-    config = dict(feffi.parameters.config); config.update(kwargs)
+    config = dict(parameters.config); config.update(kwargs)
 
     '''f['u_n'].assign(
         fenics.interpolate(
@@ -141,7 +142,7 @@ def define_variational_problems(f, mesh, **kwargs):
     """
 
     # Allow function arguments to overwrite wide config (but keep it local)
-    config = dict(feffi.parameters.config); config.update(kwargs)
+    config = dict(parameters.config); config.update(kwargs)
 
     # Shorthand for functions used in variational forms
     u = f['u']; u_n = f['u_n']; v = f['v']; u_ = f['u_']
@@ -151,21 +152,13 @@ def define_variational_problems(f, mesh, **kwargs):
     rho_0 = config['rho_0']; g = config['g'];
 
     # Assemble tensor viscosity/diffusivity
-    nu = feffi.parameters.assemble_viscosity_tensor(config['nu']);
-    alpha = feffi.parameters.assemble_viscosity_tensor(config['alpha']);
+    nu = parameters.assemble_viscosity_tensor(config['nu']);
+    alpha = parameters.assemble_viscosity_tensor(config['alpha']);
 
     # Define expressions used in variational forms
     U = 0.5*(u_n + u)
     n = fenics.FacetNormal(mesh)
     dt = 1/config['steps_n']
-
-    # Define strain-rate tensor
-    def epsilon(u):
-        return sym(nabla_grad(u))
-
-    # Define stress tensor
-    def sigma(u, p):
-        return 2*elem_mult(nu, epsilon(u)) - p*Identity(len(u))
 
     def get_matrix_diagonal(mat):
         diag = []
@@ -187,7 +180,8 @@ def define_variational_problems(f, mesh, **kwargs):
     y = fenics.Expression("1-x[1]", degree=2)
     F1 = + dot((u - u_n)/dt, v)*dx \
          + dot(dot(u_n, nabla_grad(u_n)), v)*dx \
-         + inner(sigma(U, (p_n - rho_0*g*y)/rho_0), epsilon(v))*dx \
+         + inner(2*elem_mult(nu, sym(nabla_grad(U))), sym(nabla_grad(v)))*dx \
+         - inner((p_n - rho_0*g*y)/rho_0*Identity(len(U)), sym(nabla_grad(v)))*dx \
          + dot((p_n - rho_0*g*y)*n/rho_0, v)*ds \
          - dot(elem_mult(nu, nabla_grad(U))*n, v)*ds \
          - dot(buoyancy, v)*dx
@@ -216,6 +210,6 @@ def define_variational_problems(f, mesh, **kwargs):
          + dot(elem_mult(get_matrix_diagonal(alpha), grad(S)), grad(S_v))*dx
     stiffness_mats['a5'], load_vectors['L5'] = fenics.lhs(F5), fenics.rhs(F5)
 
-    logging.info('Defined variational problems')
+    flog.info('Defined variational problems')
 
     return stiffness_mats, load_vectors

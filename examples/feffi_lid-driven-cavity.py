@@ -7,7 +7,6 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
 from feffi import *
-import logging
 import fenics
 import matplotlib.pyplot as plt
 
@@ -24,7 +23,7 @@ f = functions.define_functions(f_spaces)
 (stiffness_mats, load_vectors) = functions.define_variational_problems(f, mesh)
 domain = boundaries.Domain(mesh, f_spaces)
 
-logging.info(
+flog.info(
     '## Running lid driven benchmark with parameters \n{} ##'.format(
         parameters.config))
 
@@ -39,6 +38,9 @@ plot.plot_single(
     f['p_'],
     title='Pressure (nu = {})'.format(parameters.config['nu']),
     display=True)
+
+flog.info('Moving log file to plot folder')
+system('mv simulation.log "' + parameters.config['plot_path'] + '/simulation.log"')
 
 # Export solutions for comparison
 #fenics.File('lid-driven-cavity_u_{}.xml'.format(parameters.config['nu'])) << f['u_']
