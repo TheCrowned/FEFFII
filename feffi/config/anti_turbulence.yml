@@ -1,4 +1,3 @@
-plot_path: 'anti_turbulence'
 final_time: 1
 steps_n: 20000
 simulation_precision: -3
