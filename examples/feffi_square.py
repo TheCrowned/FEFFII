@@ -5,7 +5,7 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir)
 
 import feffi
-import os, logging
+import os
 
 # Importing feffi results in the default config file `square.yml` being
 # parsed already. To tweak config, see feffi.parameters.define_parameters().
@@ -19,7 +19,7 @@ feffi.parameters.define_parameters({
 if __name__ == '__main__':
     feffi.parameters.parse_commandline_args()
 
-logging.info('Parameters are: ' + str(feffi.parameters.config))
+feffi.flog.info('Parameters are: ' + str(feffi.parameters.config))
 
 # Create mesh over simulation domain
 mesh = feffi.mesh.create_mesh()
@@ -50,4 +50,7 @@ simulation.run()
 feffi.plot.plot_single(mesh, file_name = 'mesh.png', title = 'Mesh', display = False)
 feffi.plot.plot_solutions(f, display = False)
 
-logging.info('Plots can be found in %s' % feffi.parameters.config['plot_path'])
+feffi.flog.info('Moving log file to plot folder')
+system('mv simulation.log "' + feffi.parameters.config['plot_path'] + '/simulation.log"')
+
+feffi.flog.info('Plots can be found in %s' % feffi.parameters.config['plot_path'])

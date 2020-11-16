@@ -1,7 +1,8 @@
 from fenics import dot, inner, elem_mult, grad, nabla_grad, div, dx, ds, sym, Identity
 import fenics
-import feffi.parameters
+from . import parameters
 import logging
+flog = logging.getLogger('feffi')
 
 def define_function_spaces(mesh):
     """Define function spaces for velocity, pressure, temperature and salinity.
@@ -72,7 +73,7 @@ def init_functions(f, **kwargs):
     """
 
     # Allow function arguments to overwrite wide config (but keep it local)
-    config = dict(feffi.parameters.config); config.update(kwargs)
+    config = dict(parameters.config); config.update(kwargs)
 
     '''f['u_n'].assign(
         fenics.interpolate(
@@ -141,7 +142,7 @@ def define_variational_problems(f, mesh, **kwargs):
     """
 
     # Allow function arguments to overwrite wide config (but keep it local)
-    config = dict(feffi.parameters.config); config.update(kwargs)
+    config = dict(parameters.config); config.update(kwargs)
 
     # Shorthand for functions used in variational forms
     u = f['u']; u_n = f['u_n']; v = f['v']; u_ = f['u_']
@@ -151,8 +152,8 @@ def define_variational_problems(f, mesh, **kwargs):
     rho_0 = config['rho_0']; g = config['g'];
 
     # Assemble tensor viscosity/diffusivity
-    nu = feffi.parameters.assemble_viscosity_tensor(config['nu']);
-    alpha = feffi.parameters.assemble_viscosity_tensor(config['alpha']);
+    nu = parameters.assemble_viscosity_tensor(config['nu']);
+    alpha = parameters.assemble_viscosity_tensor(config['alpha']);
 
     # Define expressions used in variational forms
     U = 0.5*(u_n + u)
@@ -209,6 +210,6 @@ def define_variational_problems(f, mesh, **kwargs):
          + dot(elem_mult(get_matrix_diagonal(alpha), grad(S)), grad(S_v))*dx
     stiffness_mats['a5'], load_vectors['L5'] = fenics.lhs(F5), fenics.rhs(F5)
 
-    logging.info('Defined variational problems')
+    flog.info('Defined variational problems')
 
     return stiffness_mats, load_vectors

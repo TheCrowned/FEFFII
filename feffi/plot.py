@@ -1,8 +1,10 @@
 from . import parameters
 from fenics import plot, norm
 from pathlib import Path
-import logging
 import matplotlib.pyplot as plt
+import logging
+
+flog = logging.getLogger('feffi')
 
 def plot_single(to_plot, **kwargs):
     """Plots a single Fenics-plottable object (ex. function, mesh).
@@ -37,13 +39,14 @@ def plot_single(to_plot, **kwargs):
     else:
         title = str(to_plot)
 
-    logging.info('Plotting %s...' % title)
+    flog.info('Plotting %s...' % title)
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
+    ax.set_aspect('auto')
     pl = plot(to_plot, title = title)
 
-    # Add colorbar if possible (i.e. if it is a Function), no worries otherwise
+    # Add colorbar if possible (i.e. if it is a Function)
     try:
         plt.colorbar(pl)
     except:
@@ -70,7 +73,7 @@ def plot_solutions(f, **kwargs):
 
     kwargs
     ------
-    See `plot_single`.
+    All of `plot_single`.
     """
     plot_single(f['u_'], file_name='velxy.png', title='Velocity', **kwargs)
     plot_single(f['u_'][0], file_name='velx.png', title='Velocity X-component', **kwargs)

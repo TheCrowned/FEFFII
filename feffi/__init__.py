@@ -1,13 +1,35 @@
+import logging
 from . import parameters
 from . import mesh
 from . import functions
 from . import boundaries
 from . import simulation
 from . import plot
-import logging
 
-logging.basicConfig(level=logging.INFO)
+# Instantiate feffi logger
+flog = logging.getLogger('feffi')
+flog.setLevel(logging.INFO)
+
+# Create two file handlers:
+# one for file logging, another for terminal logging
+#formatter = logging.Formatter('%(message)s')
+
+fh = logging.FileHandler(
+    'simulation.log',
+    mode='w',
+    encoding='utf-8')
+fh.setLevel(logging.INFO)
+#fh.setFormatter(formatter)
+logging.getLogger('feffi').addHandler(fh)
+
+th = logging.StreamHandler()
+th.setLevel(logging.INFO)
+#th.setFormatter(formatter)
+logging.getLogger('feffi').addHandler(th)
+
+# Reduce FEniCS logging to WARNING only
 logging.getLogger('UFL').setLevel(logging.WARNING)
 logging.getLogger('FFC').setLevel(logging.WARNING)
 
+# Set up default config
 parameters.define_parameters()

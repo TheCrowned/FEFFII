@@ -5,9 +5,11 @@ from time import time
 from datetime import datetime
 from sys import exit
 from os import system
-import logging, signal
+import logging
+import signal
 import numpy as np
 from . import parameters, plot
+flog = logging.getLogger('feffi')
 
 class Simulation(object):
     """Initializes a FEFFI model simulation.
@@ -88,7 +90,7 @@ class Simulation(object):
 
             self.save_pvds()
 
-        logging.info('Initialized simulation')
+        flog.info('Initialized simulation')
 
     def run(self):
         """Runs the simulation until a stopping condition is met."""
@@ -97,7 +99,7 @@ class Simulation(object):
         signal.signal(signal.SIGINT, self.sigint_handler)
 
         start_time = time()
-        logging.info('Running full simulation; started at %s ' % str(datetime.now()))
+        flog.info('Running full simulation; started at %s ' % str(datetime.now()))
 
         while self.n <= self.iterations_n:
             #plot.plot_solutions(self.f, display=True)
@@ -193,16 +195,16 @@ class Simulation(object):
 
         convergence_threshold = 10**(self.config['simulation_precision'])
         if all(error < convergence_threshold for error in self.errors.values()):
-            logging.info('Stopping simulation at step %d: all variables reached desired precision' % self.n)
+            flog.info('Stopping simulation at step %d: all variables reached desired precision' % self.n)
             self.log_progress()
             return True
 
         if self.config['max_iter'] > 0 and self.n >= self.config['max_iter']:
-            logging.info('Max iterations reached, stopping simulation at timestep %d' % self.n)
+            flog.info('Max iterations reached, stopping simulation at timestep %d' % self.n)
             return True
 
         if norm(self.f['u_'], 'L2') != norm(self.f['u_'], 'L2'):
-            logging.info('Stopping simulation at step %d: velocity is NaN!' % self.n)
+            flog.info('Stopping simulation at step %d: velocity is NaN!' % self.n)
             return True
 
         return False
@@ -212,7 +214,7 @@ class Simulation(object):
 
         round_precision = abs(self.config['simulation_precision']) if self.config['simulation_precision'] <= 0 else 0
 
-        logging.info("Timestep %d of %d: \n  ||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||u-u_n||/||u|| = %s, \n  ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||p-p_n||/||p|| = %s, \n  ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||T-T_n||/||T|| = %s, \n  ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s, ||S - S_n||/||S|| = %s" % ( \
+        flog.info("Timestep %d of %d: \n  ||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||u-u_n||/||u|| = %s, \n  ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||p-p_n||/||p|| = %s, \n  ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||T-T_n||/||T|| = %s, \n  ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s, ||S - S_n||/||S|| = %s" % ( \
             self.n, self.iterations_n, \
             round(norm(self.f['u_'], 'L2'), round_precision), round(norm(self.f['u_'].vector(), 'linf'), round_precision), round(self.errors['u'], round_precision), round(self.errors['u']/norm(self.f['u_'], 'L2'), round_precision), \
             round(norm(self.f['p_'], 'L2'), round_precision), round(norm(self.f['p_'].vector(), 'linf'), round_precision), round(self.errors['p'], round_precision), round(self.errors['p']/norm(self.f['p_'], 'L2'), round_precision), \
@@ -232,7 +234,10 @@ class Simulation(object):
         """Catches CTRL-C when Simulation.run() is going,
         and plot solutions before exiting."""
 
-        logging.info('Simulation stopped -- jumping to plotting before exiting')
+        flog.info('Simulation stopped -- jumping to plotting before exiting')
         plot.plot_solutions(self.f)
+        flog.info('Moving log file to plot folder')
+        system('mv simulation.log "' + self.config['plot_path'] + '/simulation.log"')
+
         system('xdg-open "' + self.config['plot_path'] + '"')
         exit(0)

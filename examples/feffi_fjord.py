@@ -5,13 +5,14 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir)
 
 import feffi
-import os, logging
+import os
+import fenics
 
 # Define parameters using custom config file and providing some parameters
 # as dictionary entries
 feffi.parameters.define_parameters(
     user_config = {
-        'config_file' : os.path.join('config', 'fjord.yml'),
+        'config_file' : os.path.join('feffi', 'config', 'fjord.yml'),
         'final_time' : 24,              #simulate 24 hours
         'domain_size_x' : 5,            #on a domain of width 5
         'domain_size_y' : 3,            #on a domain of height 3
@@ -25,7 +26,7 @@ feffi.parameters.define_parameters(
 if __name__ == '__main__':
     feffi.parameters.parse_commandline_args()
 
-logging.info('Parameters are: ' + str(feffi.parameters.config))
+feffi.flog.info('Parameters are: ' + str(feffi.parameters.config))
 
 # Create mesh over simulation domain
 mesh = feffi.mesh.create_mesh()
@@ -52,8 +53,16 @@ simulation = feffi.simulation.Simulation(f, stiffness_mats, load_vectors, domain
 # individual timesteps with `simulation.timestep()`
 simulation.run()
 
+# Export solutions for comparison
+fenics.File('test_u_{}.xml'.format(feffi.parameters.config['beta'])) << f['u_']
+fenics.File('test_u_{}.xml'.format(feffi.parameters.config['beta'])) << f['p_']
+fenics.File('test_u_{}.xml'.format(feffi.parameters.config['beta'])) << f['T_']
+
 # Plot mesh and solutions, saving them as png files
 feffi.plot.plot_single(mesh, file_name = 'mesh.png', title = 'Mesh', display = False)
 feffi.plot.plot_solutions(f, display = False)
 
-logging.info('Plots can be found in %s' % feffi.parameters.config['plot_path'])
+flog.info('Moving log file to plot folder')
+system('mv simulation.log "' + feffi.parameters.config['plot_path'] + '/simulation.log"')
+
+feffi.flog.info('Plots can be found in %s' % feffi.parameters.config['plot_path'])
