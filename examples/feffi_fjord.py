@@ -12,11 +12,7 @@ import fenics
 # as dictionary entries
 feffi.parameters.define_parameters(
     user_config = {
-<<<<<<< HEAD
-        'config_file' : os.path.join('feffi','config', 'fjord.yml'),
-=======
         'config_file' : os.path.join('feffi', 'config', 'fjord.yml'),
->>>>>>> 0a88011d4edf964d98c87cc8c0e626206cdb6203
         'final_time' : 24,              #simulate 24 hours
         'domain_size_x' : 5,            #on a domain of width 5
         'domain_size_y' : 3,            #on a domain of height 3
