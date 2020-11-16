@@ -78,12 +78,12 @@ def define_parameters(user_config={}):
 
     # If (some) dictionary config is provided as class init parameter,
     # that overwrites the default config.
-    if isinstance(user_config, dict):
-        config.update(user_config)
-    else:
-        logging.error('Supplied non-dictionary user config')
-
-    # Set some further entries
+    #if isinstance(user_config, dict):
+    #    config.update(user_config)
+    #else:
+    #    logging.error('Supplied non-dictionary user config')
+    
+    # set default plot path
     label = " --label " + config['label'] if config['label'] else ""
     config['plot_path'] = os.path.join(
         parent_dir,
@@ -93,6 +93,11 @@ def define_parameters(user_config={}):
             config['steps_n'], config['mesh_resolution'],
             label))
 
+
+    if isinstance(user_config, dict):
+        config.update(user_config)
+    else:
+        logging.error('Supplied non-dictionary user config')
 
 def parse_commandline_args():
     """Provides support for command line arguments through argparse.
@@ -233,6 +238,10 @@ def parse_commandline_args():
         type=int,
         dest='max_iter',
         help='Stop simulation after given number of timesteps; 0 = infinite (default: %(default)s)')
+    parser.add_argument(
+        '--plot-path',
+        dest='plot_path',
+        help='change Output folder (default is in "plots" based on timestamp)')
     # parser.add_argument('-v', '--verbose', default=config['verbose'],
     # dest='verbose', action='store_true', help='Whether to display
     # debug info (default: %(default)s)')
