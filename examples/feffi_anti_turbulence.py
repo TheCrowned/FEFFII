@@ -11,13 +11,7 @@ import os, logging
 # as dictionary entries
 feffi.parameters.define_parameters(
     user_config = {
-        'config_file' : os.path.join('feffi','config', 'fjord.yml'),
-        'final_time' : 24,              #simulate 24 hours
-        'domain_size_x' : 5,            #on a domain of width 5
-        'domain_size_y' : 3,            #on a domain of height 3
-        'mesh_resolution_x' : 50,       #mesh resolution x-wise 50
-        'mesh_resolution_y' : 30,       #mesh resolution y-wise 30
-        'mesh_resolution_sea_y' : 3,   #mesh resolution y-wise on sea shelf 3
+        'config_file' : os.path.join('feffi','config', 'anti_turbulence.yml'),
     }
 )
 
