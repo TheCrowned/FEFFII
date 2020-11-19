@@ -83,18 +83,24 @@ def define_parameters(user_config={}):
     else:
         logging.error('Supplied non-dictionary user config')
     
-    # set default plot path
-    print(config['plot_path'])
-    
     label = " --label " + config['label'] if config['label'] else ""
-    if config['plot_path']==1:
-        config['plot_path'] = os.path.join(
-            parent_dir,
-            'plots',
-            '%d --final-time %.0f --steps-n %d --mesh-resolution %d%s/' % (
-                round(time.time()), config['final_time'],
-                config['steps_n'], config['mesh_resolution'],
-                label))
+    config['plot_path'] = os.path.join(
+        parent_dir,
+        'plots',
+        '%d --final-time %.0f --steps-n %d --mesh-resolution %d%s/' % (
+            round(time.time()), config['final_time'],
+            config['steps_n'], config['mesh_resolution'],
+            label))
+
+    # open user config again to override default plot path again (is plot path is not given, default plot path is not
+    # overwritten and thereby used
+    if user_config.get('config_file'):
+        if(not os.path.isfile(config_file_path)):
+            logging.warning('Using default plot path: ' + config['plot_path'])
+        else:
+            config.update(yaml.safe_load(open(config_file_path)))
+            logging.info('Plot path is updated to be: ' + config['plot_path'])
+
 
 def parse_commandline_args():
     """Provides support for command line arguments through argparse.
