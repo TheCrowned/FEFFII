@@ -82,24 +82,17 @@ def define_parameters(user_config={}):
         config.update(user_config)
     else:
         logging.error('Supplied non-dictionary user config')
-    
-    label = " --label " + config['label'] if config['label'] else ""
-    config['plot_path'] = os.path.join(
-        parent_dir,
-        'plots',
-        '%d --final-time %.0f --steps-n %d --mesh-resolution %d%s/' % (
-            round(time.time()), config['final_time'],
-            config['steps_n'], config['mesh_resolution'],
-            label))
 
-    # open user config again to override default plot path again (is plot path is not given, default plot path is not
-    # overwritten and thereby used
-    if user_config.get('config_file'):
-        if(not os.path.isfile(config_file_path)):
-            logging.warning('Using default plot path: ' + config['plot_path'])
-        else:
-            config.update(yaml.safe_load(open(config_file_path)))
-            logging.info('Plot path is updated to be: ' + config['plot_path'])
+    # Define plot path in case not already given by config file
+    if(config.get('plot_path') == None or len(config['plot_path']) == 0):
+        label = " --label " + config['label'] if config['label'] else ""
+        config['plot_path'] = os.path.join(
+            parent_dir,
+            'plots',
+            '%d --final-time %.0f --steps-n %d --mesh-resolution %d%s/' % (
+                round(time.time()), config['final_time'],
+                config['steps_n'], config['mesh_resolution'],
+                label))
 
 
 def parse_commandline_args():
