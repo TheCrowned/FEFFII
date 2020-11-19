@@ -1,16 +1,16 @@
 final_time: 8
-steps_n: 5000
+steps_n: 1000
 simulation_precision: -4
 g: 0
 nu: 
-- 0.0001
+- 0.01
 alpha:
 - 1
 rho_0: 1
 beta: 0
 gamma: 0
 domain: square
-mesh_resolution: 10
+mesh_resolution: 20
 max_iter: 5000
 BCs:
     V:
