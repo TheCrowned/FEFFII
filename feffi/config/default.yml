@@ -1,4 +1,3 @@
-plot_path: 1
 final_time: 10
 steps_n: 10000
 simulation_precision: -3
