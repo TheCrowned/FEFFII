@@ -9,6 +9,7 @@ from . import plot
 # Instantiate feffi logger
 flog = logging.getLogger('feffi')
 flog.setLevel(logging.INFO)
+flog.propagate=False # dark magic https://stackoverflow.com/a/44426266
 
 # Create two file handlers:
 # one for file logging, another for terminal logging
