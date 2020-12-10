@@ -32,8 +32,15 @@ bcu = DirichletBC(V, Constant(0), 'on_boundary') #BC applied to whole boundary. 
 u = TrialFunction(V)
 v = TestFunction(V)
 u_ = Function(V)
-b = Constant((1,)*dim) #the comma forces a list of size 1
-f  = Constant(1)
+b_vector = (1,)*dim #the comma forces a list of size 1. Specifying 'Constant' is only needed when UFL can't cast it by itself
+b = Constant(b_vector) #the comma forces a list of size 1. Specifying 'Constant' is only needed when UFL can't cast it by itself
+f = Constant(1) #but is also ok when we don't need to easily access the value
+
+# define stabilization parameter delta value with formula according to Bengzon Larsson book, section 10.1.6.
+C = 0.5 #this is pretty random. According to Chris it is a standard value in FEM, but not mention at all in Larsson-Bengzon book
+hmin = mesh.hmin()
+delta = C*hmin**2 if epsilon > hmin else C*hmin/np.linalg.norm(b_vector, np.inf)
+print("Delta {}".format(delta))
 
 a = epsilon*dot(grad(u), grad(v))*dx + dot(b, grad(u))*v*dx
 L = dot(f, v)*dx
