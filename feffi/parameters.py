@@ -156,6 +156,11 @@ def parse_commandline_args():
         nargs="*",
         help='Diffusivity coefficient for temperature/salinity, m^2/s. Expects 1, 2 or 4 space-separated entries, depending on whether a scalar, vector or tensor is wished (default: %(default)s)')
     parser.add_argument(
+        '--stabilization',
+        type=float,
+        dest='stabilization',
+        help='Stabilization coefficient for nu/alpha (default: %(default)s)')
+    parser.add_argument(
         '--rho-0',
         type=float,
         dest='rho_0',
@@ -297,8 +302,8 @@ def assemble_viscosity_tensor(visc):
 
     if len(visc) == 1:
         output = fenics.as_tensor((
-            (fenics.Constant(visc[0]), fenics.Constant(visc[0])),
-            (fenics.Constant(visc[0]), fenics.Constant(visc[0]))
+            ((visc[0]), (visc[0])),
+            ((visc[0]), (visc[0]))
         ))
     elif len(visc) == 2:
         output = fenics.as_tensor((
