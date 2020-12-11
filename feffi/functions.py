@@ -151,15 +151,6 @@ def define_variational_problems(f, mesh, **kwargs):
     S = f['S']; S_n = f['S_n']; S_v = f['S_v']
     rho_0 = config['rho_0']; g = config['g'];
 
-    # Assemble tensor viscosity/diffusivity
-    nu = parameters.assemble_viscosity_tensor(config['nu']);
-    alpha = parameters.assemble_viscosity_tensor(config['alpha']);
-
-    # Define expressions used in variational forms
-    U = 0.5*(u_n + u)
-    n = fenics.FacetNormal(mesh)
-    dt = 1/config['steps_n']
-
     def get_matrix_diagonal(mat):
         diag = []
         for i in range(mat.ufl_shape[0]):
@@ -167,14 +158,33 @@ def define_variational_problems(f, mesh, **kwargs):
 
         return fenics.as_vector(diag)
 
-    beta = 0.3
-    hmin = fenics.CellDiameter(mesh)
-    nu = nu + fenics.as_tensor((
-            (beta*hmin, beta*hmin),
-            (beta*hmin, beta*hmin)
-         ))
+    def apply_stabilization(tensor, mesh):
+        hmin = fenics.CellDiameter(mesh)
+        tensor = tensor + fenics.as_tensor((
+                (config['stabilization']*hmin, config['stabilization']*hmin),
+                (config['stabilization']*hmin, config['stabilization']*hmin)
+             ))
+
+        if any([int(tensor[i][j]) < mesh.hmin()
+                for i in range(2) for j in range(2)]):
+            flog.warning(
+                'Viscosity/Diffusivity has components lower in value than '
+                'mesh hmin, consider adding stabilization.')
 
     stiffness_mats = {}; load_vectors = {}
+
+    # Assemble tensor viscosity/diffusivity
+    nu = parameters.assemble_viscosity_tensor(config['nu']);
+    alpha = parameters.assemble_viscosity_tensor(config['alpha']);
+
+    # Apply stabilization
+    apply_stabilization(nu, mesh)
+    apply_stabilization(alpha, mesh)
+
+    # Define expressions used in variational forms
+    U = 0.5*(u_n + u)
+    n = fenics.FacetNormal(mesh)
+    dt = 1/config['steps_n']
 
     # Define variational problem for approximated velocity
     buoyancy = fenics.Expression(
