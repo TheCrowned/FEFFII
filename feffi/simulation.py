@@ -98,7 +98,7 @@ class Simulation(object):
         # Register SIGINT handler so we plot before exiting if CTRL-C is hit
         signal.signal(signal.SIGINT, self.sigint_handler)
 
-        start_time = time()
+        self.start_time = time()
         flog.info('Running full simulation; started at %s ' % str(datetime.now()))
 
         while self.n <= self.iterations_n:
@@ -108,6 +108,8 @@ class Simulation(object):
 
             if self.maybe_stop():
                 self.log_progress()
+                flog.info('Simulation ended at {}, after {} seconds.'.format(
+                    str(datetime.now()), round(time()-self.start_time)))
                 break
 
     def timestep(self):
@@ -234,10 +236,10 @@ class Simulation(object):
         """Catches CTRL-C when Simulation.run() is going,
         and plot solutions before exiting."""
 
-        flog.info('Simulation stopped -- jumping to plotting before exiting')
+        flog.info('Simulation stopped at {}, after {} seconds.\n'
+                  'Jumping to plotting before exiting.'.format(
+                    str(datetime.now()), round(time()-self.start_time)))
         plot.plot_solutions(self.f)
-        flog.info('Moving log file to plot folder')
-        system('mv simulation.log "' + self.config['plot_path'] + '/simulation.log"')
 
         system('xdg-open "' + self.config['plot_path'] + '"')
         exit(0)
