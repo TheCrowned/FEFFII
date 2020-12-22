@@ -167,12 +167,12 @@ def define_variational_problems(f, mesh, **kwargs):
 
         return fenics.as_vector(diag)
 
-    beta = 0.3
+    '''beta = 0.3
     hmin = fenics.CellDiameter(mesh)
     nu = nu + fenics.as_tensor((
             (beta*hmin, beta*hmin),
             (beta*hmin, beta*hmin)
-         ))
+         ))'''
 
     stiffness_mats = {}; load_vectors = {}
 

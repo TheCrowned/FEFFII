@@ -8,7 +8,7 @@ sys.path.insert(0, parentdir)
 
 from feffi import *
 import fenics
-from fenics import SubDomain
+from fenics import SubDomain, dot, nabla_grad, grad, div, dx
 import matplotlib.pyplot as plt
 
 parameters.define_parameters({
@@ -17,10 +17,13 @@ parameters.define_parameters({
 })
 parameters.parse_commandline_args()
 
-## my custom mesh
+mesh = mesh.create_mesh(mesh_resolution=50)
 
-mesh = fenics.UnitSquareMesh(30,30)
+# Uncomment this to use the COMSOL-like mesh, with rough interior and
+# progressively finer boundaries
+'''mesh = fenics.UnitSquareMesh(30,30)
 
+# Multiple passes of refinement from different distances from boundaries
 for thresh in [0.2, 0.1, 0.05, 0.025]:
     class Bound_Top(SubDomain):
         def inside(self, x, on_boundary):
@@ -43,13 +46,44 @@ for thresh in [0.2, 0.1, 0.05, 0.025]:
         obj = boundary()
         obj.mark(boundary_domain, True)
 
-    mesh = fenics.refine(mesh, boundary_domain)
-
+    mesh = fenics.refine(mesh, boundary_domain)'''
 
 f_spaces = functions.define_function_spaces(mesh)
 f = functions.define_functions(f_spaces)
 #functions.init_functions(f) # Init functions to closest steady state
 (stiffness_mats, load_vectors) = functions.define_variational_problems(f, mesh)
+
+## Apply CBS stabilization
+nu = parameters.assemble_viscosity_tensor(parameters.config['nu']);
+
+gamma = 1
+dt = 1/parameters.config['steps_n']
+delta = (2*gamma - 1)*dt/2
+u = f['u']
+v = f['v']
+p_n = f['p_n']
+u_n = f['u_n']
+F = fenics.Constant((0,0)) # g is null for lid driven cavity
+
+def R(u):
+    return dot(u_n, nabla_grad(u)) - nu*div(nabla_grad(u)) + grad(p_n) - F
+
+# Rebuild complete weak form and add stabilization term
+F1 = stiffness_mats['a1'] + load_vectors['L1']
+F1 += - delta*dot(dot(u_n, grad(v)), R(u))*dx
+
+load_vectors['L1'] = fenics.rhs(F1)
+stiffness_mats['a1'] = fenics.lhs(F1)
+
+# Trying to see how much stab affects - no success
+#fenics.norm(delta*dot(grad(u_), R(u_))))
+#fenics.plot(delta*dot(grad(u_), R(u_))))
+#a = fenics.Expression('delta*dot(grad(u), R(u))', degree=2, delta=delta, u = f['u_'])
+#flog.info(fenics.norm(a))
+#plot(a)
+#plt.show()
+## End of CBS stabilization
+
 domain = boundaries.Domain(mesh, f_spaces)
 
 flog.info(
@@ -78,10 +112,6 @@ plot.plot_single(
     display=False,
     file_name='pressure-{}.png'.format(parameters.config['nu']),
     )
-
-
-flog.info('Moving log file to plot folder')
-system('mv simulation.log "' + parameters.config['plot_path'] + '/simulation.log"')
 
 # Export solutions for comparison
 fenics.File('out/lid-driven-cavity_u_{}.xml'.format(parameters.config['nu'])) << f['u_']
