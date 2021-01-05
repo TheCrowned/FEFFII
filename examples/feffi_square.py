@@ -50,7 +50,4 @@ simulation.run()
 feffi.plot.plot_single(mesh, file_name = 'mesh.png', title = 'Mesh', display = False)
 feffi.plot.plot_solutions(f, display = False)
 
-feffi.flog.info('Moving log file to plot folder')
-system('mv simulation.log "' + feffi.parameters.config['plot_path'] + '/simulation.log"')
-
 feffi.flog.info('Plots can be found in %s' % feffi.parameters.config['plot_path'])

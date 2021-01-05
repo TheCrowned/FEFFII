@@ -1,8 +1,8 @@
 from . import parameters
 from fenics import plot, norm
-from pathlib import Path
 import matplotlib.pyplot as plt
 import logging
+import os
 
 flog = logging.getLogger('feffi')
 
@@ -28,9 +28,6 @@ def plot_single(to_plot, **kwargs):
 
     # Allow function arguments to overwrite wide config (but keep it local)
     config = dict(parameters.config); config.update(kwargs)
-
-    # Create plot dir
-    Path(config['plot_path']).mkdir(parents=True, exist_ok=True)
 
     if kwargs.get('title') != None:
         title = kwargs['title']
@@ -58,7 +55,7 @@ def plot_single(to_plot, **kwargs):
     if kwargs.get('display') != None and kwargs['display'] == True:
         plt.show()
     if kwargs.get('file_name') != None and kwargs['file_name'] != '':
-        plt.savefig(config['plot_path'] + kwargs['file_name'], dpi = 800)
+        plt.savefig(os.path.join(config['plot_path'], kwargs['file_name']), dpi = 800)
 
     plt.close()
 
