@@ -129,9 +129,9 @@ class Simulation(object):
         solve(A2, self.f['p_'].vector(), b2)
 
         # Step 3: Velocity correction step
-        A3 = self.A3
-        b3 = assemble(self.load_vectors['L3'])
-        solve(A3, self.f['u_'].vector(), b3)
+        #A3 = self.A3
+        #b3 = assemble(self.load_vectors['L3'])
+        #solve(A3, self.f['u_'].vector(), b3)
 
         # Step 4: Temperature step
         # Reassemble stiffness matrix and re-set BC, same for load vector, as coefficients change due to u_
