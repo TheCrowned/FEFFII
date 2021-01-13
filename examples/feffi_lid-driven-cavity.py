@@ -17,10 +17,12 @@ parameters.define_parameters({
 })
 parameters.parse_commandline_args()
 
-## my custom mesh
 
+# Uncomment this to use the COMSOL-like mesh, with rough interior and
+# progressively finer boundaries
 '''mesh = fenics.UnitSquareMesh(30,30)
 
+# Multiple passes of refinement from different distances from boundaries
 for thresh in [0.2, 0.1, 0.05, 0.025]:
     class Bound_Top(SubDomain):
         def inside(self, x, on_boundary):
@@ -52,8 +54,6 @@ f = functions.define_functions(f_spaces)
 #functions.init_functions(f) # Init functions to closest steady state
 (stiffness_mats, load_vectors) = functions.define_variational_problems(f, mesh)
 
-
-
 ## Apply CBS stabilization
 nu = parameters.assemble_viscosity_tensor(parameters.config['nu']);
 
@@ -66,13 +66,20 @@ def R():
     return dot(f['u_n'], nabla_grad(f['u_n'])) - nu*div(nabla_grad(f['u_n'])) + grad(f['p_n']) - F
 
 # Rebuild complete weak form and add stabilization term
-#F1 = stiffness_mats['a1'] + load_vectors['L1']
-#F1 += tau*dot(dot(f['u_n'], grad(f['v'])), R())*dx
+F1 = stiffness_mats['a1'] + load_vectors['L1']
+F1 += tau*dot(dot(f['u_n'], grad(f['v'])), R())*dx
 
-#load_vectors['L1'] = fenics.rhs(F1)
-#stiffness_mats['a1'] = fenics.lhs(F1)
+load_vectors['L1'] = fenics.rhs(F1)
+stiffness_mats['a1'] = fenics.lhs(F1)
 
-
+# Trying to see how much stab affects - no success
+#fenics.norm(delta*dot(grad(u_), R(u_))))
+#fenics.plot(delta*dot(grad(u_), R(u_))))
+#a = fenics.Expression('delta*dot(grad(u), R(u))', degree=2, delta=delta, u = f['u_'])
+#flog.info(fenics.norm(a))
+#plot(a)
+#plt.show()
+## End of CBS stabilization
 
 domain = boundaries.Domain(mesh, f_spaces)
 
