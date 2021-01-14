@@ -178,6 +178,7 @@ class Simulation(object):
         # Prepare next timestep
         self.n = self.n + 1
         self.f['u_n'].assign(self.f['u_'])
+        self.f['p_n_1'].assign(self.f['p_n'])
         self.f['p_n'].assign(self.f['p_'])
         self.f['T_n'].assign(self.f['T_'])
         self.f['S_n'].assign(self.f['S_'])
