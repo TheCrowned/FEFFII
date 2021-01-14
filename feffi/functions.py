@@ -47,6 +47,7 @@ def define_functions(f_spaces):
         'u': fenics.TrialFunction(f_spaces['V']),
         'v': fenics.TestFunction(f_spaces['V']),
         'p_n': fenics.Function(f_spaces['Q']),
+        'p_n_1': fenics.Function(f_spaces['Q']),
         'p_': fenics.Function(f_spaces['Q']),
         'p': fenics.TrialFunction(f_spaces['Q']),
         'q': fenics.TestFunction(f_spaces['Q']),
@@ -106,6 +107,14 @@ def init_functions(f, **kwargs):
                 rho_0=config['rho_0'],
                 g=config['g']),
             f['p_n'].ufl_function_space()))
+    f['p_n_1'].assign(
+        fenics.interpolate(
+            fenics.Expression(
+                'rho_0*g*(1-x[1])',
+                degree=2,
+                rho_0=config['rho_0'],
+                g=config['g']),
+            f['p_n_1'].ufl_function_space()))
 
 def define_variational_problems(f, mesh, **kwargs):
     """Define variational problems to be solved in simulation.
@@ -146,7 +155,7 @@ def define_variational_problems(f, mesh, **kwargs):
 
     # Shorthand for functions used in variational forms
     u = f['u']; u_n = f['u_n']; v = f['v']; u_ = f['u_']
-    p = f['p']; p_n = f['p_n']; q = f['q']; p_ = f['p_']
+    p = f['p']; p_n = f['p_n']; p_n_1 = f['p_n_1']; q = f['q']; p_ = f['p_']
     T = f['T']; T_n = f['T_n']; T_v = f['T_v']
     S = f['S']; S_n = f['S_n']; S_v = f['S_v']
     rho_0 = config['rho_0']; g = config['g'];
@@ -185,6 +194,7 @@ def define_variational_problems(f, mesh, **kwargs):
     U = 0.5*(u_n + u)
     n = fenics.FacetNormal(mesh)
     dt = 1/config['steps_n']
+    gammap = 0.5
 
     # Define variational problem for approximated velocity
     buoyancy = fenics.Expression(
@@ -198,8 +208,8 @@ def define_variational_problems(f, mesh, **kwargs):
     F1 = + dot((u - u_n)/dt, v)*dx \
          + dot(dot(u_n, nabla_grad(u)), v)*dx \
          + inner(2*elem_mult(nu, sym(nabla_grad(u))), sym(nabla_grad(v)))*dx \
-         - inner((p_n - rho_0*g*y)/rho_0*Identity(len(u)), sym(nabla_grad(v)))*dx \
-         + dot((p_n - rho_0*g*y)*n/rho_0, v)*ds \
+         - inner(((1+gammap)*p_n - gammap*p_n_1 - rho_0*g*y)/rho_0*Identity(len(u)), sym(nabla_grad(v)))*dx \
+         + dot(((1+gammap)*p_n - gammap*p_n_1 - rho_0*g*y)*n/rho_0, v)*ds \
          - dot(elem_mult(nu, nabla_grad(u))*n, v)*ds \
          - dot(buoyancy, v)*dx
     stiffness_mats['a1'], load_vectors['L1'] = fenics.lhs(F1), fenics.rhs(F1)
