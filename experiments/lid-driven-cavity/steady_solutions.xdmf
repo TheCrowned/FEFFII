@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>
+<Xdmf Version="3.0" xmlns:xi="http://www.w3.org/2001/XInclude">
+  <Domain>
+    <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">
+      <Grid Name="mesh" GridType="Uniform">
+        <Topology NumberOfElements="20000" TopologyType="Triangle" NodesPerElement="3">
+          <DataItem Dimensions="20000 3" NumberType="UInt" Format="HDF">steady_solutions.h5:/Mesh/0/mesh/topology</DataItem>
+        </Topology>
+        <Geometry GeometryType="XY">
+          <DataItem Dimensions="10201 2" Format="HDF">steady_solutions.h5:/Mesh/0/mesh/geometry</DataItem>
+        </Geometry>
+        <Time Value="0" />
+        <Attribute Name="velocity" AttributeType="Vector" Center="Node">
+          <DataItem Dimensions="10201 3" Format="HDF">steady_solutions.h5:/VisualisationVector/0</DataItem>
+        </Attribute>
+        <Attribute Name="pressure" AttributeType="Scalar" Center="Node">
+          <DataItem Dimensions="10201 1" Format="HDF">steady_solutions.h5:/VisualisationVector/1</DataItem>
+        </Attribute>
+      </Grid>
+    </Grid>
+  </Domain>
+</Xdmf>
