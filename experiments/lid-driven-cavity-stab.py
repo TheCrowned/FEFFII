@@ -10,8 +10,8 @@ from fenics import (dot, inner, elem_mult, grad,
                     solve)
 
 # Physical parameters used by lid-driven-cavity.yml
-final_time = 3
-steps_n = 300
+final_time = 8
+steps_n = 800
 g = 0
 nu = 5e-3
 
