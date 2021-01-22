@@ -79,6 +79,7 @@ F2 = + div(u)*q*dx \
      + tau_s*dot(nabla_grad(p), nabla_grad(q))*dx
 
 A2 = assemble(fenics.lhs(F2))
+bcp.apply(A2)
 
 xdmffile = fenics.XDMFFile('lid-driven-cavity-stab/solutions.xdmf')
 xdmffile.parameters["flush_output"] = True
@@ -199,5 +200,6 @@ xdmff.write(p_sol, 0)
 
 err = fenics.errornorm(u_old, u_sol, norm_type='L2')
 err_p = fenics.errornorm(p_, p_sol, norm_type='L2')
+print("nu: ", nu)
 print("||u_{time} - u_{steady}||_{L^2}: ", err)
 print("||p_{time} - p_{steady}||_{L^2}: ", err_p)
