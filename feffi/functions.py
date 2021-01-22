@@ -60,6 +60,12 @@ def define_functions(f_spaces):
         'S_v': fenics.TestFunction(f_spaces['S'])
     }
 
+    # Nice names for output (ex. in Paraview)
+    f['u_'].rename("velocity", "Velocity in m/s")
+    f['p_'].rename("pressure", "Pressure in Pa")
+    f['T_'].rename("temperature", "Temperature in °C")
+    f['S_'].rename("salinity", "Salinity in PSU")
+
     return f
 
 def init_functions(f, **kwargs):
