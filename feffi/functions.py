@@ -205,13 +205,20 @@ def define_variational_problems(f, mesh, **kwargs):
         T_ = f['T_'], S_ = f['S_'],
         degree=2)
     y = fenics.Expression("1-x[1]", degree=2)
+
+    def L(u):
+        return dot(u_n, grad(u)) + grad(p_n - rho_0*g*y)/rho_0 - config['nu'][0]*div(grad(u))
+        # !! we don't use the viscosity tensor, just a scalar!
+
     F1 = + dot((u - u_n)/dt, v)*dx \
-         + dot(dot(u_n, nabla_grad(u)), v)*dx \
-         + inner(2*elem_mult(nu, sym(nabla_grad(u))), sym(nabla_grad(v)))*dx \
-         - inner(((1+gammap)*p_n - gammap*p_n_1 - rho_0*g*y)/rho_0*Identity(len(u)), sym(nabla_grad(v)))*dx \
-         + dot(((1+gammap)*p_n - gammap*p_n_1 - rho_0*g*y)*n/rho_0, v)*ds \
-         - dot(elem_mult(nu, nabla_grad(u))*n, v)*ds \
-         - dot(buoyancy, v)*dx
+         + dot(dot(u_n, nabla_grad(u_n)), v)*dx \
+         + inner(2*elem_mult(nu, sym(nabla_grad(U))), sym(nabla_grad(v)))*dx \
+         - inner((p_n - rho_0*g*y)/rho_0*Identity(len(U)), sym(nabla_grad(v)))*dx \
+         + dot((p_n - rho_0*g*y)*n/rho_0, v)*ds \
+         - dot(elem_mult(nu, nabla_grad(U))*n, v)*ds \
+         + config['stabilization']*dot(L(u_n), L(v))*dx \
+         - dot(buoyancy, v)*dx \
+         - config['stabilization']*dot(buoyancy, L(v))*dx
     stiffness_mats['a1'], load_vectors['L1'] = fenics.lhs(F1), fenics.rhs(F1)
 
     # Variational problem for pressure p with approximated velocity u
