@@ -267,7 +267,13 @@ def parse_commandline_args():
         '--store-sol',
         dest='store_solutions',
         action='store_true',
-        help='Whether to save iteration solutions for display in Paraview (default: %(default)s)')
+        help='Whether to save iteration solutions for display in Paraview')
+    parser.add_argument(
+        '--no-store-sol',
+        dest='store_solutions',
+        action='store_false',
+        help='Whether to not save iteration solutions for display in Paraview')
+    parser.set_defaults(store_solutions=None)
     parser.add_argument(
         '--label',
         help='Label to append to plots folder (default: %(default)s)')
@@ -293,13 +299,13 @@ def parse_commandline_args():
     commandline_args = parser.parse_args()
     commandline_args_dict = {arg: getattr(
         commandline_args, arg) for arg in vars(commandline_args)}
-
+    print(commandline_args_dict)
     # Purge None values before we send them for merge, otherwise they
     # would overwrite legit previous config values
     purged_commandline_args_dict = {
         key: val for key, val in commandline_args_dict.items()
         if val is not None}
-
+    print(purged_commandline_args_dict)
     define_parameters(purged_commandline_args_dict)
 
 
