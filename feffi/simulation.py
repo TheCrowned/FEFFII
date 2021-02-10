@@ -1,10 +1,10 @@
-from fenics import assemble, File, solve, norm
+from fenics import assemble, File, solve, norm, XDMFFile
 from math import log
 from pathlib import Path
 from time import time
 from datetime import datetime
 from sys import exit
-from os import system
+import os
 import logging
 import signal
 import numpy as np
@@ -80,15 +80,13 @@ class Simulation(object):
         self.rounded_iterations_n = pow(10, (round(log(self.config['steps_n']*int(self.config['final_time']), 10))))
 
         if self.config['store_solutions']:
-            Path(self.config['plot_path'] + 'paraview/').mkdir(parents=True, exist_ok=True)
-            self.pvds = {
-                'u' : File(self.config['plot_path'] + 'paraview/velocity.pvd'),
-                'p' : File(self.config['plot_path'] + 'paraview/pressure.pvd'),
-                'T' : File(self.config['plot_path'] + 'paraview/temperature.pvd'),
-                'S' : File(self.config['plot_path'] + 'paraview/salinity.pvd')
-            }
+            self.xdmffile_sol = XDMFFile(os.path.join(self.config['plot_path'], 'solutions.xdmf'))
+            self.xdmffile_sol.parameters["flush_output"] = True #https://github.com/FEniCS/dolfinx/issues/75
+            self.xdmffile_sol.parameters["functions_share_mesh"] = True
 
-            self.save_pvds()
+            # Store mesh and first step solutions
+            self.xdmffile_sol.write(self.f['u_'].function_space().mesh())
+            self.save_solutions()
 
         flog.info('Initialized simulation')
 
@@ -173,7 +171,7 @@ class Simulation(object):
         self.log_progress()
 
         if self.config['store_solutions']:
-            self.save_pvds()
+            self.save_solutions()
 
         # Prepare next timestep
         self.n = self.n + 1
@@ -224,13 +222,16 @@ class Simulation(object):
             round(norm(self.f['S_'], 'L2'), round_precision), round(norm(self.f['S_'].vector(), 'linf'), round_precision), round(self.errors['S'], round_precision), round(self.errors['S']/norm(self.f['S_'], 'L2'), round_precision),
         ) )
 
-    def save_pvds(self):
-        """Saves current timestep solutions to pvd files"""
+    def save_solutions(self):
+        """Saves current timestep solutions to XDMF file"""
 
-        self.pvds['u'] << self.f['u_']
-        self.pvds['p'] << self.f['p_']
-        self.pvds['T'] << self.f['T_']
-        self.pvds['S'] << self.f['S_']
+        # t = dt*n
+        t = self.n*self.config['final_time']*self.config['steps_n']
+
+        self.xdmffile_sol.write(self.f['u_'], t)
+        self.xdmffile_sol.write(self.f['p_'], t)
+        self.xdmffile_sol.write(self.f['T_'], t)
+        self.xdmffile_sol.write(self.f['S_'], t)
 
     def sigint_handler(self, sig, frame):
         """Catches CTRL-C when Simulation.run() is going,
@@ -241,5 +242,5 @@ class Simulation(object):
                     str(datetime.now()), round(time()-self.start_time)))
         plot.plot_solutions(self.f)
 
-        system('xdg-open "' + self.config['plot_path'] + '"')
+        os.system('xdg-open "' + self.config['plot_path'] + '"')
         exit(0)
