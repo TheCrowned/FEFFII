@@ -267,7 +267,13 @@ def parse_commandline_args():
         '--store-sol',
         dest='store_solutions',
         action='store_true',
-        help='Whether to save iteration solutions for display in Paraview (default: %(default)s)')
+        help='Whether to save iteration solutions for display in Paraview')
+    parser.add_argument(
+        '--no-store-sol',
+        dest='store_solutions',
+        action='store_false',
+        help='Whether to not save iteration solutions for display in Paraview')
+    parser.set_defaults(store_solutions=None)
     parser.add_argument(
         '--label',
         help='Label to append to plots folder (default: %(default)s)')
