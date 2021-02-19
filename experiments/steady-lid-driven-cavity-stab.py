@@ -11,7 +11,7 @@ from fenics import (dot, inner, elem_mult, grad,
 output_dir = 'lid-driven-cavity-stab/'
 
 # Physical parameters
-nu = 1e-3
+nu = 1e-2
 
 # Boundary conditions (semi-manually implemented, so have to check Ste's
 # implementation). Only using classes...
@@ -27,7 +27,7 @@ class No_Slip(fenics.SubDomain):
 
 bottom_left_corner = [0, 0]
 
-domain = fenics.UnitSquareMesh(100, 100)
+domain = fenics.UnitSquareMesh(50, 50)
 n = fenics.FacetNormal(domain)
 V_ = fenics.VectorElement("Lagrange", domain.ufl_cell(), 2)
 P_ = fenics.FiniteElement("Lagrange", domain.ufl_cell(), 1)
@@ -49,17 +49,16 @@ bc_top_ = DirichletBC(W.sub(0), Constant((1, 0)), Top())
 solver_params = {
     'linear_solver': 'mumps',
     'preconditioner': 'default',
-    'maximum_iterations': 10,
-    'relaxation_parameter': 1.0,
+    'maximum_iterations': 20,
+    'relaxation_parameter': 0.6,
     'relative_tolerance': 1e-7,
 }
-
-print(domain.hmin())
-print(domain.hmin()**2/nu)
 
 tau0 = 1
 delta = domain.hmin()**2/nu
 tau = tau0*max(domain.hmin(), nu)
+
+print('delta {}\ntau {}'.format(delta, tau))
 
 def N(v,p):
     return -nu*div(nabla_grad(v)) + dot(u, nabla_grad(v)) + grad(p)
@@ -69,8 +68,8 @@ steady_formulation = (
     + nu*inner(nabla_grad(u), nabla_grad(v))*dx
     - dot(p, div(v))*dx
     - dot(div(u), q)*dx
-    + delta*(dot(N(u,p), N(v,q)))*dx
-    + tau*(dot(div(u), div(v)))*dx
+    #+ delta*(dot(N(u,p), N(v,q)))*dx
+    #+ tau*(dot(div(u), div(v)))*dx
     )
 F_vel = fenics.action(steady_formulation, sol)
 solve(F_vel == 0,
