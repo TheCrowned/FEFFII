@@ -9,7 +9,8 @@ class Domain(object):
     """ Creates a simulation domain given its boundaries definitions and
         corresponding boundary conditions.
 
-        Calls `self.define_boundaries` and `self.define_BCs` in sequence.
+        Calls `self.define_boundaries`, `self.mark_boundaries` and
+        `self.define_BCs` in sequence.
         Boundaries are marked before BCs are set on them.
 
         Parameters
@@ -21,6 +22,11 @@ class Domain(object):
 
         kwargs
         ------
+        boundaries : dict
+                A custom geometry can be used by providing a dictionary of
+                the form `{label : SubDomainMethod}`. Labels should match the
+                ones provided in the BCs dict, and the SubDomainMethod(s) should
+                be defined somewhere, if not among the native ones.
         BCs : dict
                 Dictionary defining boundary conditions. Should contain one
                 sub-dictionary per each function space, with matching labels.
@@ -42,20 +48,53 @@ class Domain(object):
             domain = feffi.boundaries.Domain(
                 mesh,
                 f_spaces,
-                { 'top' : [0, 'null']
+                BCs = {
+                  'top' : [0, 'null']
                   'right' : [0, '0.5*sin(2*pi*x[1])']
                   'bottom' : [0, 0]
                   'left' : [0, 0]
                 },
-                domain='square'
-            )
+                domain='square')
 
             # domain.BCs contains the BCs ready to be enforced in simulation
+
+        2)  Custom geometry, with different subdomains+BCs on right side:
+
+            class Bound_Bottom_Right(fenics.SubDomain):
+                def inside(self, x, on_boundary):
+                    return near(x[0], 1) and x[1] < 0.5 and on_boundary
+            class Bound_Top_Right(fenics.SubDomain):
+                def inside(self, x, on_boundary):
+                    return near(x[0], 1) and x[1] >= 0.5 and on_boundary
+
+            domain = feffi.boundaries.Domain(
+                mesh,
+                f_spaces,
+                boundaries = {
+                  'top' : feffi.boundaries.Bound_Top(),
+                  'top_right' : Bound_Top_Right(),
+                  'bottom_right' : Bound_Bottom_Right(),
+                  'bottom' : feffi.boundaries.Bound_Bottom(),
+                  'left' : feffi.boundaries.Bound_Left()
+                },
+                BCs = {
+                  'V' : {
+                    'top' : [0, 'null'],
+                    'top_right' : [0, '2*x[1]-1'],
+                    'bottom_right' : [0, '-2*x[1]+1'],
+                    'bottom' : [0, 0],
+                    'left' : [0, 0]
+                  },
+                  'Q' : {
+                    '(0,0)' : 0
+                  }
+                })
         """
 
-    def __init__(self, mesh, f_spaces, **kwargs):
+    def __init__(self, mesh, f_spaces, boundaries = {}, **kwargs):
         self.mesh = mesh
         self.f_spaces = f_spaces
+        self.boundaries = boundaries
 
         # Allow function arguments to overwrite wide config (but keep it local)
         self.config = dict(parameters.config); self.config.update(kwargs)
@@ -72,19 +111,18 @@ class Domain(object):
                     'BCs were only given for {} spaces.'.format(
                         ', '.join(list(self.config['BCs'].keys()))))
 
-        self.define_boundaries()
+        # If no custom domain is provided, assume one of default cases
+        if self.boundaries == {}:
+            self.define_boundaries()
+        print(self.boundaries)
+        self.mark_boundaries()
         self.define_BCs()
 
     def define_boundaries(self):
         """Defines boundaries as SubDomains.
-
-        Boundaries are marked through a `fenics.MeshFunction`, which is
-        useful for BCs setting in later mesh deformation.
-        Association between boundaries and markers is stored into
-        `self.subdomains_markers`.
         """
 
-        subdomains = {
+        self.boundaries = {
             'right' : Bound_Right(),
             'bottom' : Bound_Bottom(),
             'left' : Bound_Left()
@@ -92,16 +130,23 @@ class Domain(object):
 
         # Define subdomains
         if self.config['domain'] == 'square':
-            subdomains.update({
+            self.boundaries.update({
                 'top' : Bound_Top()
             })
         elif self.config['domain'] == 'fjord':
-            subdomains.update({
+            self.boundaries.update({
                 'ice_shelf_bottom' : Bound_Ice_Shelf_Bottom(),
                 'ice_shelf_right' : Bound_Ice_Shelf_Right(),
                 'sea_top' : Bound_Sea_Top()
             })
 
+    def mark_boundaries(self):
+        """
+        Boundaries are marked through a `fenics.MeshFunction`, which is
+        useful for BCs setting in later mesh deformation.
+        Association between boundaries and markers is stored into
+        `self.subdomains_markers`.
+        """
         # Mark subdomains and store this matching
         self.marked_subdomains = MeshFunction(
             "size_t",
@@ -110,7 +155,8 @@ class Domain(object):
 
         self.subdomains_markers = {}
         i = 1
-        for (name, subdomain) in subdomains.items():
+        for (name, subdomain) in self.boundaries.items():
+            print('subdomain {} name {} marked with marker {}'.format(subdomain, name, i))
             subdomain.mark(self.marked_subdomains, i)
             self.subdomains_markers[name] = i
             i += 1
