@@ -9,12 +9,8 @@ from fenics import (dot, inner, elem_mult, grad,
                     solve)
 
 output_dir = 'lid-driven-cavity-stab/'
+nu = 1e-3
 
-# Physical parameters
-nu = 1e-2
-
-# Boundary conditions (semi-manually implemented, so have to check Ste's
-# implementation). Only using classes...
 class Top(fenics.SubDomain):
     def inside(self, x, on_boundary):
         return fenics.near(x[1], 1) and on_boundary
@@ -32,7 +28,6 @@ n = fenics.FacetNormal(domain)
 V_ = fenics.VectorElement("Lagrange", domain.ufl_cell(), 2)
 P_ = fenics.FiniteElement("Lagrange", domain.ufl_cell(), 1)
 W = fenics.FunctionSpace(domain, V_ * P_)
-Re = Constant(10**2)
 
 w_trial = fenics.TrialFunction(W)
 w_test = fenics.TestFunction(W)
@@ -64,7 +59,7 @@ def N(v,p):
     return -nu*div(nabla_grad(v)) + dot(u, nabla_grad(v)) + grad(p)
 
 steady_formulation = (
-    + dot(dot(u, nabla_grad(u)), v)*dx
+    + (1/2)*(dot(dot(u, nabla_grad(u)), v) - dot(dot(u, nabla_grad(v)), u))*dx
     + nu*inner(nabla_grad(u), nabla_grad(v))*dx
     - dot(p, div(v))*dx
     - dot(div(u), q)*dx
