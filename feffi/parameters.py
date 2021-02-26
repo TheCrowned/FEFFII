@@ -109,29 +109,29 @@ def init_logging():
     file located in config['plot_path'].
     """
 
-    # Instantiate feffi logger
-    #flog = logging.getLogger('feffi')
     flog.setLevel(logging.INFO)
     # dark magic https://stackoverflow.com/a/44426266 to avoid messages showing up multiple times
     flog.propagate=False
 
+    # If some handlers are already present, delete them. This is because
+    # init_logging is called by define_parameters(), which is called multiple times.
+    if len(flog.handlers) != 0:
+        flog.handlers = []
+
     # Create two handlers:
     # one for file logging, another for terminal (stream) logging
-    # Only add handlers if none are present. This is bcause init_logging is
-    # called by define_parameters(), which is called multiple times.
-    if len(flog.handlers) == 0:
-        fh = logging.FileHandler(
-            os.path.join(config['plot_path'], 'simulation.log'),
-            mode='w',
-            encoding='utf-8')
-        fh.setLevel(logging.INFO)
-        #fh.setFormatter(formatter)
-        logging.getLogger('feffi').addHandler(fh)
+    fh = logging.FileHandler(
+        os.path.join(config['plot_path'], 'simulation.log'),
+        mode='w',
+        encoding='utf-8')
+    fh.setLevel(logging.INFO)
+    #fh.setFormatter(formatter)
+    logging.getLogger('feffi').addHandler(fh)
 
-        th = logging.StreamHandler()
-        th.setLevel(logging.INFO)
-        #th.setFormatter(formatter)
-        logging.getLogger('feffi').addHandler(th)
+    th = logging.StreamHandler()
+    th.setLevel(logging.INFO)
+    #th.setFormatter(formatter)
+    logging.getLogger('feffi').addHandler(th)
 
     # Reduce FEniCS logging to WARNING only
     logging.getLogger('UFL').setLevel(logging.WARNING)
