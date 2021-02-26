@@ -350,13 +350,13 @@ def assemble_viscosity_tensor(visc):
         ))
     elif len(visc) == 2:
         output = fenics.as_tensor((
-            (fenics.Constant(visc[1]), fenics.Constant(visc[2])),
-            (fenics.Constant(visc[1]), fenics.Constant(visc[2]))
+            (fenics.Constant(visc[0]), fenics.Constant(visc[1])),
+            (fenics.Constant(visc[0]), fenics.Constant(visc[1]))
         ))
     elif len(visc) == 4:
         output = fenics.as_tensor((
-            (fenics.Constant(visc[1]), fenics.Constant(visc[2])),
-            (fenics.Constant(visc[3]), fenics.Constant(visc[4]))
+            (fenics.Constant(visc[0]), fenics.Constant(visc[1])),
+            (fenics.Constant(visc[2]), fenics.Constant(visc[3]))
         ))
     else:
         raise ValueError(
