@@ -13,23 +13,14 @@ from fenics import (dot, inner, elem_mult, grad,
 # Setting parameters
 # ------------------
 output_dir = 'lid-driven-cavity-stab/'
-Re = 1000
+Re = 400
 nu = 1/Re
 stab = True
-nofpoints = 80  # for mesh
-tol = 1e-10  #for steady state iterations
-max_iter = 35
-l = 2 # velocity elements degree
+nofpoints = 50  # for mesh
+tol = 1e-6  #for steady state iterations
+max_iter = 30
+l = 1 # velocity elements degree
 k = 1 # pressure elements degree
-
-''' # Switched to linear solver, so we don't use this anymore
-solver_params = {
-    'linear_solver': 'mumps',
-    'preconditioner': 'default',
-    'maximum_iterations': 20,
-    'relaxation_parameter': 1.0,
-    'relative_tolerance': 1e-7,
-}'''
 
 print("--------------------------")
 print("Reynolds number: "+str(Re))
@@ -54,12 +45,6 @@ w_test = fenics.TestFunction(W)
 (u, p) = fenics.split(w_trial)
 (v, q) = fenics.split(w_test)
 sol = fenics.Function(W)
-
-
-# Initial condition
-#u0 = fenics.Expression(('0','0'),degree=2)   #J.A.
-#a = fenics.interpolate(u0, W.sub(0).collapse())   #J.A.
-
 
 # --------------------------
 # Setting boundaries and BCs
@@ -103,13 +88,13 @@ def B_g(a, u, p, v, q):
 
 # Init some vars
 n = 0
-residual = 1e22
-plot_info = {'Rej': [], 'norm_a': [], 'delta': [], 'tau': [], 'residual': []}
+residual_u = 1e22
+plot_info = {'Rej': [], 'norm_a': [], 'delta': [], 'tau': [], 'residual_u': [], 'residual_p': []}
 
 # Start the dance
-while residual > tol and n <= max_iter:
+while (residual_u > tol or residual_p > tol) and n <= max_iter:
 
-    a = sol.split(True)[0]
+    (a, p_old) = sol.split(True)
 
     # ------------------------
     # Setting stab. parameters
@@ -120,8 +105,8 @@ while residual > tol and n <= max_iter:
        norm_a = 1
 
     Rej = norm_a*hmin/(2*nu)
-    delta0 = 0.1 # "tuning parameter" > 0
-    tau0 = 0.2 if l == 2 else 0 # "tuning parameter" > 0 dependent on V.degree
+    delta0 = 0.8 # "tuning parameter" > 0
+    tau0 = 35 if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
     delta = delta0*hmin*min(1, Rej/3)/norm_a
     tau = tau0*max(nu, hmin)
     alpha = hmax**(1+max(k, l))
@@ -142,15 +127,16 @@ while residual > tol and n <= max_iter:
             steady_form += tau*(dot(div(u), div(v)))*dx
 
     solve(fenics.lhs(steady_form) == fenics.rhs(steady_form),
-          sol, bcs=[bcp_, bc_noslip_, bc_top_],
-          )#solver_parameters={'newton_solver': solver_params})
+          sol, bcs=[bcp_, bc_noslip_, bc_top_])
 
-    u_new = sol.split(True)[0]
-    residual = fenics.errornorm(u_new, a)
-    print(" >>> residual is " + str(residual) + "<<<")
+    (u_new, p_new) = sol.split(True)
+    residual_u = fenics.errornorm(u_new, a)
+    residual_p = fenics.errornorm(p_new, p_old)
+    print(" >>> residual u: {}, residual p: {}<<<\n". format(residual_u, residual_p))
 
     # Save info to plot later
-    plot_info['residual'].append(residual)
+    plot_info['residual_u'].append(residual_u)
+    plot_info['residual_p'].append(residual_p)
     plot_info['Rej'].append(Rej)
     plot_info['tau'].append(tau)
     plot_info['delta'].append(delta)
@@ -161,7 +147,8 @@ while residual > tol and n <= max_iter:
 (u_sol, p_sol) = sol.split(True)
 
 x = list(range(n))
-plt.plot(x, plot_info['residual'], label = "Residual")
+plt.plot(x, plot_info['residual_u'], label = "Residual_u")
+plt.plot(x, plot_info['residual_p'], label = "Residual_p")
 plt.plot(x, plot_info['Rej'], label = "Rej")
 plt.plot(x, plot_info['tau'], label = "tau")
 plt.plot(x, plot_info['delta'], label = "delta")
