@@ -47,7 +47,6 @@ def define_functions(f_spaces):
         'u': fenics.TrialFunction(f_spaces['V']),
         'v': fenics.TestFunction(f_spaces['V']),
         'p_n': fenics.Function(f_spaces['Q']),
-        'p_n_1': fenics.Function(f_spaces['Q']),
         'p_': fenics.Function(f_spaces['Q']),
         'p': fenics.TrialFunction(f_spaces['Q']),
         'q': fenics.TestFunction(f_spaces['Q']),
@@ -107,14 +106,6 @@ def init_functions(f, **kwargs):
                 rho_0=config['rho_0'],
                 g=config['g']),
             f['p_n'].ufl_function_space()))
-    f['p_n_1'].assign(
-        fenics.interpolate(
-            fenics.Expression(
-                'rho_0*g*(1-x[1])',
-                degree=2,
-                rho_0=config['rho_0'],
-                g=config['g']),
-            f['p_n_1'].ufl_function_space()))
 
 def define_variational_problems(f, mesh, **kwargs):
     """Define variational problems to be solved in simulation.
@@ -155,10 +146,19 @@ def define_variational_problems(f, mesh, **kwargs):
 
     # Shorthand for functions used in variational forms
     u = f['u']; u_n = f['u_n']; v = f['v']; u_ = f['u_']
-    p = f['p']; p_n = f['p_n']; p_n_1 = f['p_n_1']; q = f['q']; p_ = f['p_']
+    p = f['p']; p_n = f['p_n']; q = f['q']; p_ = f['p_']
     T = f['T']; T_n = f['T_n']; T_v = f['T_v']
     S = f['S']; S_n = f['S_n']; S_v = f['S_v']
     rho_0 = config['rho_0']; g = config['g'];
+
+    # Assemble tensor viscosity/diffusivity
+    nu = parameters.assemble_viscosity_tensor(config['nu']);
+    alpha = parameters.assemble_viscosity_tensor(config['alpha']);
+
+    # Define expressions used in variational forms
+    U = 0.5*(u_n + u)
+    n = fenics.FacetNormal(mesh)
+    dt = 1/config['steps_n']
 
     def get_matrix_diagonal(mat):
         diag = []
@@ -167,34 +167,14 @@ def define_variational_problems(f, mesh, **kwargs):
 
         return fenics.as_vector(diag)
 
-    def apply_stabilization(tensor, mesh):
-        hmin = fenics.CellDiameter(mesh)
-        tensor = tensor + fenics.as_tensor((
-                (config['stabilization']*hmin, config['stabilization']*hmin),
-                (config['stabilization']*hmin, config['stabilization']*hmin)
-             ))
-
-        if any([int(tensor[i][j]) < mesh.hmin()
-                for i in range(2) for j in range(2)]):
-            flog.warning(
-                'Viscosity/Diffusivity has components lower in value than '
-                'mesh hmin, consider adding stabilization.')
+    beta = 0.3
+    hmin = fenics.CellDiameter(mesh)
+    nu = nu + fenics.as_tensor((
+            (beta*hmin, beta*hmin),
+            (beta*hmin, beta*hmin)
+         ))
 
     stiffness_mats = {}; load_vectors = {}
-
-    # Assemble tensor viscosity/diffusivity
-    nu = parameters.assemble_viscosity_tensor(config['nu']);
-    alpha = parameters.assemble_viscosity_tensor(config['alpha']);
-
-    # Apply stabilization
-    #apply_stabilization(nu, mesh)
-    #apply_stabilization(alpha, mesh)
-
-    # Define expressions used in variational forms
-    U = 0.5*(u_n + u)
-    n = fenics.FacetNormal(mesh)
-    dt = 1/config['steps_n']
-    gammap = 0.5
 
     # Define variational problem for approximated velocity
     buoyancy = fenics.Expression(
@@ -205,24 +185,17 @@ def define_variational_problems(f, mesh, **kwargs):
         T_ = f['T_'], S_ = f['S_'],
         degree=2)
     y = fenics.Expression("1-x[1]", degree=2)
-
-    def L(u):
-        return dot(u_n, grad(u)) + grad(p_n - rho_0*g*y)/rho_0 - config['nu'][0]*div(grad(u))
-        # !! we don't use the viscosity tensor, just a scalar!
-
     F1 = + dot((u - u_n)/dt, v)*dx \
          + dot(dot(u_n, nabla_grad(u_n)), v)*dx \
          + inner(2*elem_mult(nu, sym(nabla_grad(U))), sym(nabla_grad(v)))*dx \
          - inner((p_n - rho_0*g*y)/rho_0*Identity(len(U)), sym(nabla_grad(v)))*dx \
          + dot((p_n - rho_0*g*y)*n/rho_0, v)*ds \
          - dot(elem_mult(nu, nabla_grad(U))*n, v)*ds \
-         + config['stabilization']*dot(L(u_n), L(v))*dx \
-         - dot(buoyancy, v)*dx \
-         - config['stabilization']*dot(buoyancy, L(v))*dx
+         - dot(buoyancy, v)*dx
     stiffness_mats['a1'], load_vectors['L1'] = fenics.lhs(F1), fenics.rhs(F1)
 
     # Variational problem for pressure p with approximated velocity u
-    F2 = + dot(nabla_grad(p), nabla_grad(q))/rho_0*dx \
+    F2 = + dot(nabla_grad(p - p_n), nabla_grad(q))/rho_0*dx \
          + div(u_)*q*(1/dt)*dx
     stiffness_mats['a2'], load_vectors['L2'] = fenics.lhs(F2), fenics.rhs(F2)
 

@@ -4,7 +4,6 @@ import logging
 import argparse
 import fenics
 import time
-from pathlib import Path
 
 flog = logging.getLogger('feffi')
 config = {}
@@ -20,10 +19,6 @@ def define_parameters(user_config={}):
 
     Notice that just the act of `import feffi` already sets up a default
     configuration.
-
-    Notice that errors/warnings happening in this function are NOT regularly
-    logged. They are only printed. This is because init_logging is called after
-    parameters have been defined (since plot_path is not set earlier).
 
     Parameters
     ----------
@@ -74,7 +69,7 @@ def define_parameters(user_config={}):
                 user_config['config_file'])
 
         if(not os.path.isfile(config_file_path)):
-            print(
+            logging.warning(
                 'Config file: \n{}\n does not exist\n'
                 'Falling back to default one.'.format(config_file_path))
         else:
@@ -86,56 +81,19 @@ def define_parameters(user_config={}):
     if isinstance(user_config, dict):
         config.update(user_config)
     else:
-        print('Supplied non-dictionary user config')
+        logging.error('Supplied non-dictionary user config')
 
-    # Define and create plot path in case not already given by config file
+    # Define plot path in case not already given by config file
     if(config.get('plot_path') == None or len(config['plot_path']) == 0):
         label = " --label " + config['label'] if config['label'] else ""
         config['plot_path'] = os.path.join(
             parent_dir,
             'plots',
-            '{}'.format(round(time.time())))
+            '%d --final-time %.0f --steps-n %d --mesh-resolution %d%s/' % (
+                round(time.time()), config['final_time'],
+                config['steps_n'], config['mesh_resolution'],
+                label))
 
-        Path(config['plot_path']).mkdir(parents=True, exist_ok=True)
-
-    init_logging()
-
-def init_logging():
-    """
-    Initialize feffi logger. This happens after parameters have been defined.
-
-    Includes a stream handler to display logging on the terminal and a file
-    handler to log messages to file. File logging goes into a simulation.log
-    file located in config['plot_path'].
-    """
-
-    # Instantiate feffi logger
-    #flog = logging.getLogger('feffi')
-    flog.setLevel(logging.INFO)
-    # dark magic https://stackoverflow.com/a/44426266 to avoid messages showing up multiple times
-    flog.propagate=False
-
-    # Create two handlers:
-    # one for file logging, another for terminal (stream) logging
-    # Only add handlers if none are present. This is bcause init_logging is
-    # called by define_parameters(), which is called multiple times.
-    if len(flog.handlers) == 0:
-        fh = logging.FileHandler(
-            os.path.join(config['plot_path'], 'simulation.log'),
-            mode='w',
-            encoding='utf-8')
-        fh.setLevel(logging.INFO)
-        #fh.setFormatter(formatter)
-        logging.getLogger('feffi').addHandler(fh)
-
-        th = logging.StreamHandler()
-        th.setLevel(logging.INFO)
-        #th.setFormatter(formatter)
-        logging.getLogger('feffi').addHandler(th)
-
-    # Reduce FEniCS logging to WARNING only
-    logging.getLogger('UFL').setLevel(logging.WARNING)
-    logging.getLogger('FFC').setLevel(logging.WARNING)
 
 def parse_commandline_args():
     """Provides support for command line arguments through argparse.
@@ -197,11 +155,6 @@ def parse_commandline_args():
         dest='alpha',
         nargs="*",
         help='Diffusivity coefficient for temperature/salinity, m^2/s. Expects 1, 2 or 4 space-separated entries, depending on whether a scalar, vector or tensor is wished (default: %(default)s)')
-    parser.add_argument(
-        '--stabilization',
-        type=float,
-        dest='stabilization',
-        help='Stabilization coefficient for nu/alpha (default: %(default)s)')
     parser.add_argument(
         '--rho-0',
         type=float,
@@ -344,8 +297,8 @@ def assemble_viscosity_tensor(visc):
 
     if len(visc) == 1:
         output = fenics.as_tensor((
-            ((visc[0]), (visc[0])),
-            ((visc[0]), (visc[0]))
+            (fenics.Constant(visc[0]), fenics.Constant(visc[0])),
+            (fenics.Constant(visc[0]), fenics.Constant(visc[0]))
         ))
     elif len(visc) == 2:
         output = fenics.as_tensor((

@@ -98,7 +98,7 @@ class Simulation(object):
         # Register SIGINT handler so we plot before exiting if CTRL-C is hit
         signal.signal(signal.SIGINT, self.sigint_handler)
 
-        self.start_time = time()
+        start_time = time()
         flog.info('Running full simulation; started at %s ' % str(datetime.now()))
 
         while self.n <= self.iterations_n:
@@ -108,8 +108,6 @@ class Simulation(object):
 
             if self.maybe_stop():
                 self.log_progress()
-                flog.info('Simulation ended at {}, after {} seconds.'.format(
-                    str(datetime.now()), round(time()-self.start_time)))
                 break
 
     def timestep(self):
@@ -129,9 +127,9 @@ class Simulation(object):
         solve(A2, self.f['p_'].vector(), b2)
 
         # Step 3: Velocity correction step
-        #A3 = self.A3
-        #b3 = assemble(self.load_vectors['L3'])
-        #solve(A3, self.f['u_'].vector(), b3)
+        A3 = self.A3
+        b3 = assemble(self.load_vectors['L3'])
+        solve(A3, self.f['u_'].vector(), b3)
 
         # Step 4: Temperature step
         # Reassemble stiffness matrix and re-set BC, same for load vector, as coefficients change due to u_
@@ -178,7 +176,6 @@ class Simulation(object):
         # Prepare next timestep
         self.n = self.n + 1
         self.f['u_n'].assign(self.f['u_'])
-        self.f['p_n_1'].assign(self.f['p_n'])
         self.f['p_n'].assign(self.f['p_'])
         self.f['T_n'].assign(self.f['T_'])
         self.f['S_n'].assign(self.f['S_'])
@@ -237,10 +234,10 @@ class Simulation(object):
         """Catches CTRL-C when Simulation.run() is going,
         and plot solutions before exiting."""
 
-        flog.info('Simulation stopped at {}, after {} seconds.\n'
-                  'Jumping to plotting before exiting.'.format(
-                    str(datetime.now()), round(time()-self.start_time)))
+        flog.info('Simulation stopped -- jumping to plotting before exiting')
         plot.plot_solutions(self.f)
+        flog.info('Moving log file to plot folder')
+        system('mv simulation.log "' + self.config['plot_path'] + '/simulation.log"')
 
         system('xdg-open "' + self.config['plot_path'] + '"')
         exit(0)
