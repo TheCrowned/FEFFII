@@ -114,7 +114,7 @@ class Domain(object):
         # If no custom domain is provided, assume one of default cases
         if self.boundaries == {}:
             self.define_boundaries()
-        print(self.boundaries)
+
         self.mark_boundaries()
         self.define_BCs()
 
