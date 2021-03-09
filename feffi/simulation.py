@@ -1,4 +1,5 @@
-from fenics import assemble, File, solve, norm, XDMFFile
+from fenics import * # assemble, File, solve, norm, XDMFFile
+import fenics
 from math import log
 from pathlib import Path
 from time import time
@@ -67,13 +68,13 @@ class Simulation(object):
 
         # Assemble stiffness matrices (a4, a5 need to be assembled at every time step)
         # Load vectors have coefficients which change upon every iteration
-        self.A1 = assemble(self.stiffness_mats['a1'])
-        self.A2 = assemble(self.stiffness_mats['a2'])
-        self.A3 = assemble(self.stiffness_mats['a3'])
+        #self.A1 = assemble(self.stiffness_mats['a1'])
+        #self.A2 = assemble(self.stiffness_mats['a2'])
+        #self.A3 = assemble(self.stiffness_mats['a3'])
 
         # Apply boundary conditions
-        [bc.apply(self.A1) for bc in BCs['V']]
-        [bc.apply(self.A2) for bc in BCs['Q']]
+        #[bc.apply(self.A1) for bc in BCs['V']]
+        #[bc.apply(self.A2) for bc in BCs['Q']]
 
         self.n = 0
         self.iterations_n = self.config['steps_n']*int(self.config['final_time'])
@@ -112,41 +113,133 @@ class Simulation(object):
     def timestep(self):
         """Runs one timestep."""
 
-        # Applying IPC splitting scheme (IPCS)
-        # Step 1: Tentative velocity step
-        A1 = self.A1
-        b1 = assemble(self.load_vectors['L1'])
-        [bc.apply(b1) for bc in self.BCs['V']]
-        solve(A1, self.f['u_'].vector(), b1)
+        # ---------------------
+        # Velocity and pressure
+        # ---------------------
 
-        # Step 2: Pressure correction step
-        A2 = self.A2
-        b2 = assemble(self.load_vectors['L2'])
-        [bc.apply(b2) for bc in self.BCs['Q']]
-        solve(A2, self.f['p_'].vector(), b2)
+        # Init some vars
+        V = self.f['sol'].split()[0].function_space()
+        P = self.f['sol'].split()[1].function_space()
+        (l, k) = (V.num_sub_spaces(), P.num_sub_spaces()+1) # f spaces degrees
+        n = 0; max_n = 30
+        residual_u, residual_p = 1e22, 1e22
+        u_old = self.f['sol'].split(True)[0]
+        step_size = 1/self.config['steps_n']
+        nu = self.config['nu']
+        hmin = V.mesh().hmin(); hmax = V.mesh().hmax()
+        tol = 1e-5
+        u = self.f['u']; p = self.f['p']
+        v = self.f['v']; q = self.f['q']
 
-        # Step 3: Velocity correction step
-        A3 = self.A3
-        b3 = assemble(self.load_vectors['L3'])
-        solve(A3, self.f['u_'].vector(), b3)
+        # Operators
+        def N(a, u, p):
+            return u/step_size - nu*div(nabla_grad(u)) + dot(a, nabla_grad(u)) + grad(p)  # L(U) in LBB paper
 
-        # Step 4: Temperature step
+        def Phi(a, u, p):     # PHI in LBB paper
+            return dot(a, nabla_grad(u))
+
+        def B_g(a, u, p, v, q):
+            return (
+            + (1/step_size)*dot(u, v)*dx
+            + nu*inner(nabla_grad(u), nabla_grad(v))*dx
+            + (dot(dot(a, nabla_grad(u)), v) )*dx 
+            - dot(p, div(v))*dx
+            - dot(div(u), q)*dx )
+
+        # --------------------------
+        # Setting boundaries and BCs
+        # --------------------------
+
+        class Top(fenics.SubDomain):
+            def inside(self, x, on_boundary):
+                return fenics.near(x[1], 1) and on_boundary
+
+        class No_Slip(fenics.SubDomain):
+            def inside(self, x, on_boundary):
+                return (
+                    (fenics.near(x[1], 0) or fenics.near(x[0], 0) or fenics.near(x[0], 1))
+                    and on_boundary)
+
+        bottom_left_corner = [0, 0]
+
+        bcp_ = DirichletBC(
+            P, Constant(0),
+            'near(x[0], {:f}) && near(x[1], {:f})'.format(*bottom_left_corner),
+            method='pointwise'
+        )
+        bc_noslip_ = DirichletBC(V, Constant((0, 0)), No_Slip())
+        bc_top_ = DirichletBC(V, Constant((1, 0)), Top())
+
+        # Solve the non linearity
+        while (residual_u > tol or residual_p > tol) and n <= max_n:
+
+            (a, p_old) = self.f['sol'].split(True)
+
+            # ------------------------
+            # Setting stab. parameters
+            # ------------------------
+
+            #norm_a = fenics.norm(a)
+            norm_a = 1;
+            if norm_a == 0: #first iteration, a = 0 -> would div by zero
+               norm_a = 1
+
+            Rej = norm_a*hmin/(2*nu)
+            delta0 = self.config['delta0'] #1 # "tuning parameter" > 0
+            tau0 = self.config['tau0'] #35 if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
+            delta = delta0*hmin*min(1, Rej/3)/norm_a
+            tau = tau0*max(nu, hmin)
+
+            print('n = {}; Rej = {}; delta = {}; tau = {}'.format(
+                n, round(Rej, 5), round(delta, 5), round(tau, 5)))
+
+            # ------------------------------
+            # Define variational formulation
+            # ------------------------------
+
+            f = u_old/step_size
+            steady_form = ( B_g(a, u, p, v, q)
+                            - dot(f, v)*dx )
+
+            # APPLY STABILIZATION
+            if self.config['stabilization']:
+                #turn individual terms on and off by tweaking delta0, tau0
+                if delta > 0:
+                    steady_form += delta*(dot(N(a, u, p) - f, Phi(a, v, q)))*dx
+                if tau > 0:
+                    steady_form += tau*(dot(div(u), div(v)))*dx
+
+            A = fenics.lhs(steady_form)
+            b = fenics.rhs(steady_form)
+
+            solve(A == b,
+                  self.f['sol'], bcs=[bcp_, bc_noslip_, bc_top_])
+
+            (u_new, p_new) = self.f['sol'].split(True)
+            residual_u = fenics.errornorm(u_new, a)
+            residual_p = fenics.errornorm(p_new, p_old)
+            print(" >>> residual u: {}, residual p: {}<<<\n". format(residual_u, residual_p))
+
+            n += 1
+
+        # ------------------------
+        # Temperature and salinity
+        # ------------------------
         # Reassemble stiffness matrix and re-set BC, same for load vector, as coefficients change due to u_
-        if self.config['beta'] != 0: #do not run if not coupled with velocity
+        
+        '''if self.config['beta'] != 0: #do not run if not coupled with velocity
             b4 = assemble(self.load_vectors['L4'])
             [bc.apply(b4) for bc in self.BCs['T']]
             A4 = assemble(self.stiffness_mats['a4'])
             [bc.apply(A4) for bc in self.BCs['T']]
             solve(A4, self.f['T_'].vector(), b4)
 
-        # Step 5: Salinity step
-        # Reassemble stiffness matrix and re-set BC, same for load vector, as coefficients change due to u_
         if self.config['gamma'] != 0: #do not run if not coupled with velocity
             b5 = assemble(self.load_vectors['L5'])
             [bc.apply(b5) for bc in self.BCs['S']]
             A5 = assemble(self.stiffness_mats['a5'])
             [bc.apply(A5) for bc in self.BCs['S']]
-            solve(A5, self.f['S_'].vector(), b5)
+            solve(A5, self.f['S_'].vector(), b5)'''
 
 
         self.errors = {

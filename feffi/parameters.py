@@ -18,12 +18,13 @@ def define_parameters(user_config={}):
     Takes a default config file to begin with and overwrites any of its
     entries which are also supplied through a user-given config file or dict.
 
-    Notice that just the act of `import feffi` already sets up a default
+	Remarks:
+    1) Just the act of `import feffi` already sets up a default
     configuration.
-
-    Notice that errors/warnings happening in this function are NOT regularly
+	2) Errors/warnings happening in this function are NOT regularly
     logged. They are only printed. This is because init_logging is called after
     parameters have been defined (since plot_path is not set earlier).
+    3) Config file feffi/config/default.yml should contain ALL config entries.
 
     Parameters
     ----------
@@ -286,16 +287,48 @@ def parse_commandline_args():
         '--plot-path',
         dest='plot_path',
         help='change Output folder (default is in "plots" based on timestamp)')
-    # parser.add_argument('-v', '--verbose', default=config['verbose'],
-    # dest='verbose', action='store_true', help='Whether to display
-    # debug info (default: %(default)s)')
-    # parser.add_argument('-vv', '--very-verbose',
-    # default=config['very_verbose'], dest='very_verbose',
-    # action='store_true', help='Whether to display mroe debug info
-    # (default: %(default)s)')
-    # add_bool_arg(parser, 'plot', default=config['plot'],
-    # help='Whether to plot solution (default: %(default)s)')
-
+    parser.add_argument(
+        '--stab',
+        dest='stabilization',
+        action='store_true',
+        help='Whether to turn on stabilization method in simulation.')
+    parser.add_argument(
+        '--no-stab',
+        dest='stabilization',
+        action='store_false',
+        help='Whether to not turn o nstabilization method in simulation.')
+    parser.set_defaults(stabilization=None)
+    parser.add_argument(
+        '--delta0',
+        type=float,
+        dest='delta0',
+        help='Value of stabilization coefficient delta0.')
+    parser.add_argument(
+        '--tau0',
+        type=float,
+        dest='tau0',
+        help='Value of stabilization coefficient tau0.')
+    parser.add_argument(
+        '--degree-V',
+        type=int,
+        dest='degree_V',
+        help='Velocity function space degree.')
+    parser.add_argument(
+        '--degree-P',
+        type=int,
+        dest='degree_P',
+        help='Pressure function space degree.')
+    parser.add_argument(
+        '--degree-T',
+        type=int,
+        dest='degree_T',
+        help='Temperature function space degree.')
+    parser.add_argument(
+        '--degree-S',
+        type=int,
+        dest='degree_S',
+        help='Salinity function space degree.')
+    
     commandline_args = parser.parse_args()
     commandline_args_dict = {arg: getattr(
         commandline_args, arg) for arg in vars(commandline_args)}
