@@ -284,6 +284,11 @@ def parse_commandline_args():
         dest='max_iter',
         help='Stop simulation after given number of timesteps; 0 = infinite (default: %(default)s)')
     parser.add_argument(
+        '--non-linear-max-iter',
+        type=int,
+        dest='non_linear_max_iter',
+        help='Stop non-linear Navier-Stokes loop given number of iterations (default: %(default)s)')
+    parser.add_argument(
         '--plot-path',
         dest='plot_path',
         help='change Output folder (default is in "plots" based on timestamp)')
@@ -328,7 +333,7 @@ def parse_commandline_args():
         type=int,
         dest='degree_S',
         help='Salinity function space degree.')
-    
+
     commandline_args = parser.parse_args()
     commandline_args_dict = {arg: getattr(
         commandline_args, arg) for arg in vars(commandline_args)}

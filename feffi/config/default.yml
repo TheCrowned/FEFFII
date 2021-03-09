@@ -30,6 +30,7 @@ mesh_resolution_sea_y: 1
 store_solutions: False
 label: ''
 max_iter: 0
+non_linear_max_iter: 30
 
 stabilization: False
 delta0: 1

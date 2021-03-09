@@ -10,6 +10,7 @@ import logging
 import signal
 import numpy as np
 from . import parameters, plot
+from .functions import build_NS_steady_form
 flog = logging.getLogger('feffi')
 
 class Simulation(object):
@@ -65,20 +66,9 @@ class Simulation(object):
         self.stiffness_mats = stiffness_mats
         self.load_vectors = load_vectors
         self.BCs = BCs
-
-        # Assemble stiffness matrices (a4, a5 need to be assembled at every time step)
-        # Load vectors have coefficients which change upon every iteration
-        #self.A1 = assemble(self.stiffness_mats['a1'])
-        #self.A2 = assemble(self.stiffness_mats['a2'])
-        #self.A3 = assemble(self.stiffness_mats['a3'])
-
-        # Apply boundary conditions
-        #[bc.apply(self.A1) for bc in BCs['V']]
-        #[bc.apply(self.A2) for bc in BCs['Q']]
-
         self.n = 0
         self.iterations_n = self.config['steps_n']*int(self.config['final_time'])
-        self.rounded_iterations_n = pow(10, (round(log(self.config['steps_n']*int(self.config['final_time']), 10))))
+        #self.rounded_iterations_n = pow(10, (round(log(self.config['steps_n']*int(self.config['final_time']), 10))))
 
         if self.config['store_solutions']:
             self.xdmffile_sol = XDMFFile(os.path.join(self.config['plot_path'], 'solutions.xdmf'))
@@ -120,60 +110,21 @@ class Simulation(object):
         # Init some vars
         V = self.f['sol'].split()[0].function_space()
         P = self.f['sol'].split()[1].function_space()
+        mesh = V.mesh()
         (l, k) = (V.num_sub_spaces(), P.num_sub_spaces()+1) # f spaces degrees
-        n = 0; max_n = 30
-        residual_u, residual_p = 1e22, 1e22
-        u_old = self.f['sol'].split(True)[0]
+        n = 0; residual_u = 1e22
+        (self.f['u_n'], self.f['p_n']) = self.f['sol'].split(True)
         step_size = 1/self.config['steps_n']
         nu = self.config['nu']
-        hmin = V.mesh().hmin(); hmax = V.mesh().hmax()
-        tol = 1e-5
-        u = self.f['u']; p = self.f['p']
-        v = self.f['v']; q = self.f['q']
-
-        # Operators
-        def N(a, u, p):
-            return u/step_size - nu*div(nabla_grad(u)) + dot(a, nabla_grad(u)) + grad(p)  # L(U) in LBB paper
-
-        def Phi(a, u, p):     # PHI in LBB paper
-            return dot(a, nabla_grad(u))
-
-        def B_g(a, u, p, v, q):
-            return (
-            + (1/step_size)*dot(u, v)*dx
-            + nu*inner(nabla_grad(u), nabla_grad(v))*dx
-            + (dot(dot(a, nabla_grad(u)), v) )*dx 
-            - dot(p, div(v))*dx
-            - dot(div(u), q)*dx )
-
-        # --------------------------
-        # Setting boundaries and BCs
-        # --------------------------
-
-        class Top(fenics.SubDomain):
-            def inside(self, x, on_boundary):
-                return fenics.near(x[1], 1) and on_boundary
-
-        class No_Slip(fenics.SubDomain):
-            def inside(self, x, on_boundary):
-                return (
-                    (fenics.near(x[1], 0) or fenics.near(x[0], 0) or fenics.near(x[0], 1))
-                    and on_boundary)
-
-        bottom_left_corner = [0, 0]
-
-        bcp_ = DirichletBC(
-            P, Constant(0),
-            'near(x[0], {:f}) && near(x[1], {:f})'.format(*bottom_left_corner),
-            method='pointwise'
-        )
-        bc_noslip_ = DirichletBC(V, Constant((0, 0)), No_Slip())
-        bc_top_ = DirichletBC(V, Constant((1, 0)), Top())
+        hmin = mesh.hmin(); hmax = mesh.hmax()
+        tol = 10**self.config['simulation_precision']
+        delta0 = self.config['delta0'] #1 # "tuning parameter" > 0
+        tau0 = self.config['tau0'] #35 if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
 
         # Solve the non linearity
-        while (residual_u > tol or residual_p > tol) and n <= max_n:
+        while residual_u > tol and n <= self.config['non_linear_max_iter']:
 
-            (a, p_old) = self.f['sol'].split(True)
+            a = self.f['sol'].split(True)[0]
 
             # ------------------------
             # Setting stab. parameters
@@ -184,36 +135,17 @@ class Simulation(object):
             if norm_a == 0: #first iteration, a = 0 -> would div by zero
                norm_a = 1
 
-            Rej = norm_a*hmin/(2*nu)
-            delta0 = self.config['delta0'] #1 # "tuning parameter" > 0
-            tau0 = self.config['tau0'] #35 if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
+            Rej = norm_a*hmin/(2*nu[0])
             delta = delta0*hmin*min(1, Rej/3)/norm_a
-            tau = tau0*max(nu, hmin)
+            tau = tau0*max(nu[0], hmin)
 
             print('n = {}; Rej = {}; delta = {}; tau = {}'.format(
                 n, round(Rej, 5), round(delta, 5), round(tau, 5)))
 
-            # ------------------------------
-            # Define variational formulation
-            # ------------------------------
-
-            f = u_old/step_size
-            steady_form = ( B_g(a, u, p, v, q)
-                            - dot(f, v)*dx )
-
-            # APPLY STABILIZATION
-            if self.config['stabilization']:
-                #turn individual terms on and off by tweaking delta0, tau0
-                if delta > 0:
-                    steady_form += delta*(dot(N(a, u, p) - f, Phi(a, v, q)))*dx
-                if tau > 0:
-                    steady_form += tau*(dot(div(u), div(v)))*dx
-
-            A = fenics.lhs(steady_form)
-            b = fenics.rhs(steady_form)
-
-            solve(A == b,
-                  self.f['sol'], bcs=[bcp_, bc_noslip_, bc_top_])
+            # Define and solve NS problem
+            steady_form = build_NS_steady_form(a)
+            solve(fenics.lhs(steady_form) == fenics.rhs(steady_form),
+                  self.f['sol'], bcs=[self.BCs['V'], self.BCs['P']])
 
             (u_new, p_new) = self.f['sol'].split(True)
             residual_u = fenics.errornorm(u_new, a)
@@ -226,7 +158,7 @@ class Simulation(object):
         # Temperature and salinity
         # ------------------------
         # Reassemble stiffness matrix and re-set BC, same for load vector, as coefficients change due to u_
-        
+
         '''if self.config['beta'] != 0: #do not run if not coupled with velocity
             b4 = assemble(self.load_vectors['L4'])
             [bc.apply(b4) for bc in self.BCs['T']]

@@ -6,6 +6,7 @@ import fenics
 from . import parameters
 import logging
 flog = logging.getLogger('feffi')
+f = {}
 
 def define_function_spaces(mesh, **kwargs):
     """Define function spaces for velocity, pressure, temperature and salinity.
@@ -32,6 +33,10 @@ def define_function_spaces(mesh, **kwargs):
         'S': FunctionSpace(mesh, 'CG', parameters.config['degree_S'])
     }
 
+    # Store V and P separately for convenience (mostly for BCs setting)
+    f_spaces['V'] = f_spaces['W'].sub(0)
+    f_spaces['Q'] = f_spaces['W'].sub(1)
+
     return f_spaces
 
 def define_functions(f_spaces):
@@ -47,6 +52,8 @@ def define_functions(f_spaces):
     ------
     functions : dictionary
     """
+
+    global f
 
     # Define functions needed for solution computation
     f = {
@@ -69,6 +76,8 @@ def define_functions(f_spaces):
     }
 
     (f['u'], f['p']) = split(TrialFunction(f_spaces['W']))
+    (f['u_'], f['p_']) = split(Function(f_spaces['W']))
+    (f['u_n'], f['p_n']) = split(Function(f_spaces['W']))
     (f['v'], f['q']) = split(TestFunction(f_spaces['W']))
     f['sol'] = Function(f_spaces['W'])
 
@@ -108,7 +117,7 @@ def init_functions(f, **kwargs):
                 T_0=config['T_0']
             ),
             f['T_n'].ufl_function_space()))'''
-    f['T_n'].assign(
+    '''f['T_n'].assign(
         interpolate(
             Constant(config['T_0']),
             f['T_n'].ufl_function_space()))
@@ -123,7 +132,65 @@ def init_functions(f, **kwargs):
                 degree=2,
                 rho_0=config['rho_0'],
                 g=config['g']),
-            f['p_n'].ufl_function_space()))
+            f['p_n'].ufl_function_space()))'''
+
+def N(a, u, p):
+    """First stabilization operator, LHS differential operator.
+    Corresponds to operator L(U) in LBB paper."""
+
+    step_size = 1/parameters.config['steps_n']
+    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])[0]
+    rho_0 = parameters.config['rho_0']
+
+    return u/step_size - nu*div(nabla_grad(u)) + dot(a, nabla_grad(u)) + grad(p)/rho_0
+
+def Phi(a, u):
+    """Second stabilization operator.
+    Corresponds to operator Phi in LBB paper."""
+
+    return dot(a, nabla_grad(u))
+
+def B_g(a, u, p, v, q):
+    """Galerkin weak formulation for Navier-Stokes."""
+
+    step_size = 1/parameters.config['steps_n']
+    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])[0]
+    rho_0 = parameters.config['rho_0']
+
+    return (
+    + (1/step_size)*dot(u, v)*dx
+    + nu*inner(nabla_grad(u), nabla_grad(v))*dx
+    + (dot(dot(a, nabla_grad(u)), v) )*dx
+    - dot(p/rho_0, div(v))*dx
+    - dot(div(u), q)*dx )
+
+def build_buoyancy():
+    global f
+
+    return Expression((0, '-g*(1 - beta*(T_ - T_0) + gamma*(S_ - S_0))'), # g is given positive
+        beta = parameters.config['beta'], gamma = parameters.config['gamma'],
+        T_0 = parameters.config['T_0'], S_0 = parameters.config['S_0'],
+        g = parameters.config['g'],
+        T_ = f['T_'], S_ = f['S_'],
+        degree=2)
+
+def build_NS_steady_form(a):
+    u = f['u']; p = f['p']
+    u_n = f['u_n'];
+    v = f['v']; q = f['q']
+    step_size = 1/parameters.config['steps_n']
+
+    b = build_buoyancy()
+    f = u_n/step_size + b
+    steady_form = ( B_g(a, u, p, v, q) - dot(f, v)*dx )
+
+    # APPLY STABILIZATION
+    if parameters.config['stabilization']:
+        #turn individual terms on and off by tweaking delta0, tau0
+        if delta > 0:
+            steady_form += delta*(dot(N(a, u, p) - f, Phi(a, v, q)))*dx
+        if tau > 0:
+            steady_form += tau*(dot(div(u), div(v)))*dx
 
 def define_variational_problems(f, mesh, **kwargs):
     """Define variational problems to be solved in simulation.
@@ -187,14 +254,7 @@ def define_variational_problems(f, mesh, **kwargs):
         return fenics.as_vector(diag)
 
     # Define variational problem for approximated velocity
-    buoyancy = fenics.Expression(
-        (0, '-g*(-beta*(T_ - T_0) + gamma*(S_ - S_0))'),
-        beta = config['beta'], gamma = config['gamma'],
-        T_0 = config['T_0'], S_0 = config['S_0'],
-        g = config['g'],
-        T_ = f['T_'], S_ = f['S_'],
-        degree=2)
-    y = fenics.Expression("1-x[1]", degree=2)
+    '''y = fenics.Expression("1-x[1]", degree=2)
     F1 = + dot((u - u_n)/dt, v)*dx \
          + dot(dot(u_n, nabla_grad(u_n)), v)*dx \
          + inner(2*elem_mult(nu, sym(nabla_grad(U))), sym(nabla_grad(v)))*dx \
@@ -213,7 +273,7 @@ def define_variational_problems(f, mesh, **kwargs):
     F3 = + dot(u, v)*dx \
          - dot(u_, v)*dx \
          + dot(nabla_grad(p_ - p_n), v)/rho_0*dt*dx
-    stiffness_mats['a3'], load_vectors['L3'] = fenics.lhs(F3), fenics.rhs(F3)
+    stiffness_mats['a3'], load_vectors['L3'] = fenics.lhs(F3), fenics.rhs(F3)'''
 
     # Variational problem for temperature
     F4 = + dot((T - T_n)/dt, T_v)*dx \
