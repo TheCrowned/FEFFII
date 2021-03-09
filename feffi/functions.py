@@ -1,10 +1,13 @@
-from fenics import dot, inner, elem_mult, grad, nabla_grad, div, dx, ds, sym, Identity
+from fenics import (dot, inner, elem_mult, grad, nabla_grad, div,
+                    dx, ds, sym, Identity, Function, TrialFunction,
+                    TestFunction, FunctionSpace, VectorElement, split,
+                    FiniteElement, Constant, interpolate, Expression)
 import fenics
 from . import parameters
 import logging
 flog = logging.getLogger('feffi')
 
-def define_function_spaces(mesh):
+def define_function_spaces(mesh, **kwargs):
     """Define function spaces for velocity, pressure, temperature and salinity.
 
     Parameters
@@ -17,11 +20,16 @@ def define_function_spaces(mesh):
     function_spaces : dictionary
     """
 
+    # Allow function arguments to overwrite wide config (but keep it local)
+    config = dict(parameters.config); config.update(kwargs)
+
+    V = VectorElement("Lagrange", mesh.ufl_cell(), parameters.config['degree_V'])
+    P = FiniteElement("Lagrange", mesh.ufl_cell(), parameters.config['degree_P'])
+
     f_spaces = {
-        'V': fenics.VectorFunctionSpace(mesh, 'CG', 2),
-        'Q': fenics.FunctionSpace(mesh, 'CG', 1),
-        'T': fenics.FunctionSpace(mesh, 'CG', 2),
-        'S': fenics.FunctionSpace(mesh, 'CG', 2)
+        'W': FunctionSpace(mesh, V * P),
+        'T': FunctionSpace(mesh, 'CG', parameters.config['degree_T']),
+        'S': FunctionSpace(mesh, 'CG', parameters.config['degree_S'])
     }
 
     return f_spaces
@@ -42,29 +50,33 @@ def define_functions(f_spaces):
 
     # Define functions needed for solution computation
     f = {
-        'u_n': fenics.Function(f_spaces['V']),
-        'u_': fenics.Function(f_spaces['V']),
-        'u': fenics.TrialFunction(f_spaces['V']),
-        'v': fenics.TestFunction(f_spaces['V']),
-        'p_n': fenics.Function(f_spaces['Q']),
-        'p_': fenics.Function(f_spaces['Q']),
-        'p': fenics.TrialFunction(f_spaces['Q']),
-        'q': fenics.TestFunction(f_spaces['Q']),
-        'T_n': fenics.Function(f_spaces['T']),
-        'T_': fenics.Function(f_spaces['T']),
-        'T': fenics.TrialFunction(f_spaces['T']),
-        'T_v': fenics.TestFunction(f_spaces['T']),
-        'S_n': fenics.Function(f_spaces['S']),
-        'S_': fenics.Function(f_spaces['S']),
-        'S': fenics.TrialFunction(f_spaces['S']),
-        'S_v': fenics.TestFunction(f_spaces['S'])
+        #'u_n': Function(f_spaces['V']),
+        #'u_': Function(f_spaces['V']),
+        #'u': TrialFunction(f_spaces['V']),
+        #'v': TestFunction(f_spaces['V']),
+        #'p_n': Function(f_spaces['Q']),
+        #'p_': Function(f_spaces['Q']),
+        #'p': TrialFunction(f_spaces['Q']),
+        #'q': TestFunction(f_spaces['Q']),
+        'T_n': Function(f_spaces['T']),
+        'T_': Function(f_spaces['T']),
+        'T': TrialFunction(f_spaces['T']),
+        'T_v': TestFunction(f_spaces['T']),
+        'S_n': Function(f_spaces['S']),
+        'S_': Function(f_spaces['S']),
+        'S': TrialFunction(f_spaces['S']),
+        'S_v': TestFunction(f_spaces['S'])
     }
 
+    (f['u'], f['p']) = split(TrialFunction(f_spaces['W']))
+    (f['v'], f['q']) = split(TestFunction(f_spaces['W']))
+    f['sol'] = Function(f_spaces['W'])
+
     # Nice names for output (ex. in Paraview)
-    f['u_'].rename("velocity", "Velocity in m/s")
-    f['p_'].rename("pressure", "Pressure in Pa")
-    f['T_'].rename("temperature", "Temperature in °C")
-    f['S_'].rename("salinity", "Salinity in PSU")
+    #f['u_'].rename("velocity", "Velocity in m/s")
+    #f['p_'].rename("pressure", "Pressure in Pa")
+    #f['T_'].rename("temperature", "Temperature in °C")
+    #f['S_'].rename("salinity", "Salinity in PSU")
 
     return f
 
@@ -97,16 +109,16 @@ def init_functions(f, **kwargs):
             ),
             f['T_n'].ufl_function_space()))'''
     f['T_n'].assign(
-        fenics.interpolate(
-            fenics.Constant(config['T_0']),
+        interpolate(
+            Constant(config['T_0']),
             f['T_n'].ufl_function_space()))
     f['S_n'].assign(
-        fenics.interpolate(
-            fenics.Constant(config['S_0']),
+        interpolate(
+            Constant(config['S_0']),
             f['S_n'].ufl_function_space()))
     f['p_n'].assign(
-        fenics.interpolate(
-            fenics.Expression(
+        interpolate(
+            Expression(
                 'rho_0*g*(1-x[1])',
                 degree=2,
                 rho_0=config['rho_0'],
@@ -162,6 +174,7 @@ def define_variational_problems(f, mesh, **kwargs):
     alpha = parameters.assemble_viscosity_tensor(config['alpha']);
 
     # Define expressions used in variational forms
+    stiffness_mats = {}; load_vectors = {}
     U = 0.5*(u_n + u)
     n = fenics.FacetNormal(mesh)
     dt = 1/config['steps_n']
@@ -172,15 +185,6 @@ def define_variational_problems(f, mesh, **kwargs):
             diag.append(mat[i][i])
 
         return fenics.as_vector(diag)
-
-    beta = 0.3
-    hmin = fenics.CellDiameter(mesh)
-    nu = nu + fenics.as_tensor((
-            (beta*hmin, beta*hmin),
-            (beta*hmin, beta*hmin)
-         ))
-
-    stiffness_mats = {}; load_vectors = {}
 
     # Define variational problem for approximated velocity
     buoyancy = fenics.Expression(

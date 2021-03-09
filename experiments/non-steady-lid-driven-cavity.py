@@ -84,16 +84,13 @@ def B_g(a, u, p, v, q):
     return (
     + (1/step_size)*dot(u, v)*dx
     + nu*inner(nabla_grad(u), nabla_grad(v))*dx
-    + (dot(dot(a, nabla_grad(u)), v) )*dx # why a minus? Obscure.
+    + (dot(dot(a, nabla_grad(u)), v) )*dx 
     - dot(p, div(v))*dx
     - dot(div(u), q)*dx ) # this is the only term that is not strictly in B_g in the paper
 
- #   + (1/2)*(dot(dot(a, nabla_grad(u)), v) - dot(dot(a, nabla_grad(v)), u))*dx # why a minus? Obscure.
-
 residual_utime = 1e22
 # Start the dance
-dt = 0
-#while dt <= final_time:
+#dt = 0
 while residual_utime > tol:
 
 
@@ -103,7 +100,7 @@ while residual_utime > tol:
     plot_info = {'Rej': [], 'norm_a': [], 'delta': [], 'tau': [], 'residual_u': [], 'residual_p': []}
     u_old = sol.split(True)[0]
 
-    print(':: dt {} of {} ::'.format(dt, final_time))
+    #print(':: dt {} of {} ::'.format(dt, final_time))
 
     while (residual_u > tol or residual_p > tol) and n <= max_iter:
 
@@ -164,7 +161,7 @@ while residual_utime > tol:
 
         n += 1
 
-    dt += step_size
+    #dt += step_size
     residual_utime = fenics.errornorm(u_new, u_old)
     print("--------------------------------------------------")
     print(" >>> residual u, time: {}". format(residual_utime))
