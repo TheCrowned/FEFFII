@@ -10,7 +10,7 @@ rho_0: 1
 beta: 0
 gamma: 0
 domain: square
-mesh_resolution: 20
+mesh_resolution: 25
 max_iter: 5000
 BCs:
     V:

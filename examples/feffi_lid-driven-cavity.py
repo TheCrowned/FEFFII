@@ -52,7 +52,7 @@ mesh = mesh.create_mesh()
 f_spaces = functions.define_function_spaces(mesh)
 f = functions.define_functions(f_spaces)
 #functions.init_functions(f) # Init functions to closest steady state
-(stiffness_mats, load_vectors) = functions.define_variational_problems(f, mesh)
+#(stiffness_mats, load_vectors) = functions.define_variational_problems(f, mesh)
 
 domain = boundaries.Domain(mesh, f_spaces)
 
@@ -60,7 +60,7 @@ flog.info(
     '## Running lid driven benchmark with parameters \n{} ##'.format(
         parameters.config))
 
-simul = simulation.Simulation(f, stiffness_mats, load_vectors, domain.BCs)
+simul = simulation.Simulation(f, {}, {}, domain.BCs)
 simul.run()
 
 
@@ -88,8 +88,8 @@ plot.plot_single(
 #fenics.File('out/lid-driven-cavity_p_{}.xml'.format(parameters.config['nu'])) << f['p_']
 
 # Compare with reference solutions
-ref_u = fenics.Function(f_spaces['V'])
-ref_p = fenics.Function(f_spaces['Q'])
+ref_u = fenics.Function(f_spaces['V'].collapse())
+ref_p = fenics.Function(f_spaces['Q'].collapse())
 fenics.File(
     'feffi/reference-solutions/lid-driven-cavity_u_{}.xml'.format(
         parameters.config['nu'])) >> ref_u
