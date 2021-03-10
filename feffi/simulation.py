@@ -10,7 +10,7 @@ import logging
 import signal
 import numpy as np
 from . import parameters, plot
-from .functions import build_NS_GLS_steady_form
+from .functions import build_NS_GLS_steady_form, build_temperature_form
 flog = logging.getLogger('feffi')
 
 class Simulation(object):
@@ -145,9 +145,10 @@ class Simulation(object):
             u = self.f['u']; p = self.f['p']
             u_n = self.f['u_n'];
             v = self.f['v']; q = self.f['q']
+            T_n = self.f['T_n']; S_n = self.f['S_n']
 
             # Define and solve NS problem
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau)
+            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau, T_n, S_n)
             solve(fenics.lhs(steady_form) == fenics.rhs(steady_form),
                   self.f['sol'], bcs=self.BCs['V']+self.BCs['Q'])
 
@@ -162,14 +163,13 @@ class Simulation(object):
         # ------------------------
         # Reassemble stiffness matrix and re-set BC, same for load vector, as coefficients change due to u_
 
-        '''if self.config['beta'] != 0: #do not run if not coupled with velocity
-            b4 = assemble(self.load_vectors['L4'])
-            [bc.apply(b4) for bc in self.BCs['T']]
-            A4 = assemble(self.stiffness_mats['a4'])
-            [bc.apply(A4) for bc in self.BCs['T']]
-            solve(A4, self.f['T_'].vector(), b4)
+        if self.config['beta'] != 0: #do not run if not coupled with velocity
+            T_n = self.f['T_n']; T_v = self.f['T_v']; T = self.f['T']; u_ = self.f['u_']
+            T_form = build_temperature_form(T, T_n, T_v, u_)
+            solve(fenics.lhs(T_form) == fenics.rhs(T_form),
+                  self.f['T_'], bcs=self.BCs['T'])
 
-        if self.config['gamma'] != 0: #do not run if not coupled with velocity
+        '''if self.config['gamma'] != 0: #do not run if not coupled with velocity
             b5 = assemble(self.load_vectors['L5'])
             [bc.apply(b5) for bc in self.BCs['S']]
             A5 = assemble(self.stiffness_mats['a5'])
@@ -241,13 +241,13 @@ class Simulation(object):
 
         round_precision = abs(self.config['simulation_precision']) if self.config['simulation_precision'] <= 0 else 0
 
-        flog.info("Timestep %d of %d: \n  ||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||u-u_n||/||u|| = %s, \n  ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||p-p_n||/||p|| = %s, \n  " % ( \
-            self.n, self.iterations_n, \
-            round(norm(self.f['u_'], 'L2'), round_precision), round(norm(self.f['u_'].vector(), 'linf'), round_precision), round(self.errors['u'], round_precision), round(self.errors['u']/norm(self.f['u_'], 'L2'), round_precision), \
-            round(norm(self.f['p_'], 'L2'), round_precision), round(norm(self.f['p_'].vector(), 'linf'), round_precision), round(self.errors['p'], round_precision), round(self.errors['p']/norm(self.f['p_'], 'L2'), round_precision), \
-            #round(norm(self.f['T_'], 'L2'), round_precision), round(norm(self.f['T_'].vector(), 'linf'), round_precision), round(self.errors['T'], round_precision), round(self.errors['T']/norm(self.f['T_'], 'L2'), round_precision), \
-            ##round(norm(self.f['S_'], 'L2'), round_precision), round(norm(self.f['S_'].vector(), 'linf'), round_precision), round(self.errors['S'], round_precision), round(self.errors['S']/norm(self.f['S_'], 'L2'), round_precision),
-        ) )
+        flog.info('Timestep {} of {}:'. format(self.n, self.iterations_n))
+        flog.info('  ||u|| = {}, ||u||_8 = {}, ||u-u_n|| = {}, ||u-u_n||/||u|| = {}'.format(round(norm(self.f['u_'], 'L2'), round_precision), round(norm(self.f['u_'].vector(), 'linf'), round_precision), round(self.errors['u'], round_precision), round(self.errors['u']/norm(self.f['u_'], 'L2'), round_precision)))
+        flog.info('  ||p|| = {}, ||p||_8 = {}, ||p-p_n|| = {}, ||p-p_n||/||p|| = {}'.format(round(norm(self.f['p_'], 'L2'), round_precision), round(norm(self.f['p_'].vector(), 'linf'), round_precision), round(self.errors['p'], round_precision), round(self.errors['p']/norm(self.f['p_'], 'L2'), round_precision)))
+        if self.config['beta'] > 0:
+            flog.info('  ||T|| = {}, ||T||_8 = {}, ||T-T_n|| = {}, ||T-T_n||/||T|| = {}'.format(round(norm(self.f['T_'], 'L2'), round_precision), round(norm(self.f['T_'].vector(), 'linf'), round_precision), round(self.errors['T'], round_precision), round(self.errors['T']/norm(self.f['T_'], 'L2'), round_precision)))
+        #if self.config['gamma'] > 0:
+        #    flog.info('  ||S|| = {}, ||S||_8 = {}, ||S-S_n|| = {}, ||S-S_n||/||S|| = {}'.format(round(norm(self.f['S_'], 'L2'), round_precision), round(norm(self.f['S_'].vector(), 'linf'), round_precision), round(self.errors['S'], round_precision), round(self.errors['S']/norm(self.f['S_'], 'L2'), round_precision)))
 
     def save_solutions(self):
         """Saves current timestep solutions to XDMF file"""

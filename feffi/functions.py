@@ -156,12 +156,15 @@ def B_g(a, u, p, v, q):
     step_size = 1/parameters.config['steps_n']
     nu = parameters.config['nu'][0]# parameters.assemble_viscosity_tensor(parameters.config['nu'])
     rho_0 = parameters.config['rho_0']
+    n = fenics.FacetNormal(a.function_space().mesh())
 
     return (
     + (1/step_size)*dot(u, v)*dx
     + nu*inner(nabla_grad(u), nabla_grad(v))*dx # *nu!!
     + (dot(dot(a, nabla_grad(u)), v) )*dx
     - dot(p/rho_0, div(v))*dx
+    - dot(p/rho_0, dot(v, n))*ds
+    - nu*dot(dot(nabla_grad(u), n), v)*ds
     - dot(div(u), q)*dx )
 
 def build_buoyancy(T_, S_):
@@ -174,13 +177,13 @@ def build_buoyancy(T_, S_):
         T_ = T_, S_ = S_,
         degree=2)
 
-def build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau):
+def build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau, T_, S_):
     """Build Navier-Stokes steady state weak form + GLS stabilization."""
 
     step_size = 1/parameters.config['steps_n']
 
-    b = 0#build_buoyancy()
-    f = u_n/step_size #+ b
+    b = build_buoyancy(T_, S_)
+    f = u_n/step_size + b
     steady_form = ( B_g(a, u, p, v, q) - dot(f, v)*dx )
 
     # APPLY STABILIZATION
@@ -192,6 +195,57 @@ def build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau):
             steady_form += tau*(dot(div(u), div(v)))*dx
 
     return steady_form
+
+def build_temperature_form(T, T_n, T_v, u_):
+    """Define temperature variational problem to be solved in simulation.
+
+    Parameters
+    ----------
+    f : dict
+        Functions dictionary (as output, for example, by
+        feffi.parameters.define_functions())
+    mesh : fenics-compatible mesh object
+        Mesh to use for simulation
+     kwargs : `rho_0`, `nu`, `alpha`, `steps_n`, `g`, `beta`, `gamma`,
+        `T_0`, `S_0`.
+
+    Return
+    ------
+    stiffnes_mats : dict
+        Stiffness matrices ready for assembly
+    load_vectors : dict
+        Load vectors ready for assembly.
+
+    Examples
+    --------
+    1) Define IPCS variational forms over a square:
+
+        mesh = feffi.mesh.create_mesh(domain='square')
+        f_spaces = feffi.functions.define_function_spaces(mesh)
+        f = feffi.functions.define_functions(f_spaces)
+        feffi.functions.init_functions(f)
+        (stiffness_mats, load_vectors) = feffi.functions.define_variational_problems(f, mesh)
+    """
+
+    # Assemble tensor viscosity/diffusivity
+    alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha']);
+
+    # Define expressions used in variational forms
+    dt = 1/parameters.config['steps_n']
+
+    def get_matrix_diagonal(mat):
+        diag = []
+        for i in range(mat.ufl_shape[0]):
+            diag.append(mat[i][i])
+
+        return fenics.as_vector(diag)
+
+    # Variational problem for temperature
+    F = + dot((T - T_n)/dt, T_v)*dx \
+        + div(u_*T)*T_v*dx \
+        + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx
+
+    return F
 
 def define_variational_problems(f, mesh, **kwargs):
     """Define variational problems to be solved in simulation.
