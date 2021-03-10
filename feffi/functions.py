@@ -139,7 +139,7 @@ def N(a, u, p):
     Corresponds to operator L(U) in LBB paper."""
 
     step_size = 1/parameters.config['steps_n']
-    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])[0]
+    nu = parameters.config['nu'][0] #parameters.assemble_viscosity_tensor(parameters.config['nu'])[0]
     rho_0 = parameters.config['rho_0']
 
     return u/step_size - nu*div(nabla_grad(u)) + dot(a, nabla_grad(u)) + grad(p)/rho_0
@@ -154,43 +154,44 @@ def B_g(a, u, p, v, q):
     """Galerkin weak formulation for Navier-Stokes."""
 
     step_size = 1/parameters.config['steps_n']
-    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])[0]
+    nu = parameters.config['nu'][0]# parameters.assemble_viscosity_tensor(parameters.config['nu'])
     rho_0 = parameters.config['rho_0']
 
     return (
     + (1/step_size)*dot(u, v)*dx
-    + nu*inner(nabla_grad(u), nabla_grad(v))*dx
+    + nu*inner(nabla_grad(u), nabla_grad(v))*dx # *nu!!
     + (dot(dot(a, nabla_grad(u)), v) )*dx
     - dot(p/rho_0, div(v))*dx
     - dot(div(u), q)*dx )
 
-def build_buoyancy():
-    global f
+def build_buoyancy(T_, S_):
+    """Build buoyancy term."""
 
     return Expression((0, '-g*(1 - beta*(T_ - T_0) + gamma*(S_ - S_0))'), # g is given positive
         beta = parameters.config['beta'], gamma = parameters.config['gamma'],
         T_0 = parameters.config['T_0'], S_0 = parameters.config['S_0'],
         g = parameters.config['g'],
-        T_ = f['T_'], S_ = f['S_'],
+        T_ = T_, S_ = S_,
         degree=2)
 
-def build_NS_steady_form(a):
-    u = f['u']; p = f['p']
-    u_n = f['u_n'];
-    v = f['v']; q = f['q']
+def build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau):
+    """Build Navier-Stokes steady state weak form + GLS stabilization."""
+
     step_size = 1/parameters.config['steps_n']
 
-    b = build_buoyancy()
-    f = u_n/step_size + b
+    b = 0#build_buoyancy()
+    f = u_n/step_size #+ b
     steady_form = ( B_g(a, u, p, v, q) - dot(f, v)*dx )
 
     # APPLY STABILIZATION
     if parameters.config['stabilization']:
         #turn individual terms on and off by tweaking delta0, tau0
         if delta > 0:
-            steady_form += delta*(dot(N(a, u, p) - f, Phi(a, v, q)))*dx
+            steady_form += delta*(dot(N(a, u, p) - f, Phi(a, v)))*dx
         if tau > 0:
             steady_form += tau*(dot(div(u), div(v)))*dx
+
+    return steady_form
 
 def define_variational_problems(f, mesh, **kwargs):
     """Define variational problems to be solved in simulation.

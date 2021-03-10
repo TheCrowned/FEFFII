@@ -10,7 +10,7 @@ import logging
 import signal
 import numpy as np
 from . import parameters, plot
-from .functions import build_NS_steady_form
+from .functions import build_NS_GLS_steady_form
 flog = logging.getLogger('feffi')
 
 class Simulation(object):
@@ -142,15 +142,18 @@ class Simulation(object):
             print('n = {}; Rej = {}; delta = {}; tau = {}'.format(
                 n, round(Rej, 5), round(delta, 5), round(tau, 5)))
 
-            # Define and solve NS problem
-            steady_form = build_NS_steady_form(a)
-            solve(fenics.lhs(steady_form) == fenics.rhs(steady_form),
-                  self.f['sol'], bcs=[self.BCs['V'], self.BCs['P']])
+            u = self.f['u']; p = self.f['p']
+            u_n = self.f['u_n'];
+            v = self.f['v']; q = self.f['q']
 
-            (u_new, p_new) = self.f['sol'].split(True)
-            residual_u = fenics.errornorm(u_new, a)
-            residual_p = fenics.errornorm(p_new, p_old)
-            print(" >>> residual u: {}, residual p: {}<<<\n". format(residual_u, residual_p))
+            # Define and solve NS problem
+            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau)
+            solve(fenics.lhs(steady_form) == fenics.rhs(steady_form),
+                  self.f['sol'], bcs=self.BCs['V']+self.BCs['Q'])
+
+            (self.f['u_'], self.f['p_']) = self.f['sol'].split(True)
+            residual_u = fenics.errornorm(self.f['u_'], a)
+            print(" >>> residual u: {}<<<\n". format(residual_u))
 
             n += 1
 
@@ -175,10 +178,10 @@ class Simulation(object):
 
 
         self.errors = {
-            'u' : np.linalg.norm(self.f['u_'].vector().get_local() - self.f['u_n'].vector().get_local()),
-            'p' : np.linalg.norm(self.f['p_'].vector().get_local() - self.f['p_n'].vector().get_local()),
-            'T' : np.linalg.norm(self.f['T_'].vector().get_local() - self.f['T_n'].vector().get_local()),
-            'S' : np.linalg.norm(self.f['S_'].vector().get_local() - self.f['S_n'].vector().get_local())
+            'u' : fenics.errornorm(self.f['u_'], self.f['u_n']),
+            'p' : fenics.errornorm(self.f['p_'], self.f['p_n']),
+            'T' : fenics.errornorm(self.f['T_'], self.f['T_n']),
+            'S' : fenics.errornorm(self.f['S_'], self.f['S_n']),
         }
 
         """
@@ -238,12 +241,12 @@ class Simulation(object):
 
         round_precision = abs(self.config['simulation_precision']) if self.config['simulation_precision'] <= 0 else 0
 
-        flog.info("Timestep %d of %d: \n  ||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||u-u_n||/||u|| = %s, \n  ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||p-p_n||/||p|| = %s, \n  ||T|| = %s, ||T||_8 = %s, ||T-T_n|| = %s, ||T-T_n||/||T|| = %s, \n  ||S|| = %s, ||S||_8 = %s, ||S - S_n|| = %s, ||S - S_n||/||S|| = %s" % ( \
+        flog.info("Timestep %d of %d: \n  ||u|| = %s, ||u||_8 = %s, ||u-u_n|| = %s, ||u-u_n||/||u|| = %s, \n  ||p|| = %s, ||p||_8 = %s, ||p-p_n|| = %s, ||p-p_n||/||p|| = %s, \n  " % ( \
             self.n, self.iterations_n, \
             round(norm(self.f['u_'], 'L2'), round_precision), round(norm(self.f['u_'].vector(), 'linf'), round_precision), round(self.errors['u'], round_precision), round(self.errors['u']/norm(self.f['u_'], 'L2'), round_precision), \
             round(norm(self.f['p_'], 'L2'), round_precision), round(norm(self.f['p_'].vector(), 'linf'), round_precision), round(self.errors['p'], round_precision), round(self.errors['p']/norm(self.f['p_'], 'L2'), round_precision), \
-            round(norm(self.f['T_'], 'L2'), round_precision), round(norm(self.f['T_'].vector(), 'linf'), round_precision), round(self.errors['T'], round_precision), round(self.errors['T']/norm(self.f['T_'], 'L2'), round_precision), \
-            round(norm(self.f['S_'], 'L2'), round_precision), round(norm(self.f['S_'].vector(), 'linf'), round_precision), round(self.errors['S'], round_precision), round(self.errors['S']/norm(self.f['S_'], 'L2'), round_precision),
+            #round(norm(self.f['T_'], 'L2'), round_precision), round(norm(self.f['T_'].vector(), 'linf'), round_precision), round(self.errors['T'], round_precision), round(self.errors['T']/norm(self.f['T_'], 'L2'), round_precision), \
+            ##round(norm(self.f['S_'], 'L2'), round_precision), round(norm(self.f['S_'].vector(), 'linf'), round_precision), round(self.errors['S'], round_precision), round(self.errors['S']/norm(self.f['S_'], 'L2'), round_precision),
         ) )
 
     def save_solutions(self):
@@ -264,5 +267,6 @@ class Simulation(object):
         flog.info('Simulation stopped at {}, after {} seconds.\n'
                   'Jumping to plotting before exiting.'.format(
                     str(datetime.now()), round(time()-self.start_time)))
+        plot.plot_solutions(self.f)
         os.system('xdg-open "' + self.config['plot_path'] + '"')
         exit(0)
