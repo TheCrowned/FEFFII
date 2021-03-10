@@ -161,7 +161,6 @@ class Simulation(object):
         # ------------------------
         # Temperature and salinity
         # ------------------------
-        # Reassemble stiffness matrix and re-set BC, same for load vector, as coefficients change due to u_
 
         if self.config['beta'] != 0: #do not run if not coupled with velocity
             T_n = self.f['T_n']; T_v = self.f['T_v']; T = self.f['T']; u_ = self.f['u_']
@@ -169,13 +168,11 @@ class Simulation(object):
             solve(fenics.lhs(T_form) == fenics.rhs(T_form),
                   self.f['T_'], bcs=self.BCs['T'])
 
-        '''if self.config['gamma'] != 0: #do not run if not coupled with velocity
-            b5 = assemble(self.load_vectors['L5'])
-            [bc.apply(b5) for bc in self.BCs['S']]
-            A5 = assemble(self.stiffness_mats['a5'])
-            [bc.apply(A5) for bc in self.BCs['S']]
-            solve(A5, self.f['S_'].vector(), b5)'''
-
+        if self.config['gamma'] != 0: #do not run if not coupled with velocity
+            S_n = self.f['S_n']; T_v = self.f['S_v']; S = self.f['S']; u_ = self.f['u_']
+            S_form = build_salinity_form(S, S_n, S_v, u_)
+            solve(fenics.lhs(S_form) == fenics.rhs(S_form),
+                  self.f['S_'], bcs=self.BCs['S'])
 
         self.errors = {
             'u' : fenics.errornorm(self.f['u_'], self.f['u_n']),
@@ -195,7 +192,8 @@ class Simulation(object):
         self.log_progress()
         """
 
-        self.log_progress()
+        if self.n % 10 == 0:
+            self.log_progress()
 
         if self.config['store_solutions']:
             self.save_solutions()

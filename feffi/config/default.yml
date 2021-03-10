@@ -34,7 +34,7 @@ non_linear_max_iter: 30
 
 stabilization: False
 delta0: 1
-tau0: 1
+tau0: 35
 
 BCs:
     V:
