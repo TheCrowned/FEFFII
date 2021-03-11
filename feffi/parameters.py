@@ -340,11 +340,6 @@ def parse_commandline_args():
         dest='degree_S',
         help='Salinity function space degree.')
     parser.add_argument(
-        '--',
-        type=int,
-        dest='degree_S',
-        help='Salinity function space degree.')
-    parser.add_argument(
         '-vv, --very-verbose',
         dest='very_verbose',
         action='store_true',

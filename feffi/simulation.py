@@ -110,7 +110,6 @@ class Simulation(object):
         P = self.f['sol'].split()[1].function_space()
         mesh = V.mesh()
         (l, k) = (V.ufl_element().degree(), P.ufl_element().degree()) # f spaces degrees
-        print(l,k)
         self.nonlin_n = 0; residual_u = 1e22
         (self.f['u_n'], self.f['p_n']) = self.f['sol'].split(True)
         step_size = 1/self.config['steps_n']
