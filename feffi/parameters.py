@@ -91,13 +91,12 @@ def define_parameters(user_config={}):
 
     # Define and create plot path in case not already given by config file
     if(config.get('plot_path') == None or len(config['plot_path']) == 0):
-        label = " --label " + config['label'] if config['label'] else ""
         config['plot_path'] = os.path.join(
             parent_dir,
             'plots',
             '{}'.format(round(time.time())))
 
-        Path(config['plot_path']).mkdir(parents=True, exist_ok=True)
+    Path(config['plot_path']).mkdir(parents=True, exist_ok=True)
 
     init_logging()
 
