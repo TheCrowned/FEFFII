@@ -156,7 +156,6 @@ class Domain(object):
         self.subdomains_markers = {}
         i = 1
         for (name, subdomain) in self.boundaries.items():
-            print('subdomain {} name {} marked with marker {}'.format(subdomain, name, i))
             subdomain.mark(self.marked_subdomains, i)
             self.subdomains_markers[name] = i
             i += 1

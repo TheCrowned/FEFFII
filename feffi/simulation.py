@@ -10,7 +10,7 @@ import logging
 import signal
 import numpy as np
 from . import parameters, plot
-from .functions import build_NS_GLS_steady_form, build_temperature_form
+from .functions import build_NS_GLS_steady_form, build_temperature_form, build_salinity_form
 flog = logging.getLogger('feffi')
 
 class Simulation(object):
@@ -68,7 +68,6 @@ class Simulation(object):
         self.BCs = BCs
         self.n = 0
         self.iterations_n = self.config['steps_n']*int(self.config['final_time'])
-        #self.rounded_iterations_n = pow(10, (round(log(self.config['steps_n']*int(self.config['final_time']), 10))))
 
         if self.config['store_solutions']:
             self.xdmffile_sol = XDMFFile(os.path.join(self.config['plot_path'], 'solutions.xdmf'))
@@ -91,13 +90,12 @@ class Simulation(object):
         flog.info('Running full simulation; started at %s ' % str(datetime.now()))
 
         while self.n <= self.iterations_n:
-            #plot.plot_solutions(self.f, display=True)
             self.timestep()
-
+            
             if self.maybe_stop():
                 self.log_progress()
-                flog.info('Simulation ended at {}, after {} seconds.'.format(
-                    str(datetime.now()), round(time()-self.start_time)))
+                flog.info('Simulation stopped at {}, after {} steps ({} seconds).'.format(
+                    str(datetime.now()), self.n, round(time()-self.start_time)))
                 break
 
     def timestep(self):
@@ -111,8 +109,8 @@ class Simulation(object):
         V = self.f['sol'].split()[0].function_space()
         P = self.f['sol'].split()[1].function_space()
         mesh = V.mesh()
-        (l, k) = (V.num_sub_spaces(), P.num_sub_spaces()+1) # f spaces degrees
-        n = 0; residual_u = 1e22
+        (l, k) = (V.num_sub_spaces(), P.num_sub_spaces()+1) # f spaces degrees WROOOONGGGG
+        self.nonlin_n = 0; residual_u = 1e22
         (self.f['u_n'], self.f['p_n']) = self.f['sol'].split(True)
         step_size = 1/self.config['steps_n']
         nu = self.config['nu']
@@ -122,7 +120,8 @@ class Simulation(object):
         tau0 = self.config['tau0'] #35 if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
 
         # Solve the non linearity
-        while residual_u > tol and n <= self.config['non_linear_max_iter']:
+        flog.debug('Iteratively solving non-linear problem')
+        while residual_u > tol and self.nonlin_n <= self.config['non_linear_max_iter']:
 
             a = self.f['sol'].split(True)[0]
 
@@ -139,14 +138,14 @@ class Simulation(object):
             delta = delta0*hmin*min(1, Rej/3)/norm_a
             tau = tau0*max(nu[0], hmin)
 
-            print('n = {}; Rej = {}; delta = {}; tau = {}'.format(
-                n, round(Rej, 5), round(delta, 5), round(tau, 5)))
+            flog.debug('n = {}; Rej = {}; delta = {}; tau = {}'.format(
+                self.nonlin_n, round(Rej, 5), round(delta, 5), round(tau, 5)))
 
             u = self.f['u']; p = self.f['p']
             u_n = self.f['u_n'];
             v = self.f['v']; q = self.f['q']
             T_n = self.f['T_n']; S_n = self.f['S_n']
-
+            
             # Define and solve NS problem
             steady_form = build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau, T_n, S_n)
             solve(fenics.lhs(steady_form) == fenics.rhs(steady_form),
@@ -154,13 +153,17 @@ class Simulation(object):
 
             (self.f['u_'], self.f['p_']) = self.f['sol'].split(True)
             residual_u = fenics.errornorm(self.f['u_'], a)
-            print(" >>> residual u: {}<<<\n". format(residual_u))
+            flog.debug(" >>> residual u: {} <<<\n".format(residual_u))
 
-            n += 1
+            self.nonlin_n += 1
+
+        flog.debug('Solved non-linear problem.')
 
         # ------------------------
         # Temperature and salinity
         # ------------------------
+
+        flog.debug('Solving for T and S.')
 
         if self.config['beta'] != 0: #do not run if not coupled with velocity
             T_n = self.f['T_n']; T_v = self.f['T_v']; T = self.f['T']; u_ = self.f['u_']
@@ -169,10 +172,12 @@ class Simulation(object):
                   self.f['T_'], bcs=self.BCs['T'])
 
         if self.config['gamma'] != 0: #do not run if not coupled with velocity
-            S_n = self.f['S_n']; T_v = self.f['S_v']; S = self.f['S']; u_ = self.f['u_']
+            S_n = self.f['S_n']; S_v = self.f['S_v']; S = self.f['S']; u_ = self.f['u_']
             S_form = build_salinity_form(S, S_n, S_v, u_)
             solve(fenics.lhs(S_form) == fenics.rhs(S_form),
                   self.f['S_'], bcs=self.BCs['S'])
+
+        flog.debug('Solved for T and S.')
 
         self.errors = {
             'u' : fenics.errornorm(self.f['u_'], self.f['u_n']),
@@ -181,25 +186,13 @@ class Simulation(object):
             'S' : fenics.errornorm(self.f['S_'], self.f['S_n']),
         }
 
-        """
-        # Even if verbose, get progressively less verbose with the order of number of iterations
-        if(self.args.very_verbose or (rounded_iterations_n < 1000 or (rounded_iterations_n >= 1000 and n % (rounded_iterations_n/100) == 0))):
-        last_run = time.time() - start
-        #last_run = (last_run*(n/100 - 1) + (time.time() - start))/(n/100) if n != 0 else 0
-        eta = round(last_run*(iterations_n - n))/100 if last_run != 0 else '?'
-        start = time.time()
-
         self.log_progress()
-        """
-
-        if self.n % 10 == 0:
-            self.log_progress()
 
         if self.config['store_solutions']:
             self.save_solutions()
 
         # Prepare next timestep
-        self.n = self.n + 1
+        self.n += 1
         self.f['u_n'].assign(self.f['u_'])
         self.f['p_n'].assign(self.f['p_'])
         self.f['T_n'].assign(self.f['T_'])
@@ -220,16 +213,16 @@ class Simulation(object):
 
         convergence_threshold = 10**(self.config['simulation_precision'])
         if all(error < convergence_threshold for error in self.errors.values()):
-            flog.info('Stopping simulation at step %d: all variables reached desired precision' % self.n)
+            flog.info('Stopping simulation: all variables reached desired precision.')
             self.log_progress()
             return True
 
         if self.config['max_iter'] > 0 and self.n >= self.config['max_iter']:
-            flog.info('Max iterations reached, stopping simulation at timestep %d' % self.n)
+            flog.info('Stopping simulation: max iterations reached.')
             return True
 
         if norm(self.f['u_'], 'L2') != norm(self.f['u_'], 'L2'):
-            flog.info('Stopping simulation at step %d: velocity is NaN!' % self.n)
+            flog.error('Stopping simulation: velocity is NaN!')
             return True
 
         return False
@@ -239,19 +232,20 @@ class Simulation(object):
 
         round_precision = abs(self.config['simulation_precision']) if self.config['simulation_precision'] <= 0 else 0
 
-        flog.info('Timestep {} of {}:'. format(self.n, self.iterations_n))
-        flog.info('  ||u|| = {}, ||u||_8 = {}, ||u-u_n|| = {}, ||u-u_n||/||u|| = {}'.format(round(norm(self.f['u_'], 'L2'), round_precision), round(norm(self.f['u_'].vector(), 'linf'), round_precision), round(self.errors['u'], round_precision), round(self.errors['u']/norm(self.f['u_'], 'L2'), round_precision)))
-        flog.info('  ||p|| = {}, ||p||_8 = {}, ||p-p_n|| = {}, ||p-p_n||/||p|| = {}'.format(round(norm(self.f['p_'], 'L2'), round_precision), round(norm(self.f['p_'].vector(), 'linf'), round_precision), round(self.errors['p'], round_precision), round(self.errors['p']/norm(self.f['p_'], 'L2'), round_precision)))
-        if self.config['beta'] > 0:
-            flog.info('  ||T|| = {}, ||T||_8 = {}, ||T-T_n|| = {}, ||T-T_n||/||T|| = {}'.format(round(norm(self.f['T_'], 'L2'), round_precision), round(norm(self.f['T_'].vector(), 'linf'), round_precision), round(self.errors['T'], round_precision), round(self.errors['T']/norm(self.f['T_'], 'L2'), round_precision)))
-        #if self.config['gamma'] > 0:
-        #    flog.info('  ||S|| = {}, ||S||_8 = {}, ||S-S_n|| = {}, ||S-S_n||/||S|| = {}'.format(round(norm(self.f['S_'], 'L2'), round_precision), round(norm(self.f['S_'].vector(), 'linf'), round_precision), round(self.errors['S'], round_precision), round(self.errors['S']/norm(self.f['S_'], 'L2'), round_precision)))
+        self.log('Timestep {} of {}:'. format(self.n, self.iterations_n))
+        self.log('  Non-linearity u-P solved in {} steps.'.format(self.nonlin_n))
+        self.log('  ||u|| = {}, ||u||_8 = {}, ||u-u_n|| = {}, ||u-u_n||/||u|| = {}'.format(round(norm(self.f['u_'], 'L2'), round_precision), round(norm(self.f['u_'].vector(), 'linf'), round_precision), round(self.errors['u'], round_precision), round(self.errors['u']/norm(self.f['u_'], 'L2'), round_precision)))
+        self.log('  ||p|| = {}, ||p||_8 = {}, ||p-p_n|| = {}, ||p-p_n||/||p|| = {}'.format(round(norm(self.f['p_'], 'L2'), round_precision), round(norm(self.f['p_'].vector(), 'linf'), round_precision), round(self.errors['p'], round_precision), round(self.errors['p']/norm(self.f['p_'], 'L2'), round_precision)))
+        if self.config['beta'] > 0: #avoid division by zero in relative error
+            self.log('  ||T|| = {}, ||T||_8 = {}, ||T-T_n|| = {}, ||T-T_n||/||T|| = {}'.format(round(norm(self.f['T_'], 'L2'), round_precision), round(norm(self.f['T_'].vector(), 'linf'), round_precision), round(self.errors['T'], round_precision), round(self.errors['T']/norm(self.f['T_'], 'L2'), round_precision)))
+        if self.config['gamma'] > 0:
+            self.log('  ||S|| = {}, ||S||_8 = {}, ||S-S_n|| = {}, ||S-S_n||/||S|| = {}'.format(round(norm(self.f['S_'], 'L2'), round_precision), round(norm(self.f['S_'].vector(), 'linf'), round_precision), round(self.errors['S'], round_precision), round(self.errors['S']/norm(self.f['S_'], 'L2'), round_precision)))
 
     def save_solutions(self):
         """Saves current timestep solutions to XDMF file"""
 
         # t = dt*n
-        t = self.n*self.config['final_time']*self.config['steps_n']
+        t = self.n#*self.config['final_time']/self.config['steps_n']
 
         self.xdmffile_sol.write(self.f['u_'], t)
         self.xdmffile_sol.write(self.f['p_'], t)
@@ -262,9 +256,13 @@ class Simulation(object):
         """Catches CTRL-C when Simulation.run() is going,
         and plot solutions before exiting."""
 
-        flog.info('Simulation stopped at {}, after {} seconds.\n'
+        flog.info('Simulation stopped at {}, after {} steps ({} seconds).\n'
                   'Jumping to plotting before exiting.'.format(
-                    str(datetime.now()), round(time()-self.start_time)))
+                    str(datetime.now()), self.n, round(time()-self.start_time)))
         plot.plot_solutions(self.f)
         os.system('xdg-open "' + self.config['plot_path'] + '"')
         exit(0)
+
+    def log(self, message):
+        if self.n % 10 == 0 or self.config['very_verbose']:
+            flog.info(message)
