@@ -91,7 +91,7 @@ class Simulation(object):
 
         while self.n <= self.iterations_n:
             self.timestep()
-            
+
             if self.maybe_stop():
                 self.log_progress()
                 flog.info('Simulation stopped at {}, after {} steps ({} seconds).'.format(
@@ -109,7 +109,8 @@ class Simulation(object):
         V = self.f['sol'].split()[0].function_space()
         P = self.f['sol'].split()[1].function_space()
         mesh = V.mesh()
-        (l, k) = (V.num_sub_spaces(), P.num_sub_spaces()+1) # f spaces degrees WROOOONGGGG
+        (l, k) = (V.ufl_element().degree(), P.ufl_element().degree()) # f spaces degrees
+        print(l,k)
         self.nonlin_n = 0; residual_u = 1e22
         (self.f['u_n'], self.f['p_n']) = self.f['sol'].split(True)
         step_size = 1/self.config['steps_n']
@@ -145,7 +146,7 @@ class Simulation(object):
             u_n = self.f['u_n'];
             v = self.f['v']; q = self.f['q']
             T_n = self.f['T_n']; S_n = self.f['S_n']
-            
+
             # Define and solve NS problem
             steady_form = build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau, T_n, S_n)
             solve(fenics.lhs(steady_form) == fenics.rhs(steady_form),
