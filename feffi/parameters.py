@@ -18,10 +18,10 @@ def define_parameters(user_config={}):
     Takes a default config file to begin with and overwrites any of its
     entries which are also supplied through a user-given config file or dict.
 
-	Remarks:
+    Remarks:
     1) Just the act of `import feffi` already sets up a default
     configuration.
-	2) Errors/warnings happening in this function are NOT regularly
+    2) Errors/warnings happening in this function are NOT regularly
     logged. They are only printed. This is because init_logging is called after
     parameters have been defined (since plot_path is not set earlier).
     3) Config file feffi/config/default.yml should contain ALL config entries.
@@ -110,7 +110,9 @@ def init_logging():
     file located in config['plot_path'].
     """
 
-    flog.setLevel(logging.INFO)
+    feffi_log_level = logging.DEBUG if config['very_verbose'] else logging.INFO
+
+    flog.setLevel(feffi_log_level)
     # dark magic https://stackoverflow.com/a/44426266 to avoid messages showing up multiple times
     flog.propagate=False
 
@@ -125,18 +127,22 @@ def init_logging():
         os.path.join(config['plot_path'], 'simulation.log'),
         mode='w',
         encoding='utf-8')
-    fh.setLevel(logging.INFO)
+    fh.setLevel(feffi_log_level)
     #fh.setFormatter(formatter)
     logging.getLogger('feffi').addHandler(fh)
 
     th = logging.StreamHandler()
-    th.setLevel(logging.INFO)
+    th.setLevel(feffi_log_level)
     #th.setFormatter(formatter)
     logging.getLogger('feffi').addHandler(th)
 
-    # Reduce FEniCS logging to WARNING only
-    logging.getLogger('UFL').setLevel(logging.WARNING)
-    logging.getLogger('FFC').setLevel(logging.WARNING)
+    # Reduce FEniCS logging
+    if config['very_verbose']:
+        fenics.set_log_level(logging.WARNING) #default is INFO
+    else:
+        fenics.set_log_level(logging.ERROR)
+    #logging.getLogger('UFL').setLevel(logging.WARNING)
+    #logging.getLogger('FFC').setLevel(logging.WARNING)
 
 def parse_commandline_args():
     """Provides support for command line arguments through argparse.
@@ -333,6 +339,16 @@ def parse_commandline_args():
         type=int,
         dest='degree_S',
         help='Salinity function space degree.')
+    parser.add_argument(
+        '--',
+        type=int,
+        dest='degree_S',
+        help='Salinity function space degree.')
+    parser.add_argument(
+        '-vv, --very-verbose',
+        dest='very_verbose',
+        action='store_true',
+        help='Whether to display debug information.')
 
     commandline_args = parser.parse_args()
     commandline_args_dict = {arg: getattr(
