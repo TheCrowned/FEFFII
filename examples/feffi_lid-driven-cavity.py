@@ -52,7 +52,6 @@ mesh = mesh.create_mesh()
 f_spaces = functions.define_function_spaces(mesh)
 f = functions.define_functions(f_spaces)
 #functions.init_functions(f) # Init functions to closest steady state
-#(stiffness_mats, load_vectors) = functions.define_variational_problems(f, mesh)
 
 domain = boundaries.Domain(mesh, f_spaces)
 
@@ -60,7 +59,7 @@ flog.info(
     '## Running lid driven benchmark with parameters \n{} ##'.format(
         parameters.config))
 
-simul = simulation.Simulation(f, {}, {}, domain.BCs)
+simul = simulation.Simulation(f, domain.BCs)
 simul.run()
 
 

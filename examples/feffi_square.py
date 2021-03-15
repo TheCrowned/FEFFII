@@ -33,14 +33,11 @@ f = feffi.functions.define_functions(f_spaces)
 # Initialize functions to closest steady state to speed up convergence
 feffi.functions.init_functions(f)
 
-# Define variational problems
-(stiffness_mats, load_vectors) = feffi.functions.define_variational_problems(f, mesh)
-
 # Define boundaries and boundary conditions as given in config
 domain = feffi.boundaries.Domain(mesh, f_spaces)
 
 # Initializes a feffi simulation
-simulation = feffi.simulation.Simulation(f, stiffness_mats, load_vectors, domain.BCs)
+simulation = feffi.simulation.Simulation(f, domain.BCs)
 
 # Run simulation until a stopping criteria is met. You may also advance by
 # individual timesteps with `simulation.timestep()`
