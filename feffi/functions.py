@@ -99,7 +99,7 @@ def init_functions(f, **kwargs):
         interpolate(
             Constant(config['S_0']),
             f['S_n'].ufl_function_space()))
-            
+
     #It makes no sense to init p without splitting scheme?
     '''f['p_n'].assign(
         interpolate(
@@ -154,10 +154,39 @@ def build_buoyancy(T_, S_):
         T_ = T_, S_ = S_,
         degree=2)
 
-def build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau, T_, S_):
+def build_NS_GLS_steady_form(a, u, u_n, p, v, q, T_, S_):
     """Build Navier-Stokes steady state weak form + GLS stabilization."""
 
     dt = 1/parameters.config['steps_n']
+
+    # ------------------------
+    # Setting stab. parameters
+    # ------------------------
+
+    # Init some stuff
+
+    # It would be nice to get V,P degrees from the respective function spaces,
+    # as V_deg = u.function_space().ufl_element().degree(), but it seems not
+    # possible with u,p coming from the splitting or w defined on a MixedSpace.
+
+    mesh = u.ufl_domain().ufl_cargo()
+    (l, k) = (parameters.config['degree_V'], parameters.config['degree_P']) # f spaces degrees
+    nu_min = min(parameters.config['nu']) #smallest nu yields biggest Re number -> most unstable
+    hmin = mesh.hmin(); hmax = mesh.hmax()
+    delta0 = parameters.config['delta0'] #1 # "tuning parameter" > 0
+    tau0 = parameters.config['tau0'] #35 if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
+
+    #norm_a = fenics.norm(a) #seems to affect in negative way, and ||a|| is rarely huge
+    norm_a = 1;
+
+    # Proper definition of stab parameters delta and tau
+    Rej = norm_a*hmin/(2*nu_min)
+    delta = delta0*hmin*min(1, Rej/3)/norm_a
+    tau = tau0*max(nu_min, hmin)
+
+    # Build form
+    flog.debug('Building stabilized steady form with Rej = {}; delta = {}; tau = {}'.format(
+        round(Rej, 5), round(delta, 5), round(tau, 5)))
 
     b = build_buoyancy(T_, S_)
     f = u_n/dt + b
@@ -193,7 +222,7 @@ def build_temperature_form(T, T_n, T_v, u_):
     return ( dot((T - T_n)/dt, T_v)*dx
            + div(u_*T)*T_v*dx
            + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx )
-           
+
 def build_salinity_form(S, S_n, S_v, u_):
     """Define salinity variational problem.
     Calls build_temperature_form with salinity variables inside.
@@ -215,6 +244,3 @@ def build_salinity_form(S, S_n, S_v, u_):
 def get_matrix_diagonal(mat):
     diag = [mat[i][i] for i in range(mat.ufl_shape[0])]
     return fenics.as_vector(diag)
-
-def define_variational_problems(f, mesh, **kwargs):
-    return {}, {}
