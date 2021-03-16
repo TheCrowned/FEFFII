@@ -20,10 +20,6 @@ class Simulation(object):
     ----------
     f : dict
         Fenics functions used in variational formulations.
-    stiffness_mats : dict
-        Stiffness matrices derived from variational forms.
-    load_vectors: dict
-        Load vectors derived from variational forms
     BCs : dict
         Boundary conditions to be applied, as found in
         feffi.boundaries.Domain.BCs.
@@ -47,24 +43,21 @@ class Simulation(object):
         mesh = feffi.mesh.create_mesh(domain='square')
         f_spaces = feffi.functions.define_function_spaces()
         f = feffi.functions.define_functions(f_spaces)
-        (stiffness_mats, load_vectors) = feffi.functions.define_variational_problems(f, mesh)
         domain = feffi.boundaries.Domain(
             mesh,
             f_spaces,
             domain='square'
         )
-        simulation = feffi.simulation.Simulation(f, stiffness_mats, load_vectors, domain.BCs)
+        simulation = feffi.simulation.Simulation(f, domain.BCs)
         simulation.run()
         feffi.plot.plot_solutions(f, display = True)
     """
 
-    def __init__(self, f, stiffness_mats, load_vectors, BCs, **kwargs):
+    def __init__(self, f, BCs, **kwargs):
         # Allow function arguments to overwrite wide config (but keep it local)
         self.config = dict(parameters.config); self.config.update(kwargs)
 
         self.f = f
-        self.stiffness_mats = stiffness_mats
-        self.load_vectors = load_vectors
         self.BCs = BCs
         self.n = 0
         self.iterations_n = self.config['steps_n']*int(self.config['final_time'])
@@ -106,48 +99,23 @@ class Simulation(object):
         # ---------------------
 
         # Init some vars
-        V = self.f['sol'].split()[0].function_space()
-        P = self.f['sol'].split()[1].function_space()
-        mesh = V.mesh()
-        (l, k) = (V.ufl_element().degree(), P.ufl_element().degree()) # f spaces degrees
         self.nonlin_n = 0; residual_u = 1e22
         (self.f['u_n'], self.f['p_n']) = self.f['sol'].split(True)
-        step_size = 1/self.config['steps_n']
-        nu = self.config['nu']
-        hmin = mesh.hmin(); hmax = mesh.hmax()
         tol = 10**self.config['simulation_precision']
-        delta0 = self.config['delta0'] #1 # "tuning parameter" > 0
-        tau0 = self.config['tau0'] #35 if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
 
         # Solve the non linearity
         flog.debug('Iteratively solving non-linear problem')
         while residual_u > tol and self.nonlin_n <= self.config['non_linear_max_iter']:
+            a = self.f['sol'].split(True)[0] #this is the "u_n" of this non-linear loop
 
-            a = self.f['sol'].split(True)[0]
-
-            # ------------------------
-            # Setting stab. parameters
-            # ------------------------
-
-            #norm_a = fenics.norm(a)
-            norm_a = 1;
-            if norm_a == 0: #first iteration, a = 0 -> would div by zero
-               norm_a = 1
-
-            Rej = norm_a*hmin/(2*nu[0])
-            delta = delta0*hmin*min(1, Rej/3)/norm_a
-            tau = tau0*max(nu[0], hmin)
-
-            flog.debug('n = {}; Rej = {}; delta = {}; tau = {}'.format(
-                self.nonlin_n, round(Rej, 5), round(delta, 5), round(tau, 5)))
-
+            # Shorthand for variables
             u = self.f['u']; p = self.f['p']
             u_n = self.f['u_n'];
             v = self.f['v']; q = self.f['q']
             T_n = self.f['T_n']; S_n = self.f['S_n']
 
             # Define and solve NS problem
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau, T_n, S_n)
+            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, v, q, T_n, S_n)
             solve(fenics.lhs(steady_form) == fenics.rhs(steady_form),
                   self.f['sol'], bcs=self.BCs['V']+self.BCs['Q'])
 
