@@ -99,7 +99,7 @@ def init_functions(f, **kwargs):
         interpolate(
             Constant(config['S_0']),
             f['S_n'].ufl_function_space()))
-            
+
     #It makes no sense to init p without splitting scheme?
     '''f['p_n'].assign(
         interpolate(
@@ -115,7 +115,7 @@ def N(a, u, p):
     Corresponds to operator L(U) in LBB paper."""
 
     dt = 1/parameters.config['steps_n']
-    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])[0]
+    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])
     rho_0 = parameters.config['rho_0']
 
     return u/dt - div(elem_mult(nu, nabla_grad(u))) + dot(a, nabla_grad(u)) + grad(p)/rho_0
@@ -170,6 +170,8 @@ def build_NS_GLS_steady_form(a, u, u_n, p, v, q, delta, tau, T_, S_):
         if tau > 0:
             steady_form += tau*(dot(div(u), div(v)))*dx
 
+        flog.debug('Stabilization terms added to variational form')
+
     return steady_form
 
 def build_temperature_form(T, T_n, T_v, u_):
@@ -193,7 +195,7 @@ def build_temperature_form(T, T_n, T_v, u_):
     return ( dot((T - T_n)/dt, T_v)*dx
            + div(u_*T)*T_v*dx
            + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx )
-           
+
 def build_salinity_form(S, S_n, S_v, u_):
     """Define salinity variational problem.
     Calls build_temperature_form with salinity variables inside.
