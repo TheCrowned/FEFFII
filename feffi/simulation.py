@@ -1,5 +1,4 @@
-from fenics import * # assemble, File, solve, norm, XDMFFile
-import fenics
+from fenics import assemble, File, solve, norm, XDMFFile, lhs, rhs, errornorm
 from math import log
 from pathlib import Path
 from time import time
@@ -9,6 +8,7 @@ import os
 import logging
 import signal
 import numpy as np
+import yaml
 from . import parameters, plot
 from .functions import build_NS_GLS_steady_form, build_temperature_form, build_salinity_form
 flog = logging.getLogger('feffi')
@@ -69,7 +69,7 @@ class Simulation(object):
 
             # Store mesh and first step solutions
             self.xdmffile_sol.write(self.f['u_'].function_space().mesh())
-            self.save_solutions()
+            self.save_solutions_xdmf()
 
         flog.info('Initialized simulation')
 
@@ -87,6 +87,7 @@ class Simulation(object):
 
             if self.maybe_stop():
                 self.log_progress()
+                self.save_solutions_final()
                 flog.info('Simulation stopped at {}, after {} steps ({} seconds).'.format(
                     str(datetime.now()), self.n, round(time()-self.start_time)))
                 break
@@ -116,11 +117,11 @@ class Simulation(object):
 
             # Define and solve NS problem
             steady_form = build_NS_GLS_steady_form(a, u, u_n, p, v, q, T_n, S_n)
-            solve(fenics.lhs(steady_form) == fenics.rhs(steady_form),
-                  self.f['sol'], bcs=self.BCs['V']+self.BCs['Q'])
+            solve(lhs(steady_form) == rhs(steady_form), self.f['sol'],
+                  bcs=self.BCs['V']+self.BCs['Q'])
 
             (self.f['u_'], self.f['p_']) = self.f['sol'].split(True)
-            residual_u = fenics.errornorm(self.f['u_'], a)
+            residual_u = errornorm(self.f['u_'], a)
             flog.debug(" >>> residual u: {} <<<\n".format(residual_u))
 
             self.nonlin_n += 1
@@ -136,28 +137,26 @@ class Simulation(object):
         if self.config['beta'] != 0: #do not run if not coupled with velocity
             T_n = self.f['T_n']; T_v = self.f['T_v']; T = self.f['T']; u_ = self.f['u_']
             T_form = build_temperature_form(T, T_n, T_v, u_)
-            solve(fenics.lhs(T_form) == fenics.rhs(T_form),
-                  self.f['T_'], bcs=self.BCs['T'])
+            solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'])
 
         if self.config['gamma'] != 0: #do not run if not coupled with velocity
             S_n = self.f['S_n']; S_v = self.f['S_v']; S = self.f['S']; u_ = self.f['u_']
             S_form = build_salinity_form(S, S_n, S_v, u_)
-            solve(fenics.lhs(S_form) == fenics.rhs(S_form),
-                  self.f['S_'], bcs=self.BCs['S'])
+            solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'])
 
         flog.debug('Solved for T and S.')
 
         self.errors = {
-            'u' : fenics.errornorm(self.f['u_'], self.f['u_n']),
-            'p' : fenics.errornorm(self.f['p_'], self.f['p_n']),
-            'T' : fenics.errornorm(self.f['T_'], self.f['T_n']),
-            'S' : fenics.errornorm(self.f['S_'], self.f['S_n']),
+            'u' : errornorm(self.f['u_'], self.f['u_n']),
+            'p' : errornorm(self.f['p_'], self.f['p_n']),
+            'T' : errornorm(self.f['T_'], self.f['T_n']),
+            'S' : errornorm(self.f['S_'], self.f['S_n']),
         }
 
         self.log_progress()
 
         if self.config['store_solutions']:
-            self.save_solutions()
+            self.save_solutions_xdmf()
 
         # Prepare next timestep
         self.n += 1
@@ -209,16 +208,36 @@ class Simulation(object):
         if self.config['gamma'] > 0:
             self.log('  ||S|| = {}, ||S||_8 = {}, ||S-S_n|| = {}, ||S-S_n||/||S|| = {}'.format(round(norm(self.f['S_'], 'L2'), round_precision), round(norm(self.f['S_'].vector(), 'linf'), round_precision), round(self.errors['S'], round_precision), round(self.errors['S']/norm(self.f['S_'], 'L2'), round_precision)))
 
-    def save_solutions(self):
-        """Saves current timestep solutions to XDMF file"""
+    def save_solutions_xdmf(self):
+        """Saves current timestep solutions to XDMF file (Paraview)"""
 
-        # t = dt*n
-        t = self.n#*self.config['final_time']/self.config['steps_n']
+        #t = self.n*self.config['final_time']/self.config['steps_n']
 
-        self.xdmffile_sol.write(self.f['u_'], t)
-        self.xdmffile_sol.write(self.f['p_'], t)
-        self.xdmffile_sol.write(self.f['T_'], t)
-        self.xdmffile_sol.write(self.f['S_'], t)
+        self.xdmffile_sol.write(self.f['u_'], self.n)
+        self.xdmffile_sol.write(self.f['p_'], self.n)
+        self.xdmffile_sol.write(self.f['T_'], self.n)
+        self.xdmffile_sol.write(self.f['S_'], self.n)
+
+    def save_solutions_final(self):
+        """Saves last timestep solutions to XML files for later reusage in FEniCS"""
+
+        (Path(os.path.join(self.config['plot_path'], 'solutions'))
+            .mkdir(parents=True, exist_ok=True))
+
+        (File(os.path.join(self.config['plot_path'], 'solutions', 'mesh.xml'))
+            << self.f['u_'].function_space().mesh())
+        (File(os.path.join(self.config['plot_path'], 'solutions', 'up.xml'))
+            << self.f['sol'])
+        (File(os.path.join(self.config['plot_path'], 'solutions', 'T.xml'))
+            << self.f['T_'])
+        (File(os.path.join(self.config['plot_path'], 'solutions', 'S.xml'))
+            << self.f['S_'])
+
+    def save_config(self):
+        """Stores config used for simulation to file"""
+
+        yaml.dump(self.config,
+                  open(os.path.join(self.config['plot_path'], 'config.yml'), 'w'))
 
     def sigint_handler(self, sig, frame):
         """Catches CTRL-C when Simulation.run() is going,
@@ -227,6 +246,7 @@ class Simulation(object):
         flog.info('Simulation stopped at {}, after {} steps ({} seconds).\n'
                   'Jumping to plotting before exiting.'.format(
                     str(datetime.now()), self.n, round(time()-self.start_time)))
+        self.save_solutions_final()
         plot.plot_solutions(self.f)
         os.system('xdg-open "' + self.config['plot_path'] + '"')
         exit(0)
