@@ -5,6 +5,8 @@ import argparse
 import fenics
 import time
 from pathlib import Path
+from .functions import define_function_spaces, define_functions
+from .boundaries import Domain
 
 flog = logging.getLogger('feffi')
 config = {}
@@ -356,6 +358,45 @@ def parse_commandline_args():
 
     define_parameters(purged_commandline_args_dict)
 
+def reload_status(plot_path):
+    """Reload previous FEFFI status.
+    Will read from a previous plot path and restore config, mesh and functions.
+    After reloading status, one can jump straight to simulation.
+
+    Parameters
+    ----------
+    plot_path : (str) directory containing a `config.yml` file and a sub-directory
+                `solutions` with files `u.xml`, `p.xml`, `T.xml`, `S.xml`.
+
+    Return
+    ------
+    f : (dict)
+    domain : FEFFI Domain object
+    mesh : FEniCS Mesh
+    f_spaces : (dict)
+    """
+
+    global config
+
+    # Load config
+    config_file_path = os.path.join(plot_path, 'config.yml')
+    config = yaml.safe_load(open(config_file_path))
+    config['config_file'] = config_file_path
+
+    # Load mesh, define function spaces and functions
+    mesh = fenics.Mesh(os.path.join(plot_path, 'solutions', 'mesh.xml'))
+    f_spaces = define_function_spaces(mesh)
+    f = define_functions(f_spaces)
+    domain = Domain(mesh, f_spaces)
+
+    # Load functions
+    fenics.File(os.path.join(plot_path, 'solutions', 'up.xml')) >> f['sol']
+    fenics.File(os.path.join(plot_path, 'solutions', 'T.xml')) >> f['T_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'T.xml')) >> f['T_n']
+    fenics.File(os.path.join(plot_path, 'solutions', 'S.xml')) >> f['S_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'S.xml')) >> f['S_n']
+
+    return f, domain, mesh, f_spaces
 
 def assemble_viscosity_tensor(visc):
     """Creates a proper viscosity tensor given relevant values.
