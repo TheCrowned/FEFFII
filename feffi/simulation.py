@@ -62,6 +62,9 @@ class Simulation(object):
         self.n = 0
         self.iterations_n = self.config['steps_n']*int(self.config['final_time'])
 
+        if config.get('convert_from_ms_to_kmh'):
+            parameters.convert_from_ms_to_kmh_input()
+
         if self.config['store_solutions']:
             self.xdmffile_sol = XDMFFile(os.path.join(self.config['plot_path'], 'solutions.xdmf'))
             self.xdmffile_sol.parameters["flush_output"] = True #https://github.com/FEniCS/dolfinx/issues/75

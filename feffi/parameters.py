@@ -452,3 +452,17 @@ def assemble_viscosity_tensor(visc):
             "Viscosity needs 1, 2 or 4 entries input, %d given" % len(visc))
 
     return output
+
+def convert_from_ms_to_kmh_input(config):
+    """
+    """
+
+    config['g'] *= 3.6*3.6*1000
+    config['rho_0'] /= 3.6**2
+    config['nu'] = [i*0.0036 for i in config['nu']]
+
+def convert_from_ms_to_kmh_output(f):
+    """
+    """
+
+    f['u_'] /= 3.6
