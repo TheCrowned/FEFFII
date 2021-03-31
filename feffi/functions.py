@@ -85,19 +85,31 @@ def init_functions(f, **kwargs):
     ----------
     f : dict
         Functions to initialize
-    kwargs : `T_0`, `S_0`, `rho_0`, `g` (refer to README for info).
+    kwargs : `T_0`, `S_0`, `rho_0`, `g`, `T_init`, `S_init` (refer to README for info).
     """
 
     # Allow function arguments to overwrite wide config (but keep it local)
     config = dict(parameters.config); config.update(kwargs)
 
+    if(config.get('T_init') == None or len(config['T_init']) == 0):
+        config['T_init'] = 'T_0'
+
+    if(config.get('S_init') == None or len(config['S_init']) == 0):
+        config['S_init'] = 'S_0'
+
     f['T_n'].assign(
         interpolate(
-            Constant(config['T_0']),
+            Expression(
+                config['T_init'],
+                T_0 = config['T_0'], # needed for fallback if T_init is not given
+                degree = 2), # would be nice to allow all config variables?,
             f['T_n'].ufl_function_space()))
     f['S_n'].assign(
         interpolate(
-            Constant(config['S_0']),
+            Expression(
+                config['S_init'],
+                S_0 = config['S_0'],
+                degree = 2),
             f['S_n'].ufl_function_space()))
 
     #It makes no sense to init p without splitting scheme?
