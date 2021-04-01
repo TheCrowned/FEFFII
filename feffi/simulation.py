@@ -62,7 +62,7 @@ class Simulation(object):
         self.n = 0
         self.iterations_n = self.config['steps_n']*int(self.config['final_time'])
 
-        if config.get('convert_from_ms_to_kmh'):
+        if self.config.get('convert_from_ms_to_kmh'):
             parameters.convert_from_ms_to_kmh_input()
 
         if self.config['store_solutions']:
