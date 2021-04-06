@@ -6,7 +6,7 @@ degree_P: 1
 degree_T: 1
 degree_S: 1
 
-convert_from_ms_to_kmh_input: False
+convert_from_ms_to_kmh: False
 g: 9.81
 nu: 
 - 100

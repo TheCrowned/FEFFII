@@ -89,7 +89,7 @@ def define_parameters(user_config={}):
     if isinstance(user_config, dict):
         config.update(user_config)
     else:
-        print('Supplied non-dictionary user config')
+        print('Supplied non-dictionary user config, ignoring')
 
     # Define and create plot path in case not already given by config file
     if(config.get('plot_path') == None or len(config['plot_path']) == 0):
@@ -99,6 +99,9 @@ def define_parameters(user_config={}):
             '{}'.format(round(time.time())))
 
     Path(config['plot_path']).mkdir(parents=True, exist_ok=True)
+
+    if config.get('convert_from_ms_to_kmh'):
+        convert_from_ms_to_kmh_input(config)
 
     init_logging()
 
@@ -345,6 +348,11 @@ def parse_commandline_args():
         dest='very_verbose',
         action='store_true',
         help='Whether to display debug information.')
+    parser.add_argument(
+        '--ms-to-kmh',
+        dest='convert_from_ms_to_kmh',
+        action='store_true',
+        help='Whether to convert input constants (nu, g, rho_0) from m/s to km/h.')
 
     commandline_args = parser.parse_args()
     commandline_args_dict = {arg: getattr(
@@ -460,6 +468,7 @@ def convert_from_ms_to_kmh_input(config):
     config['g'] *= 3.6*3.6*1000
     config['rho_0'] /= 3.6**2
     config['nu'] = [i*0.0036 for i in config['nu']]
+    config['alpha'] = [i*0.0036 for i in config['alpha']]
 
 def convert_from_ms_to_kmh_output(f):
     """
