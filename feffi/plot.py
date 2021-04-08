@@ -55,7 +55,7 @@ def plot_single(to_plot, **kwargs):
     if kwargs.get('display') != None and kwargs['display'] == True:
         plt.show()
     if kwargs.get('file_name') != None and kwargs['file_name'] != '':
-        plt.savefig(os.path.join(config['plot_path'], kwargs['file_name']), dpi = 800)
+        plt.savefig(os.path.join(config['plot_path'], kwargs['file_name']), dpi = 1000)
 
     plt.close()
 
@@ -78,6 +78,7 @@ def plot_solutions(f, **kwargs):
     plot_single(f['p_'], file_name='pressure.png', title='Pressure', **kwargs)
     plot_single(f['T_'], file_name='temperature.png', title='Temperature', **kwargs)
     plot_single(f['S_'], file_name='salinity.png', title='Salinity', **kwargs)
+    plot_single(f['u_'].function_space().mesh(), file_name='mesh.png', title='Mesh', **kwargs)
 
     '''fig = plot(div(u_), title='Velocity divergence')
     plt.colorbar(fig)
