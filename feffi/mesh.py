@@ -1,6 +1,8 @@
 import fenics
 import logging
 from feffi.shelfgeometry import ShelfGeometry
+import numpy as np
+from math import sqrt
 from . import parameters
 
 flog = logging.getLogger('feffi')
@@ -64,26 +66,59 @@ def create_mesh(**kwargs):
 
     return mesh
 
-    '''def mesh_add_sill(self, center, height, length):
-        """Deforms mesh coordinates to create the bottom bump"""
+def add_sill(mesh, center, height, width):
+    """Performs (in-place) mesh deformation to create a bottom sill.
 
-        x = self.mesh.coordinates()[:, 0]
-        y = self.mesh.coordinates()[:, 1]
+    Run this *after* domains have been marked through
+    boundaries.Domain.mark_boundaries(), otherwise the sill countour will
+    not have proper BCs applied.
 
-        alpha = 4*height/length**2
-        sill_function = lambda x : ((-alpha*(x - center)**2) + height)
-        sill_left = center - sqrt(height/alpha)
-        sill_right = center + sqrt(height/alpha)
+    Parameters
+    ----------
+    mesh : Mesh to deform
+    center : (int) center x-coordinate of sill
+    height : (int) height of the tip
+    width : (int) width x-wise of sill
 
-        new_y = [y[i] + sill_function(x[i])*(1-y[i]) if(x[i] < sill_right and x[i] > sill_left) else 0 for i in range(len(y))]
-        y = np.maximum(y, new_y)
+    Examples
+    --------
 
-        self.mesh.coordinates()[:] = np.array([x, y]).transpose()
+    """
 
-        #self.sill = {'f':sill_function, 'left':sill_left, 'right':sill_right}
-        #self.bd.sill = self.sill
+    x = mesh.coordinates()[:, 0]
+    y = mesh.coordinates()[:, 1]
 
-    def refine_mesh_at_point(self, target):
+    alpha = 4*height/width**2
+    sill_limit_left = center - sqrt(height/alpha)
+    sill_limit_right = center + sqrt(height/alpha)
+
+    if (sill_limit_left < 0 or
+       (parameters.config['domain'] == 'square' and sill_limit_right > 1) or
+       (parameters.config['domain'] == 'fjord' and sill_limit_right > parameters.config['domain_size_x'])):
+        raise ValueError('Sill x-boundaries ({}, {}) lie out of domain margins ({}, {}).'
+                         .format(sill_limit_left, sill_limit_right, 0, parameters.config['domain_size_x']))
+
+    if ((parameters.config['domain'] == 'square' and height > 1) or
+        (parameters.config['domain'] == 'fjord' and height > parameters.config['domain_size_y'])):
+        raise ValueError('Sill y-tip {} lie out of domain margin {}.'
+                         .format(height, parameters.config['domain_size_y']))
+
+    sill_f = lambda x : ((-alpha * (x-center)**2) + height)
+
+    new_y = list(y)
+    for i in range(len(new_y)):
+        if(x[i] < sill_limit_right and x[i] > sill_limit_left):
+            new_y[i] = y[i] + sill_f(x[i])*(1-y[i])
+        else:
+            new_y[i] = 0
+
+    # Pointwise max to obtain not only new contour, but also correct
+    # mesh outside of the sill area.
+    y = np.maximum(y, new_y)
+
+    mesh.coordinates()[:] = np.array([x, y]).transpose()
+
+    '''def refine_mesh_at_point(self, target):
         """Refines mesh at a given point, taking points in a ball of radius mesh.hmax() around the target.
 
         A good resource https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html"""

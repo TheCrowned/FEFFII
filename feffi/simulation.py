@@ -54,6 +54,7 @@ class Simulation(object):
         self.BCs = BCs
         self.n = 0
         self.iterations_n = parameters.config['steps_n']*int(parameters.config['final_time'])
+        self.relative_errors = {}
 
         if parameters.config['store_solutions']:
             self.xdmffile_sol = XDMFFile(os.path.join(parameters.config['plot_path'], 'solutions.xdmf'))
@@ -61,7 +62,7 @@ class Simulation(object):
             self.xdmffile_sol.parameters["functions_share_mesh"] = True
 
             # Store mesh and first step solutions
-            self.xdmffile_sol.write(self.f['u_'].function_space().mesh())
+            #self.xdmffile_sol.write(self.f['u_'].function_space().mesh())
             self.save_solutions_xdmf()
 
         flog.info('Initialized simulation\n'+
@@ -141,12 +142,10 @@ class Simulation(object):
 
         flog.debug('Solved for T and S.')
 
-        self.relative_errors = {
-            'u' : errornorm(self.f['u_'], self.f['u_n'])/norm(self.f['u_'], 'L2'),
-            'p' : errornorm(self.f['p_'], self.f['p_n'])/norm(self.f['p_'], 'L2'),
-            'T' : errornorm(self.f['T_'], self.f['T_n'])/norm(self.f['T_'], 'L2'),
-            'S' : errornorm(self.f['S_'], self.f['S_n'])/norm(self.f['S_'], 'L2'),
-        }
+        self.relative_errors['u'] = errornorm(self.f['u_'], self.f['u_n'])/norm(self.f['u_'], 'L2')
+        self.relative_errors['p'] = errornorm(self.f['p_'], self.f['p_n'])/norm(self.f['p_'], 'L2')
+        self.relative_errors['T'] = errornorm(self.f['T_'], self.f['T_n'])/norm(self.f['T_'], 'L2') if norm(self.f['T_'], 'L2') != 0 else 0
+        self.relative_errors['S'] = errornorm(self.f['S_'], self.f['S_n'])/norm(self.f['S_'], 'L2') if norm(self.f['S_'], 'L2') != 0 else 0
 
         self.log_progress()
 

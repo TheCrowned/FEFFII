@@ -5,6 +5,9 @@ from . import functions
 from . import boundaries
 from . import simulation
 from . import plot
+import fenics
+
+fenics.parameters['allow_extrapolation'] = True
 
 flog = logging.getLogger('feffi')
 
