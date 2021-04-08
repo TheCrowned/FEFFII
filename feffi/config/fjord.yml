@@ -3,8 +3,9 @@ final_time: 10000000
 steps_n: 10
 stop_at_stability: False
 simulation_precision: -3
-store_solutions: True
-max_iter: 2
+max_iter: 120
+store_solutions: False
+checkpoint_interval: 2
 
 convert_from_ms_to_kmh: True
 rho_0: 1028

@@ -1,3 +1,6 @@
 *.png
 __pycache__
 simulation.log
+*.xml
+*.xdmf
+*.h5
