@@ -150,6 +150,13 @@ class Simulation(object):
 
         self.log_progress()
 
+        # Safe checkpoint - python read-able
+        if parameters.config['checkpoint_interval'] != 0:
+            if self.n % parameters.config['checkpoint_interval'] == 0:
+                print('  --- Save Checkpoint at Timestep {} ---  '.format(self.n))
+                self.save_solutions_final()
+
+        # store solution for paraview
         if parameters.config['store_solutions']:
             self.save_solutions_xdmf()
 
@@ -237,11 +244,11 @@ class Simulation(object):
 
         (File(os.path.join(parameters.config['plot_path'], 'solutions', 'mesh.xml'))
             << self.f['u_'].function_space().mesh())
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'up.xml'))
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'up_{}.xml'.format(self.n)))
             << self.f['sol'])
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'T.xml'))
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'T_{}.xml'.format(self.n)))
             << self.f['T_'])
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'S.xml'))
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'S_{}.xml'.format(self.n)))
             << self.f['S_'])
 
     def save_config(self):
