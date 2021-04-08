@@ -348,11 +348,13 @@ def parse_commandline_args():
         dest='very_verbose',
         action='store_true',
         help='Whether to display debug information.')
+    parser.set_defaults(very_verbose=None)
     parser.add_argument(
         '--ms-to-kmh',
         dest='convert_from_ms_to_kmh',
         action='store_true',
         help='Whether to convert input constants (nu, g, rho_0) from m/s to km/h.')
+    parser.set_defaults(convert_from_ms_to_kmh=None)
 
     commandline_args = parser.parse_args()
     commandline_args_dict = {arg: getattr(
@@ -363,7 +365,7 @@ def parse_commandline_args():
     purged_commandline_args_dict = {
         key: val for key, val in commandline_args_dict.items()
         if val is not None}
-
+    print(purged_commandline_args_dict)
     define_parameters(purged_commandline_args_dict)
 
 def reload_status(plot_path):
