@@ -1,7 +1,6 @@
 
 final_time: 10000000
 steps_n: 10
-stop_at_stability: False
 simulation_precision: -3
 max_iter: 120
 store_solutions: False
