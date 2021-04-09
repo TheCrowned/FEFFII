@@ -30,6 +30,8 @@ mesh_resolution_sea_y: 1
 
 very_verbose: False
 store_solutions: False
+checkpoint_interval: 0
+
 label: ''
 max_iter: 0
 non_linear_max_iter: 30
