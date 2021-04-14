@@ -9,7 +9,7 @@ python examples/feffi_lid-driven-cavity.py --nu 1e-4 --final-time 1e10 --steps-n
 
 python examples/feffi_buoyancy-driven-cavity.py --beta 1000 --final-time 1e10 --steps-n 100 --store-sol -vv --plot-path "plots/BDC_1000_stepsn_100"
 python examples/feffi_buoyancy-driven-cavity.py --beta 10000 --final-time 1e10 --steps-n 100 --store-sol -vv --plot-path "plots/BDC_10000_stepsn_100"
-python examples/feffi_buoyancy-driven-cavity.py --beta 10000 --final-time 1e10 --steps-n 100 --store-sol -vv --plot-path "plots/BDC_100000_stepsn_100"
-python examples/feffi_buoyancy-driven-cavity.py --beta 10000 --final-time 1e10 --steps-n 100 --store-sol -vv --plot-path "plots/BDC_1000000_stepsn_100"
+python examples/feffi_buoyancy-driven-cavity.py --beta 100000 --final-time 1e10 --steps-n 100 --store-sol -vv --plot-path "plots/BDC_100000_stepsn_100"
+python examples/feffi_buoyancy-driven-cavity.py --beta 1000000 --final-time 1e10 --steps-n 350 --store-sol -vv --plot-path "plots/BDC_1000000_stepsn_350"
 
-python examples/feffi_buoyancy-driven-cavity.py --config-file "feffi/config/rayleigh-benard-convection.yml" --beta 1000 --final-time 1e10 --steps-n 100 --store-sol -vv --plot-path "plots/RBC_1000_stepsn_100" 
+python examples/feffi_buoyancy-driven-cavity.py --config-file "feffi/config/rayleigh-benard-convection.yml" --beta 2500 --final-time 1e10 --steps-n 350 --store-sol -vv --plot-path "plots/RBC_1000_stepsn_350" 
