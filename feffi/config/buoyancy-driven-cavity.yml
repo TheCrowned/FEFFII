@@ -1,6 +1,6 @@
 final_time: 1
 steps_n: 50000
-simulation_precision: -4
+simulation_precision: -5
 g: 1
 nu: 
 - 1
@@ -22,5 +22,5 @@ BCs:
     Q:
         '(1,1)': 0
     T:
-        right: 0
-        left: 1
+        right: 1
+        left: 0
