@@ -1,4 +1,4 @@
-from fenics import assemble, File, solve, norm, XDMFFile, lhs, rhs, errornorm
+from fenics import assemble, File, solve, norm, XDMFFile, lhs, rhs, errornorm, UserExpression, Expression, project
 from math import log
 from pathlib import Path
 from time import time
@@ -100,6 +100,35 @@ class Simulation(object):
         (self.f['u_n'], self.f['p_n']) = self.f['sol'].split(True)
         tol = 10**parameters.config['simulation_precision']
 
+        def trapz(f, h, a, b):
+            s = 0
+            z_now = int(b)
+            while z_now < 1: # DOMAIN HEIGHT
+                s += f((a, z_now))
+                b += h
+            s = (s + (f((a, b)) + f((a, 1)))/2)*h
+            return s
+
+        class integralP(UserExpression):
+            def __init__(self, T):
+                self.T_ = T
+                self._ufl_shape = (2,)
+                self._hash = 6548
+            def eval(self, value, x):
+                value[0] = trapz(T_, 0.01, x[0], x[1])
+                value[1] = 0
+            def value_shape(self):
+                return (2,)
+        P_h = integralP(project(self.f['T_'].dx(0), self.f['T_'].function_space()))
+        print(dir(P_h))
+        #P_h = Expression(("integralP(T)", 0),
+        #T=project(self.f['T_'].dx(0), self.f['T_'].function_space()), #integralP=integralP,
+        #degree=2)
+        #P_h = Expression(
+        #    ("trapzz(T, 0.01, x[0], x[1])", 0),
+        #    T=project(self.f['T_'].dx(0), self.f['T_'].function_space()),
+        #    trapzz=trapz, degree=2)
+
         # Solve the non linearity
         flog.debug('Iteratively solving non-linear problem')
         while residual_u > tol and self.nonlin_n <= parameters.config['non_linear_max_iter']:
@@ -112,7 +141,7 @@ class Simulation(object):
             T_n = self.f['T_n']; S_n = self.f['S_n']
 
             # Define and solve NS problem
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, v, q, T_n, S_n)
+            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, P_h, v, q, T_n, S_n)
             solve(lhs(steady_form) == rhs(steady_form), self.f['sol'],
                   bcs=self.BCs['V']+self.BCs['Q'])
 
