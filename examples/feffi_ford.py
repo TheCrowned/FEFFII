@@ -30,8 +30,8 @@ mesh = feffi.mesh.create_mesh() #fenics.RectangleMesh(fenics.Point(0,0), fenics.
 f_spaces = feffi.functions.define_function_spaces(mesh)
 domain = feffi.boundaries.Domain(mesh, f_spaces)
 domain.show_boundaries()
-feffi.mesh.add_sill(mesh, 50, 10.8, 40)
-'''
+feffi.mesh.add_sill(mesh, 50, 0.8, 40)
+
 # Define functions later used in variational forms
 f = feffi.functions.define_functions(f_spaces)
 
@@ -47,9 +47,9 @@ simulation = feffi.simulation.Simulation(f, domain.BCs)
 # Run simulation until a stopping criteria is met. You may also advance by
 # individual timesteps with `simulation.timestep()`
 simulation.run()
-'''
+
 # Plot mesh and solutions, displaying and saving them as png files
 feffi.plot.plot_single(mesh, file_name = 'mesh.png', title = 'Mesh', display = True)
-#feffi.plot.plot_solutions(f, display = False)
+feffi.plot.plot_solutions(f, display = False)
 
 feffi.flog.info('Plots can be found in %s' % feffi.parameters.config['plot_path'])

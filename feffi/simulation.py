@@ -105,22 +105,25 @@ class Simulation(object):
             z_now = int(b)
             while z_now < 1: # DOMAIN HEIGHT
                 s += f((a, z_now))
-                b += h
+                z_now += h
             s = (s + (f((a, b)) + f((a, 1)))/2)*h
             return s
 
         class integralP(UserExpression):
             def __init__(self, T):
-                self.T_ = T
-                self._ufl_shape = (2,)
-                self._hash = 6548
+                self._T = T
+                super().__init__()
             def eval(self, value, x):
-                value[0] = trapz(T_, 0.01, x[0], x[1])
+                #print("integrating ")
+                #print(x)
+                value[0] = trapz(self._T, 0.01, x[0], x[1])
                 value[1] = 0
             def value_shape(self):
                 return (2,)
+        flog.info('Integrating P...')
         P_h = integralP(project(self.f['T_'].dx(0), self.f['T_'].function_space()))
-        print(dir(P_h))
+        flog.info('Integrated P')
+        #print(dir(P_h))
         #P_h = Expression(("integralP(T)", 0),
         #T=project(self.f['T_'].dx(0), self.f['T_'].function_space()), #integralP=integralP,
         #degree=2)
