@@ -138,7 +138,7 @@ def Phi(a, u):
 
     return dot(a, nabla_grad(u))
 
-def B_g(a, u, p, P_h, v, q):
+def B_g(a, u, p, grad_P_h, v, q):
     """Galerkin weak formulation for Navier-Stokes."""
 
     dt = 1/parameters.config['steps_n']
@@ -151,7 +151,7 @@ def B_g(a, u, p, P_h, v, q):
     + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx # sym??
     + (dot(dot(a, nabla_grad(u)), v) )*dx
     - dot(p/rho_0, div(v))*dx
-    - dot(P_h/rho_0, v)*dx
+    - dot(grad_P_h/rho_0, v)*dx
     - dot(p/rho_0, dot(v, n))*ds
     - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
     - dot(div(u), q)*dx )
@@ -202,7 +202,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, P_h, v, q, T_, S_):
         round(Rej, 5), round(delta, 5), round(tau, 5)))
 
     b = build_buoyancy(T_, S_)
-    f = u_n/dt + b
+    f = u_n/dt #+ b
     steady_form = B_g(a, u, p, P_h, v, q) - dot(f, v)*dx
 
     if parameters.config['stabilization']:
