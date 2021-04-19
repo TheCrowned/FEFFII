@@ -125,6 +125,8 @@ def init_logging():
     if len(flog.handlers) != 0:
         flog.handlers = []
 
+    log_format = logging.Formatter('%(asctime)s - %(message)s', datefmt='[%H:%M:%S]')
+
     # Create two handlers:
     # one for file logging, another for terminal (stream) logging
     fh = logging.FileHandler(
@@ -132,12 +134,12 @@ def init_logging():
         mode='w',
         encoding='utf-8')
     fh.setLevel(feffi_log_level)
-    #fh.setFormatter(formatter)
+    fh.setFormatter(log_format)
     logging.getLogger('feffi').addHandler(fh)
 
     th = logging.StreamHandler()
     th.setLevel(feffi_log_level)
-    #th.setFormatter(formatter)
+    th.setFormatter(log_format)
     logging.getLogger('feffi').addHandler(th)
 
     # Reduce FEniCS logging
@@ -353,6 +355,7 @@ def parse_commandline_args():
         dest='convert_from_ms_to_kmh',
         action='store_true',
         help='Whether to convert input constants (nu, g, rho_0) from m/s to km/h.')
+    parser.set_defaults(convert_from_ms_to_kmh=None)
 
     commandline_args = parser.parse_args()
     commandline_args_dict = {arg: getattr(
