@@ -1,4 +1,5 @@
 from fenics import assemble, File, solve, norm, XDMFFile, lhs, rhs, errornorm, UserExpression, Expression, project
+import fenics
 from math import log
 from pathlib import Path
 from time import time
@@ -120,17 +121,14 @@ class Simulation(object):
                 value[1] = 0
             def value_shape(self):
                 return (2,)
-        flog.info('Integrating P...')
-        P_h = integralP(project(self.f['T_'].dx(0), self.f['T_'].function_space()))
-        flog.info('Integrated P')
-        #print(dir(P_h))
-        #P_h = Expression(("integralP(T)", 0),
-        #T=project(self.f['T_'].dx(0), self.f['T_'].function_space()), #integralP=integralP,
-        #degree=2)
-        #P_h = Expression(
-        #    ("trapzz(T, 0.01, x[0], x[1])", 0),
-        #    T=project(self.f['T_'].dx(0), self.f['T_'].function_space()),
-        #    trapzz=trapz, degree=2)
+        flog.debug('Integrating P...')
+        grad_P_h = integralP(project(self.f['T_'].dx(0), self.f['T_'].function_space()))
+        flog.debug('Integrated P')
+        #K = fenics.VectorFunctionSpace(self.f['u_'].function_space().mesh(), 'Lagrange', 1)
+        #k = fenics.interpolate(grad_P_h, K)
+        #flog.info('Interpolated P')
+        #print(norm(k))
+        #exit()
 
         # Solve the non linearity
         flog.debug('Iteratively solving non-linear problem')
@@ -144,7 +142,7 @@ class Simulation(object):
             T_n = self.f['T_n']; S_n = self.f['S_n']
 
             # Define and solve NS problem
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, P_h, v, q, T_n, S_n)
+            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_n, S_n)
             solve(lhs(steady_form) == rhs(steady_form), self.f['sol'],
                   bcs=self.BCs['V']+self.BCs['Q'])
 
@@ -174,8 +172,8 @@ class Simulation(object):
 
         flog.debug('Solved for T and S.')
 
-        self.relative_errors['u'] = errornorm(self.f['u_'], self.f['u_n'])/norm(self.f['u_'], 'L2')
-        self.relative_errors['p'] = errornorm(self.f['p_'], self.f['p_n'])/norm(self.f['p_'], 'L2')
+        self.relative_errors['u'] = errornorm(self.f['u_'], self.f['u_n'])/norm(self.f['u_'], 'L2') if norm(self.f['u_'], 'L2') != 0 else 0
+        self.relative_errors['p'] = errornorm(self.f['p_'], self.f['p_n'])/norm(self.f['p_'], 'L2') if norm(self.f['p_'], 'L2') != 0 else 0
         self.relative_errors['T'] = errornorm(self.f['T_'], self.f['T_n'])/norm(self.f['T_'], 'L2') if norm(self.f['T_'], 'L2') != 0 else 0
         self.relative_errors['S'] = errornorm(self.f['S_'], self.f['S_n'])/norm(self.f['S_'], 'L2') if norm(self.f['S_'], 'L2') != 0 else 0
 

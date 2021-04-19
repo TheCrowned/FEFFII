@@ -29,7 +29,7 @@ mesh = feffi.mesh.create_mesh() #fenics.RectangleMesh(fenics.Point(0,0), fenics.
 # Define V, Q, T, S function spaces
 f_spaces = feffi.functions.define_function_spaces(mesh)
 domain = feffi.boundaries.Domain(mesh, f_spaces)
-domain.show_boundaries()
+#domain.show_boundaries()
 feffi.mesh.add_sill(mesh, 50, 0.8, 40)
 
 # Define functions later used in variational forms
@@ -49,7 +49,7 @@ simulation = feffi.simulation.Simulation(f, domain.BCs)
 simulation.run()
 
 # Plot mesh and solutions, displaying and saving them as png files
-feffi.plot.plot_single(mesh, file_name = 'mesh.png', title = 'Mesh', display = True)
+#feffi.plot.plot_single(mesh, file_name = 'mesh.png', title = 'Mesh', display = False)
 feffi.plot.plot_solutions(f, display = False)
 
 feffi.flog.info('Plots can be found in %s' % feffi.parameters.config['plot_path'])
