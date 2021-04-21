@@ -76,19 +76,7 @@ def plot_solutions(f, **kwargs):
     plot_single(f['u_'], file_name='velxy.png', title='Velocity', **kwargs)
     plot_single(f['u_'][0], file_name='velx.png', title='Velocity X-component', **kwargs)
     plot_single(f['u_'][1], file_name='vely.png', title='Velocity Y-component', **kwargs)
-
-    Phz = fenics.TrialFunction(f['p_'].function_space())
-    q = fenics.TestFunction(f['p_'].function_space())
-    g = fenics.Constant(parameters.config['g'])
-    beta = fenics.Constant(parameters.config['beta'])
-    T_0 = fenics.Constant(parameters.config['T_0'])
-    rho_0 = fenics.Constant(parameters.config['rho_0'])
-    F = Phz.dx(1)/rho_0*q*fenics.dx + g*(1+beta*(f['T_']-T_0)) * q * fenics.dx #constant g is positive
-    k = fenics.Function(f['p_'].function_space())
-    fenics.solve(fenics.lhs(F)==fenics.rhs(F), k, bcs=[fenics.DirichletBC(f['p_'].function_space(), 0, 'near(x[1],1)')])
-    P = f['p_']+k
-
-    plot_single(P, file_name='pressure.png', title='Pressure', **kwargs)
+    plot_single(f['p_'], file_name='pressure.png', title='Pressure', **kwargs)
     plot_single(f['T_'], file_name='temperature.png', title='Temperature', **kwargs)
     plot_single(f['S_'], file_name='salinity.png', title='Salinity', **kwargs)
     plot_single(f['u_'].function_space().mesh(), file_name='mesh.png', title='Mesh', **kwargs)

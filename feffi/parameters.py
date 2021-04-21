@@ -125,7 +125,7 @@ def init_logging():
     if len(flog.handlers) != 0:
         flog.handlers = []
 
-    log_format = logging.Formatter('%(asctime)s - %(message)s', datefmt='[%H:%M:%S]')
+    log_format = logging.Formatter('%(asctime)s %(message)s', datefmt='[%H:%M:%S]')
 
     # Create two handlers:
     # one for file logging, another for terminal (stream) logging

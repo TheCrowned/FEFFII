@@ -98,7 +98,7 @@ class Simulation(object):
 
         # Init some vars
         self.nonlin_n = 0; residual_u = 1e22
-        (self.f['u_n'], self.f['p_n']) = self.f['sol'].split(True)
+        #(self.f['u_n'], self.f['p_n']) = self.f['sol'].split(True)
         tol = 10**parameters.config['simulation_precision']
 
         def trapz(f, h, a, b):
@@ -142,9 +142,11 @@ class Simulation(object):
             T_n = self.f['T_n']; S_n = self.f['S_n']
 
             # Define and solve NS problem
+            flog.debug('Solving for u,p...')
             steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_n, S_n)
             solve(lhs(steady_form) == rhs(steady_form), self.f['sol'],
                   bcs=self.BCs['V']+self.BCs['Q'])
+            flog.debug('Solved for u,p.')
 
             (self.f['u_'], self.f['p_']) = self.f['sol'].split(True)
             residual_u = errornorm(self.f['u_'], a)
@@ -153,6 +155,20 @@ class Simulation(object):
             self.nonlin_n += 1
 
         flog.debug('Solved non-linear problem.')
+
+        # Build full pressure
+        Phz = fenics.TrialFunction(self.f['p_'].function_space())
+        q = fenics.TestFunction(self.f['p_'].function_space())
+        g = fenics.Constant(parameters.config['g'])
+        beta = fenics.Constant(parameters.config['beta'])
+        T_0 = fenics.Constant(parameters.config['T_0'])
+        rho_0 = fenics.Constant(parameters.config['rho_0'])
+        F = Phz.dx(1)/rho_0*q*fenics.dx + g*(1+beta*(self.f['T_']-T_0)) * q * fenics.dx #constant g is positive
+        k = fenics.Function(self.f['p_'].function_space())
+        flog.debug('Solving for Phz...')
+        fenics.solve(fenics.lhs(F)==fenics.rhs(F), k, bcs=[fenics.DirichletBC(self.f['p_'].function_space(), 0, 'near(x[1],1)')])
+        flog.debug('Solved for Phz')
+        self.f['p_'].assign(self.f['p_']+k)
 
         # ------------------------
         # Temperature and salinity
@@ -171,7 +187,6 @@ class Simulation(object):
             solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'])
 
         flog.debug('Solved for T and S.')
-
         self.relative_errors['u'] = errornorm(self.f['u_'], self.f['u_n'])/norm(self.f['u_'], 'L2') if norm(self.f['u_'], 'L2') != 0 else 0
         self.relative_errors['p'] = errornorm(self.f['p_'], self.f['p_n'])/norm(self.f['p_'], 'L2') if norm(self.f['p_'], 'L2') != 0 else 0
         self.relative_errors['T'] = errornorm(self.f['T_'], self.f['T_n'])/norm(self.f['T_'], 'L2') if norm(self.f['T_'], 'L2') != 0 else 0
