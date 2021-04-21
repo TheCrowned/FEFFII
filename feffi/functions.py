@@ -144,6 +144,8 @@ def B_g(a, u, p, grad_P_h, v, q):
     dt = 1/parameters.config['steps_n']
     nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])
     rho_0 = parameters.config['rho_0']
+    g = parameters.config['g']
+    beta = parameters.config['beta']
     n = fenics.FacetNormal(a.function_space().mesh())
 
     return (
@@ -151,7 +153,7 @@ def B_g(a, u, p, grad_P_h, v, q):
     + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx # sym??
     + (dot(dot(a, nabla_grad(u)), v) )*dx
     - dot(p/rho_0, div(v))*dx
-    - dot(grad_P_h/rho_0, v)*dx
+    - dot(g*beta*grad_P_h/rho_0, v)*dx
     - dot(p/rho_0, dot(v, n))*ds
     - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
     - dot(div(u), q)*dx )
@@ -198,7 +200,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, P_h, v, q, T_, S_):
     tau = tau0*max(nu_min, hmin)
 
     # Build form
-    flog.debug('Building stabilized steady form with Rej = {}; delta = {}; tau = {}'.format(
+    flog.debug('Stabilized form with Rej = {}; delta = {}; tau = {}'.format(
         round(Rej, 5), round(delta, 5), round(tau, 5)))
 
     b = build_buoyancy(T_, S_)
@@ -213,6 +215,8 @@ def build_NS_GLS_steady_form(a, u, u_n, p, P_h, v, q, T_, S_):
             steady_form += tau*(dot(div(u), div(v)))*dx
 
         flog.debug('Stabilization terms added to variational form')
+    else:
+        flog.debug('NO Stabilization terms added to variational form')
 
     return steady_form
 
