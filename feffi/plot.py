@@ -82,7 +82,8 @@ def plot_solutions(f, **kwargs):
     g = fenics.Constant(parameters.config['g'])
     beta = fenics.Constant(parameters.config['beta'])
     T_0 = fenics.Constant(parameters.config['T_0'])
-    F = Phz.dx(1)*q*fenics.dx - g*beta*(f['T_']-T_0) * q * fenics.dx #constant g is positive
+    rho_0 = fenics.Constant(parameters.config['rho_0'])
+    F = Phz.dx(1)/rho_0*q*fenics.dx + g*(1+beta*(f['T_']-T_0)) * q * fenics.dx #constant g is positive
     k = fenics.Function(f['p_'].function_space())
     fenics.solve(fenics.lhs(F)==fenics.rhs(F), k, bcs=[fenics.DirichletBC(f['p_'].function_space(), 0, 'near(x[1],1)')])
     P = f['p_']+k
