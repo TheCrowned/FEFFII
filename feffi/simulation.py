@@ -111,9 +111,15 @@ class Simulation(object):
             T_n = self.f['T_n']; S_n = self.f['S_n']
 
             # Define and solve NS problem
+            bcs = []
+            if self.BCs.get('V'):
+                bcs += self.BCs['V']
+            if self.BCs.get('Q'):
+                bcs += self.BCs['Q']
+
             steady_form = build_NS_GLS_steady_form(a, u, u_n, p, v, q, T_n, S_n)
             solve(lhs(steady_form) == rhs(steady_form), self.f['sol'],
-                  bcs=self.BCs['V']+self.BCs['Q'])
+                  bcs=bcs)
 
             (self.f['u_'], self.f['p_']) = self.f['sol'].split(True)
             residual_u = errornorm(self.f['u_'], a)

@@ -12,21 +12,11 @@ import fenics
 # as dictionary entries
 feffi.parameters.define_parameters(
     user_config = {
-        'config_file' : os.path.join('feffi', 'config', 'fjord.yml'),
-        'final_time' : 24,              #simulate 24 hours
-        'domain_size_x' : 5,            #on a domain of width 5
-        'domain_size_y' : 3,            #on a domain of height 3
-        'mesh_resolution_x' : 50,       #mesh resolution x-wise 50
-        'mesh_resolution_y' : 30,       #mesh resolution y-wise 30
-        'mesh_resolution_sea_y' : 3,   #mesh resolution y-wise on sea shelf 3
-    }
-)
+        'config_file' : os.path.join('feffi', 'config', 'fjord.yml')})
 
 # If run from console, accept commandline arguments
-if __name__ == '__main__':
-    feffi.parameters.parse_commandline_args()
-
-feffi.flog.info('Parameters are: ' + str(feffi.parameters.config))
+'''if __name__ == '__main__':
+    feffi.parameters.parse_commandline_args()'''
 
 # Create mesh over simulation domain
 mesh = feffi.mesh.create_mesh()
@@ -41,7 +31,7 @@ f = feffi.functions.define_functions(f_spaces)
 feffi.functions.init_functions(f)
 
 # Define boundaries and boundary conditions as given in config
-domain = feffi.boundaries.Domain(mesh, f_spaces)
+domain = feffi.boundaries.Domain(mesh, f_spaces, f)
 
 # Initializes a feffi simulation
 simulation = feffi.simulation.Simulation(f, domain.BCs)
@@ -57,13 +47,7 @@ fenics.File('test_u_{}.xml'.format(feffi.parameters.config['beta'])) << f['T_']
 
 # Plot mesh and solutions, saving them as png files
 feffi.plot.plot_single(mesh, file_name = 'mesh.png', title = 'Mesh', display = False)
+feffi.parameters.convert_from_ms_to_kmh_output(f)
 feffi.plot.plot_solutions(f, display = False)
 
-<<<<<<< HEAD
-logging.info('Plots can be found in %s' % feffi.parameters.config['plot_path'])
-=======
-flog.info('Moving log file to plot folder')
-system('mv simulation.log "' + feffi.parameters.config['plot_path'] + '/simulation.log"')
-
 feffi.flog.info('Plots can be found in %s' % feffi.parameters.config['plot_path'])
->>>>>>> 0a88011d4edf964d98c87cc8c0e626206cdb6203
