@@ -163,7 +163,7 @@ class Simulation(object):
         beta = fenics.Constant(parameters.config['beta'])
         T_0 = fenics.Constant(parameters.config['T_0'])
         rho_0 = fenics.Constant(parameters.config['rho_0'])
-        F = Phz.dx(1)/rho_0*q*fenics.dx + g*(1+beta*(self.f['T_']-T_0)) * q * fenics.dx #constant g is positive
+        F = Phz.dx(1)/rho_0*q*fenics.dx + g*(1-beta*(self.f['T_']-T_0)) * q * fenics.dx #constant g is positive
         k = fenics.Function(self.f['p_'].function_space())
         flog.debug('Solving for Phz...')
         fenics.solve(fenics.lhs(F)==fenics.rhs(F), k, bcs=[fenics.DirichletBC(self.f['p_'].function_space(), 0, 'near(x[1],1)')])
