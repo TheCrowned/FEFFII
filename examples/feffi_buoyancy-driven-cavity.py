@@ -37,10 +37,10 @@ plot.plot_single(
     f['u_'].sub(0),
     title='X-Velocity (Ra = {})'.format(parameters.config['beta']),
     display=True)
-'''plot.plot_single(
+plot.plot_single(
     f['p_'],
     title='Pressure (Ra = {})'.format(parameters.config['beta']),
-    display=True)'''
+    display=True)
 plot.plot_single(
     f['T_'],
     title='Temperature (Ra = {})'.format(parameters.config['beta']),
