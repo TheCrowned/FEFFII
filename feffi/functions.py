@@ -141,11 +141,11 @@ def Phi(a, u):
 def B_g(a, u, p, grad_P_h, v, q):
     """Galerkin weak formulation for Navier-Stokes."""
 
-    dt = 1/parameters.config['steps_n']
+    dt = Constant(1/parameters.config['steps_n'])
     nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])
-    rho_0 = parameters.config['rho_0']
-    g = parameters.config['g']
-    beta = parameters.config['beta']
+    rho_0 = Constant(parameters.config['rho_0'])
+    g = Constant(parameters.config['g'])
+    beta = Constant(parameters.config['beta'])
     n = fenics.FacetNormal(a.function_space().mesh())
 
     return (
@@ -163,33 +163,30 @@ def build_buoyancy(T_, S_):
 
     return Expression(
         (0, '-g*(1 - beta*(T_ - T_0) + gamma*(S_ - S_0))'), # g is given positive
-        beta = parameters.config['beta'], gamma = parameters.config['gamma'],
-        T_0 = parameters.config['T_0'], S_0 = parameters.config['S_0'],
-        g = parameters.config['g'],
+        beta = Constant(parameters.config['beta']),
+        gamma = Constant(parameters.config['gamma']),
+        T_0 = Constant(parameters.config['T_0']),
+        S_0 = Constant(parameters.config['S_0']),
+        g = Constant(parameters.config['g']),
         T_ = T_, S_ = S_,
         degree=2)
 
 def build_NS_GLS_steady_form(a, u, u_n, p, P_h, v, q, T_, S_):
     """Build Navier-Stokes steady state weak form + GLS stabilization."""
 
-    dt = 1/parameters.config['steps_n']
+    dt = Constant(1/parameters.config['steps_n'])
 
     # ------------------------
     # Setting stab. parameters
     # ------------------------
 
     # Init some stuff
-
-    # It would be nice to get V,P degrees from the respective function spaces,
-    # as V_deg = u.function_space().ufl_element().degree(), but it seems not
-    # possible with u,p coming from the splitting or w defined on a MixedSpace.
-
     mesh = u.ufl_domain().ufl_cargo()
     (l, k) = (parameters.config['degree_V'], parameters.config['degree_P']) # f spaces degrees
     nu_min = min(parameters.config['nu']) #smallest nu yields biggest Re number -> most unstable
     hmin = mesh.hmin(); hmax = mesh.hmax()
-    delta0 = parameters.config['delta0'] #1 # "tuning parameter" > 0
-    tau0 = parameters.config['tau0'] #35 if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
+    delta0 = Constant(parameters.config['delta0']) #1 # "tuning parameter" > 0
+    tau0 = Constant(parameters.config['tau0']) # if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
 
     #norm_a = fenics.norm(a) #seems to affect in negative way, and ||a|| is rarely huge
     norm_a = 1;

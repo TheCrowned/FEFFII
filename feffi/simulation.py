@@ -1,4 +1,5 @@
 from fenics import assemble, File, solve, norm, XDMFFile, lhs, rhs, errornorm, UserExpression, Expression, project
+from fenics import *
 import fenics
 from math import log
 from pathlib import Path
@@ -101,7 +102,7 @@ class Simulation(object):
         #(self.f['u_n'], self.f['p_n']) = self.f['sol'].split(True)
         tol = 10**parameters.config['simulation_precision']
 
-        def trapz(f, h, a, b):
+        '''def trapz(f, h, a, b):
             s = 0
             z_now = int(b)
             while z_now < 1: # DOMAIN HEIGHT
@@ -122,13 +123,27 @@ class Simulation(object):
             def value_shape(self):
                 return (2,)
         flog.debug('Integrating P...')
-        grad_P_h = integralP(project(self.f['T_'].dx(0), self.f['T_'].function_space()))
-        flog.debug('Integrated P')
-        #K = fenics.VectorFunctionSpace(self.f['u_'].function_space().mesh(), 'Lagrange', 1)
-        #k = fenics.interpolate(grad_P_h, K)
-        #flog.info('Interpolated P')
-        #print(norm(k))
-        #exit()
+        grad_P_h = integralP(project(self.f['T_'].dx(0), self.f['T_'].function_space()))'''
+
+        # Obtain dph/dx
+        flog.debug('Solving for dph/dx...')
+        #P = FunctionSpace(self.f['p_'].function_space().mesh(), 'CG', 1)
+        f_space = self.f['p_'].function_space()
+        p = TrialFunction(f_space)
+        q = TestFunction(f_space)
+        dph_dx = Function(f_space)
+        bc = DirichletBC(f_space, 0, 'near(x[1],1)') # or whatever, surface domain is a SubDomain with facets marked at the surface = 1
+        a = p.dx(1) * q * dx
+        L = self.f['T_'].dx(0) * q * dx
+        solve(a == L, dph_dx, bcs=[bc])
+        flog.debug('Solved for dph/dx.')
+
+        flog.info('Interpolating dph/dx over 2D grid...')
+        K = fenics.VectorFunctionSpace(f_space.mesh(), 'Lagrange', 1)
+        grad_ph = interpolate(Expression(('dph_dx',0), dph_dx=dph_dx, degree=2), K)
+        flog.info('Interpolated dph/dx over 2D grid (norm = {}).'.format(norm(grad_ph)))
+        import matplotlib.pyplot as plt;
+        pl=fenics.plot(grad_ph, title='grad_ph'); plt.colorbar(pl); plt.show(); #exit()
 
         # Solve the non linearity
         flog.debug('Iteratively solving non-linear problem')
@@ -143,7 +158,7 @@ class Simulation(object):
 
             # Define and solve NS problem
             flog.debug('Solving for u,p...')
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_n, S_n)
+            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_ph, v, q, T_n, S_n)
             solve(lhs(steady_form) == rhs(steady_form), self.f['sol'],
                   bcs=self.BCs['V']+self.BCs['Q'])
             flog.debug('Solved for u,p.')
@@ -167,8 +182,10 @@ class Simulation(object):
         k = fenics.Function(self.f['p_'].function_space())
         flog.debug('Solving for Phz...')
         fenics.solve(fenics.lhs(F)==fenics.rhs(F), k, bcs=[fenics.DirichletBC(self.f['p_'].function_space(), 0, 'near(x[1],1)')])
+        pl=fenics.plot(k, title='dph/dz'); plt.colorbar(pl); plt.show(); #exit()
         flog.debug('Solved for Phz')
         self.f['p_'].assign(self.f['p_']+k)
+        pl=fenics.plot(self.f['p_'], title='full p'); plt.colorbar(pl); plt.show(); #exit()
 
         # ------------------------
         # Temperature and salinity
