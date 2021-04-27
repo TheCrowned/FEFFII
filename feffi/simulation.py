@@ -129,21 +129,23 @@ class Simulation(object):
         flog.debug('Solving for dph/dx...')
         #P = FunctionSpace(self.f['p_'].function_space().mesh(), 'CG', 1)
         f_space = self.f['p_'].function_space()
-        p = TrialFunction(f_space)
+        g = Constant(parameters.config['g'])
+        beta = Constant(parameters.config['beta'])
+        dph_dx = TrialFunction(f_space)
         q = TestFunction(f_space)
-        dph_dx = Function(f_space)
+        dph_dx_sol = Function(f_space)
         bc = DirichletBC(f_space, 0, 'near(x[1],1)') # or whatever, surface domain is a SubDomain with facets marked at the surface = 1
-        a = p.dx(1) * q * dx
-        L = self.f['T_'].dx(0) * q * dx
-        solve(a == L, dph_dx, bcs=[bc])
+        a = dph_dx.dx(1) * q * dx
+        L = -g*beta*self.f['T_'].dx(0) * q * dx
+        solve(a == L, dph_dx_sol, bcs=[bc])
         flog.debug('Solved for dph/dx.')
 
-        flog.info('Interpolating dph/dx over 2D grid...')
+        flog.debug('Interpolating dph/dx over 2D grid...')
         K = fenics.VectorFunctionSpace(f_space.mesh(), 'Lagrange', 1)
-        grad_ph = interpolate(Expression(('dph_dx',0), dph_dx=dph_dx, degree=2), K)
-        flog.info('Interpolated dph/dx over 2D grid (norm = {}).'.format(norm(grad_ph)))
+        grad_ph = interpolate(Expression(('dph_dx', 0), dph_dx=dph_dx_sol, degree=2), K)
+        flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(norm(grad_ph)))
         import matplotlib.pyplot as plt;
-        pl=fenics.plot(grad_ph, title='grad_ph'); plt.colorbar(pl); plt.show(); #exit()
+        #pl=fenics.plot(grad_ph, title='grad_ph'); plt.colorbar(pl); plt.show(); #exit()
 
         # Solve the non linearity
         flog.debug('Iteratively solving non-linear problem')
@@ -168,24 +170,27 @@ class Simulation(object):
             flog.debug(" >>> residual u: {} <<<\n".format(residual_u))
 
             self.nonlin_n += 1
-
+        #pl=fenics.plot(self.f['p_'], title='Pnh'); plt.colorbar(pl); plt.show(); #exit()
         flog.debug('Solved non-linear problem.')
 
         # Build full pressure
-        Phz = fenics.TrialFunction(self.f['p_'].function_space())
-        q = fenics.TestFunction(self.f['p_'].function_space())
-        g = fenics.Constant(parameters.config['g'])
-        beta = fenics.Constant(parameters.config['beta'])
-        T_0 = fenics.Constant(parameters.config['T_0'])
-        rho_0 = fenics.Constant(parameters.config['rho_0'])
-        F = Phz.dx(1)/rho_0*q*fenics.dx + g*(1-beta*(self.f['T_']-T_0)) * q * fenics.dx #constant g is positive
-        k = fenics.Function(self.f['p_'].function_space())
+        ph = TrialFunction(self.f['p_'].function_space())
+        q = TestFunction(self.f['p_'].function_space())
+        ph_sol = Function(self.f['p_'].function_space())
+        g = Constant(parameters.config['g'])
+        beta = Constant(parameters.config['beta'])
+        T_0 = Constant(parameters.config['T_0'])
+        rho_0 = Constant(parameters.config['rho_0'])
+
+        a = ph.dx(1)/rho_0*q*dx
+        L = -g*(1-beta*(self.f['T_']-T_0))*q*dx #constant g is positive
+
         flog.debug('Solving for Phz...')
-        fenics.solve(fenics.lhs(F)==fenics.rhs(F), k, bcs=[fenics.DirichletBC(self.f['p_'].function_space(), 0, 'near(x[1],1)')])
-        pl=fenics.plot(k, title='dph/dz'); plt.colorbar(pl); plt.show(); #exit()
+        solve(a == L, ph_sol, bcs=[DirichletBC(self.f['p_'].function_space(), 0, 'near(x[1],1)')])
+        #pl=fenics.plot(ph_sol, title='hydro P'); plt.colorbar(pl); plt.show(); #exit()
         flog.debug('Solved for Phz')
-        self.f['p_'].assign(self.f['p_']+k)
-        pl=fenics.plot(self.f['p_'], title='full p'); plt.colorbar(pl); plt.show(); #exit()
+        self.f['p_'].assign(self.f['p_']+ph_sol)
+        #pl=fenics.plot(self.f['p_'], title='full p'); plt.colorbar(pl); plt.show(); #exit()
 
         # ------------------------
         # Temperature and salinity

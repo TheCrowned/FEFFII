@@ -144,8 +144,6 @@ def B_g(a, u, p, grad_P_h, v, q):
     dt = Constant(1/parameters.config['steps_n'])
     nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])
     rho_0 = Constant(parameters.config['rho_0'])
-    g = Constant(parameters.config['g'])
-    beta = Constant(parameters.config['beta'])
     n = fenics.FacetNormal(a.function_space().mesh())
 
     return (
@@ -153,7 +151,7 @@ def B_g(a, u, p, grad_P_h, v, q):
     + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx # sym??
     + (dot(dot(a, nabla_grad(u)), v) )*dx
     - dot(p/rho_0, div(v))*dx
-    - dot(g*beta*grad_P_h/rho_0, v)*dx
+    - dot(grad_P_h/rho_0, v)*dx
     - dot(p/rho_0, dot(v, n))*ds
     - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
     - dot(div(u), q)*dx )
