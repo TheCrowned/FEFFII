@@ -169,7 +169,7 @@ def build_buoyancy(T_, S_):
         T_ = T_, S_ = S_,
         degree=2)
 
-def build_NS_GLS_steady_form(a, u, u_n, p, P_h, v, q, T_, S_):
+def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     """Build Navier-Stokes steady state weak form + GLS stabilization."""
 
     dt = Constant(1/parameters.config['steps_n'])
@@ -200,7 +200,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, P_h, v, q, T_, S_):
 
     b = build_buoyancy(T_, S_)
     f = u_n/dt #+ b
-    steady_form = B_g(a, u, p, P_h, v, q) - dot(f, v)*dx
+    steady_form = B_g(a, u, p, grad_P_h, v, q) - dot(f, v)*dx
 
     if parameters.config['stabilization']:
         #turn individual terms on and off by tweaking delta0, tau0 in config
