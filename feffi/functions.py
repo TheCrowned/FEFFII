@@ -151,8 +151,8 @@ def B_g(a, u, p, grad_P_h, v, q):
     + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx # sym??
     + (dot(dot(a, nabla_grad(u)), v) )*dx
     - dot(p/rho_0, div(v))*dx
-    - dot(grad_P_h/rho_0, v)*dx
-    - dot(p/rho_0, dot(v, n))*ds
+    + dot(grad_P_h/rho_0, v)*dx
+    + dot(p/rho_0, dot(v, n))*ds
     - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
     - dot(div(u), q)*dx )
 
