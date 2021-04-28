@@ -136,7 +136,7 @@ class Simulation(object):
         dph_dx_sol = Function(f_space)
         bc = DirichletBC(f_space, 0, 'near(x[1],1)') # or whatever, surface domain is a SubDomain with facets marked at the surface = 1
         a = dph_dx.dx(1) * q * dx
-        L = -g*beta*self.f['T_'].dx(0) * q * dx
+        L = g*beta*(self.f['T_'].dx(0)) * q * dx
         solve(a == L, dph_dx_sol, bcs=[bc])
         flog.debug('Solved for dph/dx.')
 
