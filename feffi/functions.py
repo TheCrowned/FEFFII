@@ -1,8 +1,8 @@
 from fenics import (dot, inner, elem_mult, grad, nabla_grad, div,
                     dx, ds, sym, Identity, Function, TrialFunction,
                     TestFunction, FunctionSpace, VectorElement, split,
-                    FiniteElement, Constant, interpolate, Expression)
-import fenics
+                    FiniteElement, Constant, interpolate, Expression,
+                    FacetNormal, as_vector)
 from . import parameters
 import logging
 flog = logging.getLogger('feffi')
@@ -91,9 +91,9 @@ def init_functions(f, **kwargs):
     # Allow function arguments to overwrite wide config (but keep it local)
     config = dict(parameters.config); config.update(kwargs)
 
+    # If no [TS]_init is given, use [TS]_0
     if(config.get('T_init') == None or len(config['T_init']) == 0):
         config['T_init'] = 'T_0'
-
     if(config.get('S_init') == None or len(config['S_init']) == 0):
         config['S_init'] = 'S_0'
 
@@ -112,16 +112,6 @@ def init_functions(f, **kwargs):
                 degree = 2),
             f['S_n'].ufl_function_space()))
 
-    #It makes no sense to init p without splitting scheme?
-    '''f['p_n'].assign(
-        interpolate(
-            Expression(
-                'rho_0*g*(1-x[1])',
-                degree=2,
-                rho_0=config['rho_0'],
-                g=config['g']),
-            f['p_n'].ufl_function_space().collapse()))'''
-
 def N(a, u, p):
     """First stabilization operator, LHS differential operator.
     Corresponds to operator L(U) in LBB paper."""
@@ -138,21 +128,21 @@ def Phi(a, u):
 
     return dot(a, nabla_grad(u))
 
-def B_g(a, u, p, grad_P_h, v, q):
+def B_g(a, u, p_nh, grad_p_h, v, q):
     """Galerkin weak formulation for Navier-Stokes."""
 
     dt = Constant(1/parameters.config['steps_n'])
     nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])
     rho_0 = Constant(parameters.config['rho_0'])
-    n = fenics.FacetNormal(a.function_space().mesh())
+    n = FacetNormal(a.function_space().mesh())
 
     return (
     + dot(u, v)/dt*dx
     + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx # sym??
     + (dot(dot(a, nabla_grad(u)), v) )*dx
-    - dot(p/rho_0, div(v))*dx
-    + dot(grad_P_h/rho_0, v)*dx
-    + dot(p/rho_0, dot(v, n))*ds
+    - dot(p_nh/rho_0, div(v))*dx
+    + dot(grad_p_h/rho_0, v)*dx
+    + dot(p_nh/rho_0, dot(v, n))*ds
     - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
     - dot(div(u), q)*dx )
 
@@ -257,4 +247,4 @@ def build_salinity_form(S, S_n, S_v, u_):
 
 def get_matrix_diagonal(mat):
     diag = [mat[i][i] for i in range(mat.ufl_shape[0])]
-    return fenics.as_vector(diag)
+    return as_vector(diag)

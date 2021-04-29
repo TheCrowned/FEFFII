@@ -1,6 +1,7 @@
-from fenics import assemble, File, solve, norm, XDMFFile, lhs, rhs, errornorm, UserExpression, Expression, project
-from fenics import *
-import fenics
+from fenics import (assemble, File, solve, norm, XDMFFile, lhs, rhs, errornorm,
+                    TestFunction, TrialFunction, Function, DirichletBC, dx,
+                    Constant, VectorFunctionSpace, FunctionSpace, interpolate,
+                    Expression)
 from math import log
 from pathlib import Path
 from time import time
@@ -99,53 +100,30 @@ class Simulation(object):
 
         # Init some vars
         self.nonlin_n = 0; residual_u = 1e22
-        #(self.f['u_n'], self.f['p_n']) = self.f['sol'].split(True)
         tol = 10**parameters.config['simulation_precision']
-
-        '''def trapz(f, h, a, b):
-            s = 0
-            z_now = int(b)
-            while z_now < 1: # DOMAIN HEIGHT
-                s += f((a, z_now))
-                z_now += h
-            s = (s + (f((a, b)) + f((a, 1)))/2)*h
-            return s
-
-        class integralP(UserExpression):
-            def __init__(self, T):
-                self._T = T
-                super().__init__()
-            def eval(self, value, x):
-                #print("integrating ")
-                #print(x)
-                value[0] = trapz(self._T, 0.01, x[0], x[1])
-                value[1] = 0
-            def value_shape(self):
-                return (2,)
-        flog.debug('Integrating P...')
-        grad_P_h = integralP(project(self.f['T_'].dx(0), self.f['T_'].function_space()))'''
-
-        # Obtain dph/dx
-        flog.debug('Solving for dph/dx...')
-        #P = FunctionSpace(self.f['p_'].function_space().mesh(), 'CG', 1)
-        f_space = self.f['p_'].function_space()
         g = Constant(parameters.config['g'])
         beta = Constant(parameters.config['beta'])
-        dph_dx = TrialFunction(f_space)
-        q = TestFunction(f_space)
-        dph_dx_sol = Function(f_space)
-        bc = DirichletBC(f_space, 0, 'near(x[1],1)') # or whatever, surface domain is a SubDomain with facets marked at the surface = 1
+        T_0 = Constant(parameters.config['T_0'])
+        rho_0 = Constant(parameters.config['rho_0'])
+        pnh = Function(self.f['p_'].function_space()) #non-hydrostatic pressure
+
+        # Obtain dph/dx
+        # A linear space is used even though dT/dx will most likely be
+        # piecewise constant.
+        flog.debug('Solving for dph/dx...')
+        dp_f_space = self.f['p_'].function_space()
+        dph_dx = TrialFunction(dp_f_space)
+        q = TestFunction(dp_f_space)
+        dph_dx_sol = Function(dp_f_space)
         a = dph_dx.dx(1) * q * dx
         L = g*beta*(self.f['T_'].dx(0)) * q * dx
+        bc = DirichletBC(dp_f_space, 0, 'near(x[1], 1)')
         solve(a == L, dph_dx_sol, bcs=[bc])
         flog.debug('Solved for dph/dx.')
 
-        flog.debug('Interpolating dph/dx over 2D grid...')
-        K = fenics.VectorFunctionSpace(f_space.mesh(), 'Lagrange', 1)
-        grad_ph = interpolate(Expression(('dph_dx', 0), dph_dx=dph_dx_sol, degree=2), K)
-        flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(norm(grad_ph)))
-        import matplotlib.pyplot as plt;
-        #pl=fenics.plot(grad_ph, title='grad_ph'); plt.colorbar(pl); plt.show(); #exit()
+        flog.debug('Interpolating dph/dx over 2D grid, with dph/dz=0...')
+        grad_p_h = interpolate(Expression(('dph_dx', 0), dph_dx=dph_dx_sol, degree=2), VectorFunctionSpace(dp_f_space.mesh(), 'Lagrange', 1))
+        flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(norm(grad_p_h)))
 
         # Solve the non linearity
         flog.debug('Iteratively solving non-linear problem')
@@ -160,37 +138,30 @@ class Simulation(object):
 
             # Define and solve NS problem
             flog.debug('Solving for u,p...')
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_ph, v, q, T_n, S_n)
+            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_p_h, v, q, T_n, S_n)
             solve(lhs(steady_form) == rhs(steady_form), self.f['sol'],
                   bcs=self.BCs['V']+self.BCs['Q'])
             flog.debug('Solved for u,p.')
 
-            (self.f['u_'], self.f['p_']) = self.f['sol'].split(True)
+            (self.f['u_'], pnh) = self.f['sol'].split(True)
             residual_u = errornorm(self.f['u_'], a)
             flog.debug(" >>> residual u: {} <<<\n".format(residual_u))
 
             self.nonlin_n += 1
-        #pl=fenics.plot(self.f['p_'], title='Pnh'); plt.colorbar(pl); plt.show(); #exit()
         flog.debug('Solved non-linear problem.')
 
-        # Build full pressure
-        ph = TrialFunction(self.f['p_'].function_space())
-        q = TestFunction(self.f['p_'].function_space())
-        ph_sol = Function(self.f['p_'].function_space())
-        g = Constant(parameters.config['g'])
-        beta = Constant(parameters.config['beta'])
-        T_0 = Constant(parameters.config['T_0'])
-        rho_0 = Constant(parameters.config['rho_0'])
-
-        a = ph.dx(1)/rho_0*q*dx
-        L = -g*(1-beta*(self.f['T_']-T_0))*q*dx #constant g is positive
-
-        flog.debug('Solving for Phz...')
-        solve(a == L, ph_sol, bcs=[DirichletBC(self.f['p_'].function_space(), 0, 'near(x[1],1)')])
-        #pl=fenics.plot(ph_sol, title='hydro P'); plt.colorbar(pl); plt.show(); #exit()
-        flog.debug('Solved for Phz')
-        self.f['p_'].assign(self.f['p_']+ph_sol)
-        #pl=fenics.plot(self.f['p_'], title='full p'); plt.colorbar(pl); plt.show(); #exit()
+        # Calculate ph and build full pressure as ph+pnh
+        flog.debug('Solving for ph...')
+        p_f_space = pnh.function_space() # so we can avoid projecting later
+        ph = TrialFunction(p_f_space)
+        q = TestFunction(p_f_space)
+        ph_sol = Function(p_f_space)
+        a = ph.dx(1)/rho_0 * q * dx
+        L = -g * (1 - beta*(self.f['T_']-T_0)) * q * dx
+        bc = DirichletBC(p_f_space, 0, 'near(x[1], 1)')
+        solve(a == L, ph_sol, bcs=[bc])
+        self.f['p_'].assign(pnh+ph_sol)
+        flog.debug('Solved for ph.')
 
         # ------------------------
         # Temperature and salinity
