@@ -98,6 +98,13 @@ def define_parameters(user_config={}):
             'plots',
             '{}'.format(round(time.time())))
 
+    # If a relative path was given as config, make it relative to plots folder
+    if not os.path.isabs(config['plot_path']):
+        config['plot_path'] = os.path.join(
+            parent_dir,
+            'plots',
+            config['plot_path'])
+
     Path(config['plot_path']).mkdir(parents=True, exist_ok=True)
 
     if config.get('convert_from_ms_to_kmh'):
