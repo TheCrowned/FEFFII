@@ -11,6 +11,7 @@ from .boundaries import Domain
 flog = logging.getLogger('feffi')
 config = {}
 
+
 def define_parameters(user_config={}):
     """Defines running parameters for model.
 
@@ -112,6 +113,7 @@ def define_parameters(user_config={}):
 
     init_logging()
 
+
 def init_logging():
     """
     Initialize feffi logger. This happens after parameters have been defined.
@@ -125,14 +127,15 @@ def init_logging():
 
     flog.setLevel(feffi_log_level)
     # dark magic https://stackoverflow.com/a/44426266 to avoid messages showing up multiple times
-    flog.propagate=False
+    flog.propagate = False
 
     # If some handlers are already present, delete them. This is because
     # init_logging is called by define_parameters(), which is called multiple times.
     if len(flog.handlers) != 0:
         flog.handlers = []
 
-    log_format = logging.Formatter('%(asctime)s %(message)s', datefmt='[%H:%M:%S]')
+    log_format = logging.Formatter(
+        '%(asctime)s %(message)s', datefmt='[%H:%M:%S]')
 
     # Create two handlers:
     # one for file logging, another for terminal (stream) logging
@@ -151,11 +154,12 @@ def init_logging():
 
     # Reduce FEniCS logging
     if config['very_verbose']:
-        fenics.set_log_level(logging.WARNING) #default is INFO
+        fenics.set_log_level(logging.WARNING)  # default is INFO
     else:
         fenics.set_log_level(logging.ERROR)
     #logging.getLogger('UFL').setLevel(logging.WARNING)
     #logging.getLogger('FFC').setLevel(logging.WARNING)
+
 
 def parse_commandline_args():
     """Provides support for command line arguments through argparse.
@@ -376,6 +380,7 @@ def parse_commandline_args():
 
     define_parameters(purged_commandline_args_dict)
 
+
 def reload_status(plot_path):
     """Reload previous FEFFI status.
     Will read from a previous plot path and restore config, mesh and functions.
@@ -416,6 +421,7 @@ def reload_status(plot_path):
 
     return f, domain, mesh, f_spaces
 
+
 def assemble_viscosity_tensor(visc):
     """Creates a proper viscosity tensor given relevant values.
     Notice that input must always be a list, even if it has only one element.
@@ -448,8 +454,6 @@ def assemble_viscosity_tensor(visc):
        assemble_viscosity_tensor([a, b, c, d])
     """
 
-    visc = visc  # [i*0.0036 for i in visc] # from m^2/s to km^2/h
-
     if len(visc) == 1:
         output = fenics.as_tensor((
             (fenics.Constant(visc[0]), fenics.Constant(visc[0])),
@@ -471,14 +475,15 @@ def assemble_viscosity_tensor(visc):
 
     return output
 
+
 def convert_from_ms_to_kmh_input(config):
-    """
-    """
+    """Rescale constants from m/s to km/h."""
 
     config['g'] *= 3.6*3.6*1000
     config['rho_0'] /= 3.6**2
     config['nu'] = [i*0.0036 for i in config['nu']]
     config['alpha'] = [i*0.0036 for i in config['alpha']]
+
 
 def convert_from_ms_to_kmh_output(f):
     """

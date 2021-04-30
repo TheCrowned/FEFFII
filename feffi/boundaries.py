@@ -5,6 +5,7 @@ import logging
 from . import parameters
 flog = logging.getLogger('feffi')
 
+
 class Domain(object):
     """ Creates a simulation domain given its boundaries definitions and
         corresponding boundary conditions.
@@ -91,7 +92,7 @@ class Domain(object):
                 })
         """
 
-    def __init__(self, mesh, f_spaces, boundaries = {}, **kwargs):
+    def __init__(self, mesh, f_spaces, boundaries={}, **kwargs):
         self.mesh = mesh
         self.f_spaces = f_spaces
         self.boundaries = boundaries
@@ -123,21 +124,21 @@ class Domain(object):
         """
 
         self.boundaries = {
-            'right' : Bound_Right(),
-            'bottom' : Bound_Bottom(),
-            'left' : Bound_Left()
+            'right': Bound_Right(),
+            'bottom': Bound_Bottom(),
+            'left': Bound_Left()
         }
 
         # Define subdomains
         if self.config['domain'] == 'square':
             self.boundaries.update({
-                'top' : Bound_Top()
+                'top': Bound_Top()
             })
         elif self.config['domain'] == 'fjord':
             self.boundaries.update({
-                'ice_shelf_bottom' : Bound_Ice_Shelf_Bottom(),
-                'ice_shelf_right' : Bound_Ice_Shelf_Right(),
-                'sea_top' : Bound_Sea_Top()
+                'ice_shelf_bottom': Bound_Ice_Shelf_Bottom(),
+                'ice_shelf_right': Bound_Ice_Shelf_Right(),
+                'sea_top': Bound_Sea_Top()
             })
 
     def mark_boundaries(self):
@@ -217,11 +218,11 @@ class Domain(object):
                                 self.subdomains_markers[subdomain_name]
                             ))
                         flog.info(
-                        ('BCs - Boundary {}, space {} ' +
-                         '(marker {}), value {}').format(
-                            subdomain_name, f_space_name,
-                            self.subdomains_markers[subdomain_name],
-                            BC_value))
+                            ('BCs - Boundary {}, space {} ' +
+                             '(marker {}), value {}').format(
+                                subdomain_name, f_space_name,
+                                self.subdomains_markers[subdomain_name],
+                                BC_value))
 
                     # Otherwise, we assume it's a pointwise condition,
                     # and evaluate the label expecting a tuple back.
@@ -241,7 +242,6 @@ class Domain(object):
                             'BCs - Point ({}, {}), space Q, value {}'.format(
                                 point[0], point[1], BC_value))
 
-
     def parse_BC(self, BC):
         """Parses a single string-represented BC into a Fenics-ready one.
 
@@ -252,7 +252,7 @@ class Domain(object):
         try:
             parsed_BC = Constant(float(BC))
         except ValueError:
-            parsed_BC = Expression(BC, degree = 2)
+            parsed_BC = Expression(BC, degree=2)
 
         return parsed_BC
 
@@ -276,22 +276,22 @@ class Bound_Right(SubDomain):
         if parameters.config['domain'] == 'square':
             return near(x[0], 1) and on_boundary
         elif parameters.config['domain'] == 'fjord':
-            return near(x[0], parameters.config['domain_size_x']) \
-            and on_boundary
+            return (near(x[0], parameters.config['domain_size_x'])
+                    and on_boundary)
 
 class Bound_Ice_Shelf_Bottom(SubDomain):
     def inside(self, x, on_boundary):
-        return  x[0] >= 0 and x[0] <= parameters.config['shelf_size_x'] and \
-                near(x[1], parameters.config['domain_size_y'] - parameters.config['shelf_size_y']) \
-                and on_boundary
+        return (x[0] >= 0 and x[0] <= parameters.config['shelf_size_x'] and
+                near(x[1], parameters.config['domain_size_y'] - parameters.config['shelf_size_y'])
+                and on_boundary)
 
 class Bound_Ice_Shelf_Right(SubDomain):
     def inside(self, x, on_boundary):
-        return  near(x[0], parameters.config['shelf_size_x']) and \
-                x[1] >= parameters.config['domain_size_y'] - parameters.config['shelf_size_y'] and \
-                x[1] <= parameters.config['domain_size_y'] and on_boundary
+        return (near(x[0], parameters.config['shelf_size_x']) and
+                x[1] >= parameters.config['domain_size_y'] - parameters.config['shelf_size_y'] and
+                x[1] <= parameters.config['domain_size_y'] and on_boundary)
 
 class Bound_Sea_Top(SubDomain):
     def inside(self, x, on_boundary):
-        return  x[0] >= parameters.config['shelf_size_x'] and \
-                near(x[1], parameters.config['domain_size_y']) and on_boundary
+        return (x[0] >= parameters.config['shelf_size_x'] and
+                near(x[1], parameters.config['domain_size_y']) and on_boundary)

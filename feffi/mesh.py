@@ -7,6 +7,7 @@ from . import parameters
 
 flog = logging.getLogger('feffi')
 
+
 def create_mesh(**kwargs):
     """Generates domain and mesh.
 
@@ -37,17 +38,19 @@ def create_mesh(**kwargs):
     config = dict(parameters.config); config.update(kwargs)
 
     if config['domain'] == "square":
-        mesh = fenics.UnitSquareMesh(config['mesh_resolution'], config['mesh_resolution'])
+        mesh = fenics.UnitSquareMesh(
+            config['mesh_resolution'], config['mesh_resolution'])
 
     if config['domain'] == "fjord":
         # general domain geometry: width, height, ice shelf width, ice shelf thickness
-        domain_params = [config['domain_size_x'], config['domain_size_y'], config['shelf_size_x'], config['shelf_size_y']]
+        domain_params = [config['domain_size_x'], config['domain_size_y'],
+                         config['shelf_size_x'], config['shelf_size_y']]
 
         sg = ShelfGeometry(
             domain_params,
-            ny_ocean = config['mesh_resolution_y'],          # layers on "deep ocean" (y-dir)
-            ny_shelf = config['mesh_resolution_sea_y'],      # layers on "ice-shelf thickness" (y-dir)
-            nx = config['mesh_resolution_x'],              # layers x-dir
+            ny_ocean = config['mesh_resolution_y'],      # layers on "deep ocean" (y-dir)
+            ny_shelf = config['mesh_resolution_sea_y'],  # layers on "ice-shelf thickness" (y-dir)
+            nx = config['mesh_resolution_x'],            # layers x-dir
         )
 
         sg.generate_mesh()
@@ -62,27 +65,32 @@ def create_mesh(**kwargs):
 
         mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)'''
 
-    logging.info('Initialized mesh: vertexes %d, hmax %.2f, hmin %.2f' % (mesh.num_vertices(), mesh.hmax(), mesh.hmin()))
+    logging.info('Initialized mesh: vertexes {}, hmax {:.2f}, hmin {:.2f}'
+                 .format(mesh.num_vertices(), mesh.hmax(), mesh.hmin()))
 
     return mesh
+
 
 def add_sill(mesh, center, height, width):
     """Performs (in-place) mesh deformation to create a bottom sill.
 
-    Run this *after* domains have been marked through
-    boundaries.Domain.mark_boundaries(), otherwise the sill countour will
+    Run this *after* domains have been marked with
+    `boundaries.Domain.mark_boundaries()`, otherwise the sill countour will
     not have proper BCs applied.
 
     Parameters
     ----------
     mesh : Mesh to deform
-    center : (int) center x-coordinate of sill
-    height : (int) height of the tip
-    width : (int) width x-wise of sill
+    center : (float) center x-coordinate of sill
+    height : (float) height of the tip
+    width : (float) width x-wise of sill
 
     Examples
     --------
-
+    1) mesh = feffi.mesh.create_mesh()
+       f_spaces = feffi.functions.define_function_spaces(mesh)
+       domain = feffi.boundaries.Domain(mesh, f_spaces)
+       feffi.mesh.add_sill(mesh, 30, 0.8, 25)
     """
 
     x = mesh.coordinates()[:, 0]
@@ -103,7 +111,7 @@ def add_sill(mesh, center, height, width):
         raise ValueError('Sill y-tip {} lie out of domain margin {}.'
                          .format(height, parameters.config['domain_size_y']))
 
-    sill_f = lambda x : ((-alpha * (x-center)**2) + height)
+    def sill_f(x): return (-alpha * (x-center)**2) + height
 
     new_y = list(y)
     for i in range(len(new_y)):

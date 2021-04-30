@@ -16,6 +16,7 @@ from . import parameters, plot
 from .functions import build_NS_GLS_steady_form, build_temperature_form, build_salinity_form
 flog = logging.getLogger('feffi')
 
+
 class Simulation(object):
     """Initializes a FEFFI model simulation.
 
@@ -60,7 +61,8 @@ class Simulation(object):
         self.relative_errors = {}
 
         if parameters.config['store_solutions']:
-            self.xdmffile_sol = XDMFFile(os.path.join(parameters.config['plot_path'], 'solutions.xdmf'))
+            self.xdmffile_sol = XDMFFile(os.path.join(
+                parameters.config['plot_path'], 'solutions.xdmf'))
             self.xdmffile_sol.parameters["flush_output"] = True #https://github.com/FEniCS/dolfinx/issues/75
             self.xdmffile_sol.parameters["functions_share_mesh"] = True
 
@@ -68,8 +70,8 @@ class Simulation(object):
             #self.xdmffile_sol.write(self.f['u_'].function_space().mesh())
             self.save_solutions_xdmf()
 
-        flog.info('Initialized simulation\n'+
-                  'Running parameters:\n'+str(parameters.config))
+        flog.info('Initialized simulation.')
+        flog.info('Running parameters:\n' + str(parameters.config))
 
     def run(self):
         """Runs the simulation until a stopping condition is met."""
@@ -78,7 +80,8 @@ class Simulation(object):
         signal.signal(signal.SIGINT, self.sigint_handler)
 
         self.start_time = time()
-        flog.info('Running full simulation; started at %s' % str(datetime.now()))
+        flog.info('Running full simulation; started at {}'
+                  .format(str(datetime.now())))
 
         while self.n <= self.iterations_n:
             self.timestep()
@@ -122,7 +125,8 @@ class Simulation(object):
         flog.debug('Solved for dph/dx.')
 
         flog.debug('Interpolating dph/dx over 2D grid, with dph/dz=0...')
-        grad_p_h = interpolate(Expression(('dph_dx', 0), dph_dx=dph_dx_sol, degree=2), VectorFunctionSpace(dp_f_space.mesh(), 'Lagrange', 1))
+        grad_p_h = interpolate(Expression(('dph_dx', 0), dph_dx=dph_dx_sol,
+                               degree=2), VectorFunctionSpace(dp_f_space.mesh(), 'Lagrange', 1))
         flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(norm(grad_p_h)))
 
         # Solve the non linearity
@@ -138,7 +142,8 @@ class Simulation(object):
 
             # Define and solve NS problem
             flog.debug('Solving for u,p...')
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_p_h, v, q, T_n, S_n)
+            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_p_h, v,
+                                                   q, T_n, S_n)
             solve(lhs(steady_form) == rhs(steady_form), self.f['sol'],
                   bcs=self.BCs['V']+self.BCs['Q'])
             flog.debug('Solved for u,p.')
@@ -152,15 +157,15 @@ class Simulation(object):
 
         # Calculate ph and build full pressure as ph+pnh
         flog.debug('Solving for ph...')
-        p_f_space = pnh.function_space() # so we can avoid projecting later
+        p_f_space = pnh.function_space()  # so we can avoid projecting later
         ph = TrialFunction(p_f_space)
         q = TestFunction(p_f_space)
         ph_sol = Function(p_f_space)
         a = ph.dx(1)/rho_0 * q * dx
         L = -g * (1 - beta*(self.f['T_']-T_0)) * q * dx
-        bc = DirichletBC(p_f_space, 0, 'near(x[1], 1)')
+        bc = DirichletBC(dp_f_space, 0, 'near(x[1], 1)')
         solve(a == L, ph_sol, bcs=[bc])
-        self.f['p_'].assign(pnh+ph_sol)
+        self.f['p_'].assign(pnh + ph_sol)
         flog.debug('Solved for ph.')
 
         # ------------------------
@@ -170,13 +175,13 @@ class Simulation(object):
         flog.debug('Solving for T and S.')
 
         if parameters.config['beta'] != 0: #do not run if not coupled with velocity
-            T_n = self.f['T_n']; T_v = self.f['T_v']; T = self.f['T']; u_ = self.f['u_']
-            T_form = build_temperature_form(T, T_n, T_v, u_)
+            T_form = build_temperature_form(self.f['T'], self.f['T_n'],
+                                            self.f['T_v'], self.f['u_'])
             solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'])
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
-            S_n = self.f['S_n']; S_v = self.f['S_v']; S = self.f['S']; u_ = self.f['u_']
-            S_form = build_salinity_form(S, S_n, S_v, u_)
+            S_form = build_salinity_form(self.f['S'], self.f['S_n'],
+                                         self.f['S_v'], self.f['u_'])
             solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'])
 
         flog.debug('Solved for T and S.')
