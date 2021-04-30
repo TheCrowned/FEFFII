@@ -7,6 +7,7 @@ import os
 
 flog = logging.getLogger('feffi')
 
+
 def plot_single(to_plot, **kwargs):
     """Plots a single Fenics-plottable object (ex. function, mesh).
 
@@ -41,8 +42,8 @@ def plot_single(to_plot, **kwargs):
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.set_aspect('auto')
-    pl = plot(to_plot, title = title)
+    ax.set_aspect('auto')  # forces square plot
+    pl = plot(to_plot, title=title)
 
     # Add colorbar if possible (i.e. if it is a Function)
     try:
@@ -56,9 +57,11 @@ def plot_single(to_plot, **kwargs):
     if kwargs.get('display') != None and kwargs['display'] == True:
         plt.show()
     if kwargs.get('file_name') != None and kwargs['file_name'] != '':
-        plt.savefig(os.path.join(config['plot_path'], kwargs['file_name']), dpi = 1000)
+        plt.savefig(os.path.join(
+            config['plot_path'], kwargs['file_name']), dpi=1000)
 
     plt.close()
+
 
 def plot_solutions(f, **kwargs):
     """Plots all solution functions.
@@ -73,18 +76,21 @@ def plot_solutions(f, **kwargs):
     ------
     All of `plot_single`.
     """
-    plot_single(f['u_'], file_name='velxy.png', title='Velocity', **kwargs)
-    plot_single(f['u_'][0], file_name='velx.png', title='Velocity X-component', **kwargs)
-    plot_single(f['u_'][1], file_name='vely.png', title='Velocity Y-component', **kwargs)
-    plot_single(f['p_'], file_name='pressure.png', title='Pressure', **kwargs)
-    plot_single(f['T_'], file_name='temperature.png', title='Temperature', **kwargs)
-    plot_single(f['S_'], file_name='salinity.png', title='Salinity', **kwargs)
-    plot_single(f['u_'].function_space().mesh(), file_name='mesh.png', title='Mesh', **kwargs)
 
-    '''fig = plot(div(u_), title='Velocity divergence')
-    plt.colorbar(fig)
-    plt.savefig(plot_path + 'div_u.png', dpi = 500)
-    plt.close()'''
+    plot_single(f['u_'], file_name='velxy.png',
+                title='Velocity', **kwargs)
+    plot_single(f['u_'][0], file_name='velx.png',
+                title='Velocity X-component', **kwargs)
+    plot_single(f['u_'][1], file_name='vely.png',
+                title='Velocity Y-component', **kwargs)
+    plot_single(f['p_'], file_name='pressure.png',
+                title='Pressure', **kwargs)
+    plot_single(f['T_'], file_name='temperature.png',
+                title='Temperature', **kwargs)
+    plot_single(f['S_'], file_name='salinity.png',
+                title='Salinity', **kwargs)
+    plot_single(f['u_'].function_space().mesh(), file_name='mesh.png',
+                title='Mesh', **kwargs)
 
     '''bmesh = BoundaryMesh(mesh, "exterior", True)
     boundary = bmesh.coordinates()
