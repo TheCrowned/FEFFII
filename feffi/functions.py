@@ -2,7 +2,7 @@ from fenics import (dot, inner, elem_mult, grad, nabla_grad, div,
                     dx, ds, sym, Identity, Function, TrialFunction,
                     TestFunction, FunctionSpace, VectorElement, split,
                     FiniteElement, Constant, interpolate, Expression,
-                    FacetNormal, as_vector)
+                    FacetNormal, as_vector, assemble)
 from . import parameters
 import logging
 flog = logging.getLogger('feffi')
@@ -148,14 +148,16 @@ def B_g(a, u, p_nh, grad_p_h, v, q):
     rho_0 = Constant(parameters.config['rho_0'])
     n = FacetNormal(a.function_space().mesh())
 
+    # Boundary terms are commented out since we have no Neumann conditions,
+    # and Dirichlet conditions would zero them out anyway.
     return (
         + dot(u, v)/dt*dx
         + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx  # sym??
         + (dot(dot(a, nabla_grad(u)), v))*dx
         - dot(p_nh/rho_0, div(v))*dx
         + dot(grad_p_h/rho_0, v)*dx
-        + dot(p_nh/rho_0, dot(v, n))*ds
-        - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
+        # + dot(p_nh/rho_0, dot(v, n))*ds
+        # - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
         - dot(div(u), q)*dx)
 
 
@@ -265,3 +267,8 @@ def build_salinity_form(S, S_n, S_v, u_):
 def get_matrix_diagonal(mat):
     diag = [mat[i][i] for i in range(mat.ufl_shape[0])]
     return as_vector(diag)
+
+
+def energy_norm(u):
+    energy = 0.5 * inner(grad(u), grad(u)) * dx
+    return assemble(energy)
