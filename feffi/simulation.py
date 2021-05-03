@@ -12,9 +12,10 @@ import logging
 import signal
 import numpy as np
 import yaml
+import csv
 from . import parameters, plot
 from .functions import (build_NS_GLS_steady_form, build_temperature_form,
-                        build_salinity_form)
+                        build_salinity_form, energy_norm)
 flog = logging.getLogger('feffi')
 
 
@@ -70,6 +71,19 @@ class Simulation(object):
             # Store mesh and first step solutions
             #self.xdmffile_sol.write(self.f['u_'].function_space().mesh())
             self.save_solutions_xdmf()
+
+        csv_simul_data_file = open(
+            os.path.join(parameters.config['plot_path'], 'simul_data.csv'),
+                         'w')
+        fieldnames = ['n',
+                      '||u||_2', '||u||_inf', 'E(u)',
+                      '||p||_2', '||p||_inf', 'E(p)',
+                      '||T||_2', '||T||_inf', 'E(T)',
+                      '||S||_2', '||S||_inf', 'E(S)']
+        self.csv_simul_data = csv.DictWriter(
+            csv_simul_data_file, delimiter=',', quotechar='"',
+            quoting=csv.QUOTE_MINIMAL, fieldnames=fieldnames)
+        self.csv_simul_data.writeheader()
 
         flog.info('Initialized simulation.')
         flog.info('Running parameters:\n' + str(parameters.config))
@@ -192,6 +206,15 @@ class Simulation(object):
         self.relative_errors['S'] = errornorm(self.f['S_'], self.f['S_n'])/norm(self.f['S_'], 'L2') if norm(self.f['S_'], 'L2') != 0 else 0
 
         self.log_progress()
+
+        csv_row = {'n': self.n}
+        for func in ['u', 'p', 'T', 'S']:
+            csv_row.update({
+                '||{}||_2'.format(func): norm(self.f[func+'_'], 'L2'),
+                '||{}||_inf'.format(func): norm(self.f[func+'_'].vector(), 'linf'),
+                'E({})'.format(func): energy_norm(self.f[func+'_'])
+            })
+        self.csv_simul_data.writerow(csv_row)
 
         if parameters.config['store_solutions']:
             self.save_solutions_xdmf()

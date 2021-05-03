@@ -2,7 +2,7 @@ from fenics import (dot, inner, elem_mult, grad, nabla_grad, div,
                     dx, ds, sym, Identity, Function, TrialFunction,
                     TestFunction, FunctionSpace, VectorElement, split,
                     FiniteElement, Constant, interpolate, Expression,
-                    FacetNormal, as_vector, assemble)
+                    FacetNormal, as_vector, assemble, norm)
 from . import parameters
 import logging
 flog = logging.getLogger('feffi')
@@ -189,8 +189,8 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     (l, k) = (parameters.config['degree_V'], parameters.config['degree_P']) # f spaces degrees
     nu_min = min(parameters.config['nu']) # smallest nu yields biggest Re number -> most unstable
     hmin = mesh.hmin(); hmax = mesh.hmax()
-    delta0 = Constant(parameters.config['delta0']) #1 # "tuning parameter" > 0
-    tau0 = Constant(parameters.config['tau0']) # if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
+    delta0 = parameters.config['delta0'] #1 # "tuning parameter" > 0
+    tau0 = parameters.config['tau0'] # if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
 
     #norm_a = fenics.norm(a) #seems to affect in negative way, and ||a|| is rarely huge
     norm_a = 1
@@ -272,3 +272,11 @@ def get_matrix_diagonal(mat):
 def energy_norm(u):
     energy = 0.5 * inner(grad(u), grad(u)) * dx
     return assemble(energy)
+
+def get_norms(f):
+    d = {}
+    for func in ['u', 'p', 'T', 'S']:
+        d['||{}||_2'.format(func)] = norm(f[func+'_'], 'L2')
+        d['||{}||_inf'.format(func)] = norm(f[func+'_'].vector(), 'linf')
+        d['E({})'.format(func)] = energy_norm(f[func+'_'])
+    return d
