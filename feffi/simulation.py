@@ -1,7 +1,7 @@
-from fenics import (assemble, File, solve, norm, XDMFFile, lhs, rhs, errornorm,
-                    TestFunction, TrialFunction, Function, DirichletBC, dx,
+from fenics import (assemble, File, solve, norm, XDMFFile, lhs, rhs, dx,
+                    TestFunction, TrialFunction, Function, DirichletBC,
                     Constant, VectorFunctionSpace, FunctionSpace, interpolate,
-                    Expression)
+                    Expression, errornorm)
 from math import log
 from pathlib import Path
 from time import time
@@ -13,7 +13,8 @@ import signal
 import numpy as np
 import yaml
 from . import parameters, plot
-from .functions import build_NS_GLS_steady_form, build_temperature_form, build_salinity_form
+from .functions import (build_NS_GLS_steady_form, build_temperature_form,
+                        build_salinity_form)
 flog = logging.getLogger('feffi')
 
 
@@ -163,7 +164,7 @@ class Simulation(object):
         ph_sol = Function(p_f_space)
         a = ph.dx(1)/rho_0 * q * dx
         L = -g * (1 - beta*(self.f['T_']-T_0)) * q * dx
-        bc = DirichletBC(dp_f_space, 0, 'near(x[1], 1)')
+        bc = DirichletBC(p_f_space, 0, 'near(x[1], 1)')
         solve(a == L, ph_sol, bcs=[bc])
         self.f['p_'].assign(pnh + ph_sol)
         flog.debug('Solved for ph.')
