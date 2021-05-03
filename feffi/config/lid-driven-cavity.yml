@@ -1,6 +1,5 @@
-final_time: 8
-steps_n: 1000
-simulation_precision: -4
+final_time: 10000000000 # until convergence
+steps_n: 10
 g: 0
 nu: 
 - 0.01

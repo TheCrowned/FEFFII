@@ -19,8 +19,6 @@ feffi.parameters.define_parameters({
 if __name__ == '__main__':
     feffi.parameters.parse_commandline_args()
 
-feffi.flog.info('Parameters are: ' + str(feffi.parameters.config))
-
 # Create mesh over simulation domain
 mesh = feffi.mesh.create_mesh()
 
@@ -44,7 +42,6 @@ simulation = feffi.simulation.Simulation(f, domain.BCs)
 simulation.run()
 
 # Plot mesh and solutions, displaying and saving them as png files
-feffi.plot.plot_single(mesh, file_name = 'mesh.png', title = 'Mesh', display = False)
-feffi.plot.plot_solutions(f, display = False)
+feffi.plot.plot_solutions(f, display=False)
 
-feffi.flog.info('Plots can be found in %s' % feffi.parameters.config['plot_path'])
+feffi.flog.info('Plots can be found in {}'.format(feffi.parameters.config['plot_path']))
