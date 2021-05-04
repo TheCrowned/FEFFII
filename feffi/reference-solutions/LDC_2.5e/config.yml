@@ -1,0 +1,53 @@
+BCs:
+  Q:
+    (0,0): 0
+  V:
+    bottom:
+    - 0
+    - 0
+    left:
+    - 0
+    - 0
+    right:
+    - 0
+    - 0
+    top:
+    - 1
+    - 0
+S_0: 35
+T_0: 1
+alpha:
+- 1
+beta: 0
+config_file: feffi/config/lid-driven-cavity.yml
+convert_from_ms_to_kmh: false
+degree_P: 1
+degree_S: 1
+degree_T: 1
+degree_V: 2
+delta0: 1
+domain: square
+domain_size_x: 2
+domain_size_y: 1
+final_time: 100000000000
+g: 0
+gamma: 0
+label: ''
+max_iter: 5000
+mesh_resolution: 25
+mesh_resolution_sea_y: 1
+mesh_resolution_x: 20
+mesh_resolution_y: 10
+non_linear_max_iter: 30
+nu:
+- 0.00025
+plot_path: /home/stot2794/git/fenics-phd/plots/LDC_2.5e
+rho_0: 1
+shelf_size_x: 0.7
+shelf_size_y: 0.1
+simulation_precision: -3
+stabilization: false
+steps_n: 10
+store_solutions: true
+tau0: 35
+very_verbose: false

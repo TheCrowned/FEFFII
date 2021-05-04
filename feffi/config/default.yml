@@ -1,6 +1,6 @@
 final_time: 10
-steps_n: 10000
-simulation_precision: -3
+steps_n: 1000
+simulation_precision: -5
 degree_V: 2
 degree_P: 1
 degree_T: 1

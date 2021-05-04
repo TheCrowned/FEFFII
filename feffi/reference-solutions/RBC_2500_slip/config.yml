@@ -1,0 +1,56 @@
+BCs:
+  Q:
+    (0,0): 0
+  T:
+    bottom: 1
+    sea_top: 0
+  V:
+    bottom:
+    - 0
+    - 0
+    left:
+    - 0
+    - 0
+    right:
+    - 0
+    - 0
+    sea_top:
+    - 0
+    - 0
+S_0: 35
+T_0: 0
+alpha:
+- 1
+beta: 2500.0
+config_file: feffi/config/rayleigh-benard-convection-slip.yml
+convert_from_ms_to_kmh: false
+degree_P: 1
+degree_S: 1
+degree_T: 1
+degree_V: 2
+delta0: 1
+domain: fjord
+domain_size_x: 4
+domain_size_y: 1
+final_time: 1000000
+g: 1
+gamma: 0
+label: ''
+max_iter: 0
+mesh_resolution: 10
+mesh_resolution_sea_y: 1
+mesh_resolution_x: 60
+mesh_resolution_y: 25
+non_linear_max_iter: 30
+nu:
+- 1
+plot_path: /home/stot2794/git/fenics-phd/plots/RBC_2500_slip
+rho_0: 1
+shelf_size_x: 0
+shelf_size_y: 0
+simulation_precision: -5
+stabilization: false
+steps_n: 350
+store_solutions: true
+tau0: 35
+very_verbose: false
