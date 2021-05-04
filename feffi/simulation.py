@@ -103,11 +103,12 @@ class Simulation(object):
 
             if self.maybe_stop():
                 self.log_progress()
-                self.save_solutions_final()
-                self.save_config()
                 flog.info('Simulation stopped at {}, after {} steps ({} seconds).'.format(
                     str(datetime.now()), self.n, round(time()-self.start_time)))
                 break
+
+        self.save_solutions_final()
+        self.save_config()
 
     def timestep(self):
         """Runs one timestep."""
