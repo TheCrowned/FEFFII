@@ -72,7 +72,7 @@ class Simulation(object):
             #self.xdmffile_sol.write(self.f['u_'].function_space().mesh())
             self.save_solutions_xdmf()
 
-        csv_simul_data_file = open(
+        '''csv_simul_data_file = open(
             os.path.join(parameters.config['plot_path'], 'simul_data.csv'),
                          'w')
         fieldnames = ['n',
@@ -83,7 +83,7 @@ class Simulation(object):
         self.csv_simul_data = csv.DictWriter(
             csv_simul_data_file, delimiter=',', quotechar='"',
             quoting=csv.QUOTE_MINIMAL, fieldnames=fieldnames)
-        self.csv_simul_data.writeheader()
+        self.csv_simul_data.writeheader()'''
 
         flog.info('Initialized simulation.')
         flog.info('Running parameters:\n' + str(parameters.config))
@@ -208,14 +208,14 @@ class Simulation(object):
 
         self.log_progress()
 
-        csv_row = {'n': self.n}
+        '''csv_row = {'n': self.n}
         for func in ['u', 'p', 'T', 'S']:
             csv_row.update({
                 '||{}||_2'.format(func): norm(self.f[func+'_'], 'L2'),
                 '||{}||_inf'.format(func): norm(self.f[func+'_'].vector(), 'linf'),
                 'E({})'.format(func): energy_norm(self.f[func+'_'])
             })
-        self.csv_simul_data.writerow(csv_row)
+        self.csv_simul_data.writerow(csv_row)'''
 
         if parameters.config['store_solutions']:
             self.save_solutions_xdmf()
@@ -306,6 +306,10 @@ class Simulation(object):
             << self.f['u_'].function_space().mesh())
         (File(os.path.join(parameters.config['plot_path'], 'solutions', 'up.xml'))
             << self.f['sol'])
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'u.xml'))
+            << self.f['u_'])
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'p.xml'))
+            << self.f['p_'])
         (File(os.path.join(parameters.config['plot_path'], 'solutions', 'T.xml'))
             << self.f['T_'])
         (File(os.path.join(parameters.config['plot_path'], 'solutions', 'S.xml'))
