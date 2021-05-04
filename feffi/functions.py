@@ -273,6 +273,7 @@ def energy_norm(u):
     energy = 0.5 * inner(grad(u), grad(u)) * dx
     return assemble(energy)
 
+
 def get_norms(f):
     d = {}
     for func in ['u', 'p', 'T', 'S']:

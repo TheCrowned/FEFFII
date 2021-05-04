@@ -403,8 +403,9 @@ def reload_status(plot_path):
 
     # Load config
     config_file_path = os.path.join(plot_path, 'config.yml')
-    config = yaml.safe_load(open(config_file_path))
-    config['config_file'] = config_file_path
+    with open(config_file_path) as saved_config:
+        config = yaml.safe_load(saved_config)
+        config['config_file'] = config_file_path
 
     # Load mesh, define function spaces and functions
     mesh = fenics.Mesh(os.path.join(plot_path, 'solutions', 'mesh.xml'))
@@ -414,6 +415,10 @@ def reload_status(plot_path):
 
     # Load functions
     fenics.File(os.path.join(plot_path, 'solutions', 'up.xml')) >> f['sol']
+    fenics.File(os.path.join(plot_path, 'solutions', 'u.xml')) >> f['u_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'u.xml')) >> f['u_n']
+    fenics.File(os.path.join(plot_path, 'solutions', 'p.xml')) >> f['p_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'p.xml')) >> f['p_n']
     fenics.File(os.path.join(plot_path, 'solutions', 'T.xml')) >> f['T_']
     fenics.File(os.path.join(plot_path, 'solutions', 'T.xml')) >> f['T_n']
     fenics.File(os.path.join(plot_path, 'solutions', 'S.xml')) >> f['S_']
