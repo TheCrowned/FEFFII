@@ -14,5 +14,7 @@ python examples/feffi_buoyancy-driven-cavity.py --beta 1000000 --steps-n 500 --s
 python examples/feffi_buoyancy-driven-cavity.py --config-file "feffi/config/rayleigh-benard-convection-slip.yml" --beta 2500 --steps-n 350 --store-sol --plot-path "RBC_2500_slip"
 python examples/feffi_buoyancy-driven-cavity.py --config-file "feffi/config/rayleigh-benard-convection-noslip.yml" --beta 2500 --steps-n 350 --store-sol --plot-path "RBC_2500_noslip"
 
+python examples/feffi_ford.py --store-sol --plot-path "FORD_STEADY_STATE"
+
 # difficult ones, avoid hanging at the beginning
 python examples/feffi_lid-driven-cavity.py --nu 1e-4 --store-sol --stab --plot-path "LDC_1e-4"
