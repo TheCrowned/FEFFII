@@ -54,7 +54,7 @@ Adding a new test is simple:
 1. run the simulation you'd like to include as test. Run with a high simulation precision (like `-5`) and use the `plot_path` arg to give the plots directory a meaningful name.
 2. when the simulation is over, copy the plots folder in `feffi/reference-solutions`. The directory should include a `solutions` subdir and a `config.yml` file (plus a `simul_data.csv`?).
 3. add a new test in `unit_tests.py`.
-4. commit the new `reference-solutions` dir and `unit_tests.py`.
+4. commit the new `reference-solutions` dir and `unit_tests.py` (include pngs and `simulation.log` by appending the `-f` flag to `git add`, but exclude `solutions.h5` and `solutions.xdmf`).
 
 It would be good practice to include all test simulations in `utilities/benchmarks.sh` so that they can be re-run if needed.
 
