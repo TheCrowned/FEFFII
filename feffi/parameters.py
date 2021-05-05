@@ -404,7 +404,7 @@ def reload_status(plot_path):
 
     # Load config
     config_file_path = os.path.join(plot_path, 'config.yml')
-    define_parameters({'config_file': config_file_path})
+    define_parameters({'config_file': config_file_path, 'plot_path': plot_path})
 
     # Load mesh, define function spaces and functions
     mesh = fenics.Mesh(os.path.join(plot_path, 'solutions', 'mesh.xml'))

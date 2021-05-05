@@ -87,9 +87,10 @@ class FEFFIBenchmarksTestsQuick(FEFFIBenchmarksTestsBase):
         feffi.flog.info('** Buoyancy Driven Cavity benchmark, beta 1000 **')
         self.run_test('BDC_1000')
 
+    '''# requires sill to be added in some automatic way...
     def test_Ford_steady_state(self):
         feffi.flog.info('** Ford Steady State benchmark **')
-        self.run_test('FORD_STEADY_STATE')
+        self.run_test('FORD_STEADY_STATE')'''
 
 
 def FEFFIBenchmarksTestsThorough(FEFFIBenchmarksTestsBase):
