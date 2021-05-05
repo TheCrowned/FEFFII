@@ -10,10 +10,10 @@ BCs:
     - 0
     left:
     - 0
-    - 'null'
+    - 0
     right:
     - 0
-    - 'null'
+    - 0
     sea_top:
     - 0
     - 0
