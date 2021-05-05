@@ -65,8 +65,9 @@ def define_parameters(user_config={}):
             'Make sure to pass ALL required config arguments as dict '
             'or through another config file.')
     else:
-        config = yaml.safe_load(open(config_file_path))
-        config['config_file'] = config_file_path
+        with open(config_file_path) as config_file_handle:
+            config.update(yaml.safe_load(config_file_handle))
+            config['config_file'] = config_file_path
 
     # If given, open custom config file...
     if user_config.get('config_file'):
@@ -82,8 +83,9 @@ def define_parameters(user_config={}):
                 'Config file: \n{}\n does not exist\n'
                 'Falling back to default one.'.format(config_file_path))
         else:
-            config.update(yaml.safe_load(open(config_file_path)))
-            config['config_file'] = config_file_path
+            with open(config_file_path) as config_file_handle:
+                config.update(yaml.safe_load(config_file_handle))
+                config['config_file'] = config_file_path
 
     # If (some) dictionary config is provided as class init parameter,
     # that overwrites the default config.
@@ -108,8 +110,8 @@ def define_parameters(user_config={}):
 
     Path(config['plot_path']).mkdir(parents=True, exist_ok=True)
 
-    if config.get('convert_from_ms_to_kmh'):
-        convert_from_ms_to_kmh_input(config)
+    if config.get('convert_from_ms_to_kmh') and config['convert_from_ms_to_kmh']:
+        config.update(convert_constants_from_ms_to_kmh(config))
 
     init_logging()
 
@@ -131,6 +133,7 @@ def init_logging():
 
     # If some handlers are already present, delete them. This is because
     # init_logging is called by define_parameters(), which is called multiple times.
+    # This will results in a ResourceWarning: unclosed simulation.log, but whatever.
     if len(flog.handlers) != 0:
         flog.handlers = []
 
@@ -399,13 +402,9 @@ def reload_status(plot_path):
     f_spaces : (dict)
     """
 
-    global config
-
     # Load config
     config_file_path = os.path.join(plot_path, 'config.yml')
-    with open(config_file_path) as saved_config:
-        config = yaml.safe_load(saved_config)
-        config['config_file'] = config_file_path
+    define_parameters({'config_file': config_file_path})
 
     # Load mesh, define function spaces and functions
     mesh = fenics.Mesh(os.path.join(plot_path, 'solutions', 'mesh.xml'))
@@ -481,16 +480,34 @@ def assemble_viscosity_tensor(visc):
     return output
 
 
-def convert_from_ms_to_kmh_input(config):
+def convert_constants_from_ms_to_kmh(config):
     """Rescale constants from m/s to km/h."""
+
+    # Copy so we don't edit global input
+    config = dict(config)
 
     config['g'] *= 3.6*3.6*1000
     config['rho_0'] /= 3.6**2
     config['nu'] = [i*0.0036 for i in config['nu']]
     config['alpha'] = [i*0.0036 for i in config['alpha']]
 
+    return config
 
-def convert_from_ms_to_kmh_output(f):
+
+def convert_constants_from_kmh_to_ms(config):
+    """Rescale constants from km/h to m/s."""
+
+    # Copy so we don't edit global input
+    config = dict(config)
+
+    config['g'] /= 3.6*3.6*1000
+    config['rho_0'] *= 3.6**2
+    config['nu'] = [i/0.0036 for i in config['nu']]
+    config['alpha'] = [i/0.0036 for i in config['alpha']]
+
+    return config
+
+def convert_functions_from_ms_to_kmh(f):
     """
     """
 
