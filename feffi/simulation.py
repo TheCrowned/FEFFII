@@ -14,6 +14,7 @@ import numpy as np
 import yaml
 import csv
 from . import parameters, plot
+from .parameters import convert_constants_from_kmh_to_ms
 from .functions import (build_NS_GLS_steady_form, build_temperature_form,
                         build_salinity_form, energy_norm)
 flog = logging.getLogger('feffi')
@@ -316,10 +317,18 @@ class Simulation(object):
             << self.f['S_'])
 
     def save_config(self):
-        """Stores config used for simulation to file"""
+        """Stores config used for simulation to file."""
 
-        yaml.dump(parameters.config,
-                  open(os.path.join(parameters.config['plot_path'], 'config.yml'), 'w'))
+        # If constants had been converted from m/s to km/h, revert them back
+        if (parameters.config.get('convert_from_ms_to_kmh') and
+            parameters.config['convert_from_ms_to_kmh']):
+            to_save_config = convert_constants_from_kmh_to_ms(parameters.config)
+        else:
+            to_save_config = parameters.config
+
+        with open(os.path.join(parameters.config['plot_path'],
+                               'config.yml'), 'w') as save_handle:
+            yaml.dump(to_save_config, save_handle)
 
     def sigint_handler(self, sig, frame):
         """Catches CTRL-C when Simulation.run() is going,
