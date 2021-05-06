@@ -162,17 +162,20 @@ def B_g(a, u, p_nh, grad_p_h, v, q):
 
 
 def build_buoyancy(T_, S_):
-    """Build buoyancy term."""
+    """Build buoyancy term.
+
+    The degree is governed by pressure degree, since the Expression is added
+    to the pressure function."""
 
     return Expression(
-        (0, '-g*(1 - beta*(T_ - T_0) + gamma*(S_ - S_0))'),  # g is positive
+        '-g*(1 - beta*(T_ - T_0) + gamma*(S_ - S_0))',  # g is positive
         beta=Constant(parameters.config['beta']),
         gamma=Constant(parameters.config['gamma']),
         T_0=Constant(parameters.config['T_0']),
         S_0=Constant(parameters.config['S_0']),
         g=Constant(parameters.config['g']),
         T_=T_, S_=S_,
-        degree=2)
+        degree=parameters.config['degree_P'])
 
 
 def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
@@ -189,8 +192,8 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     (l, k) = (parameters.config['degree_V'], parameters.config['degree_P']) # f spaces degrees
     nu_min = min(parameters.config['nu']) # smallest nu yields biggest Re number -> most unstable
     hmin = mesh.hmin(); hmax = mesh.hmax()
-    delta0 = Constant(parameters.config['delta0']) #1 # "tuning parameter" > 0
-    tau0 = Constant(parameters.config['tau0']) # if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
+    delta0 = parameters.config['delta0'] #1 # "tuning parameter" > 0
+    tau0 = parameters.config['tau0'] # if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
 
     #norm_a = fenics.norm(a) #seems to affect in negative way, and ||a|| is rarely huge
     norm_a = 1
@@ -200,24 +203,20 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     delta = delta0*hmin*min(1, Rej/3)/norm_a
     tau = tau0*max(nu_min, hmin)
 
-    # Build form
-    flog.debug('Stabilized form with Rej = {}; delta = {}; tau = {}'.format(
-        round(Rej, 5), round(delta, 5), round(tau, 5)))
-
     #b = build_buoyancy(T_, S_)
     f = u_n/dt #+ b
     steady_form = B_g(a, u, p, grad_P_h, v, q) - dot(f, v)*dx
 
     if parameters.config['stabilization']:
+        # Build form
+        flog.debug('Stabilized form with Rej = {}; delta = {}; tau = {}'.format(
+            round(Rej, 5), round(delta, 5), round(tau, 5)))
+
         # turn individual terms on and off by tweaking delta0, tau0 in config
         if delta > 0:
             steady_form += delta*(dot(N(a, u, p) - f, Phi(a, v)))*dx
         if tau > 0:
             steady_form += tau*(dot(div(u), div(v)))*dx
-
-        flog.debug('Stabilization terms added to variational form')
-    else:
-        flog.debug('NO Stabilization terms added to variational form')
 
     return steady_form
 
