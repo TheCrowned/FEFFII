@@ -1,4 +1,7 @@
-from fenics import assemble, File, solve, norm, XDMFFile, lhs, rhs, errornorm
+from fenics import (assemble, File, solve, norm, XDMFFile, lhs, rhs, dx,
+                    TestFunction, TrialFunction, Function, DirichletBC,
+                    Constant, VectorFunctionSpace, FunctionSpace, interpolate,
+                    Expression, errornorm)
 from math import log
 from pathlib import Path
 from time import time
@@ -10,8 +13,10 @@ import signal
 import numpy as np
 import yaml
 from . import parameters, plot
-from .functions import build_NS_GLS_steady_form, build_temperature_form, build_salinity_form
+from .functions import (build_NS_GLS_steady_form, build_temperature_form,
+                        build_salinity_form, build_buoyancy)
 flog = logging.getLogger('feffi')
+
 
 class Simulation(object):
     """Initializes a FEFFI model simulation.
@@ -54,18 +59,20 @@ class Simulation(object):
         self.BCs = BCs
         self.n = 0
         self.iterations_n = parameters.config['steps_n']*int(parameters.config['final_time'])
+        self.relative_errors = {}
 
         if parameters.config['store_solutions']:
-            self.xdmffile_sol = XDMFFile(os.path.join(parameters.config['plot_path'], 'solutions.xdmf'))
+            self.xdmffile_sol = XDMFFile(os.path.join(
+                parameters.config['plot_path'], 'solutions.xdmf'))
             self.xdmffile_sol.parameters["flush_output"] = True #https://github.com/FEniCS/dolfinx/issues/75
             self.xdmffile_sol.parameters["functions_share_mesh"] = True
 
             # Store mesh and first step solutions
-            self.xdmffile_sol.write(self.f['u_'].function_space().mesh())
+            #self.xdmffile_sol.write(self.f['u_'].function_space().mesh())
             self.save_solutions_xdmf()
 
-        flog.info('Initialized simulation\n'+
-                  'Running parameters:\n'+str(parameters.config))
+        flog.info('Initialized simulation.')
+        flog.info('Running parameters:\n' + str(parameters.config))
 
     def run(self):
         """Runs the simulation until a stopping condition is met."""
@@ -74,7 +81,8 @@ class Simulation(object):
         signal.signal(signal.SIGINT, self.sigint_handler)
 
         self.start_time = time()
-        flog.info('Running full simulation; started at %s' % str(datetime.now()))
+        flog.info('Running full simulation; started at {}'
+                  .format(str(datetime.now())))
 
         while self.n <= self.iterations_n:
             self.timestep()
@@ -96,8 +104,31 @@ class Simulation(object):
 
         # Init some vars
         self.nonlin_n = 0; residual_u = 1e22
-        (self.f['u_n'], self.f['p_n']) = self.f['sol'].split(True)
         tol = 10**parameters.config['simulation_precision']
+        g = Constant(parameters.config['g'])
+        beta = Constant(parameters.config['beta'])
+        gamma = Constant(parameters.config['gamma'])
+        rho_0 = Constant(parameters.config['rho_0'])
+        pnh = Function(self.f['p_'].function_space()) #non-hydrostatic pressure
+
+        # Obtain dph/dx
+        # A linear space is used even though dT/dx will most likely be
+        # piecewise constant.
+        flog.debug('Solving for dph/dx...')
+        dp_f_space = self.f['p_'].function_space()
+        dph_dx = TrialFunction(dp_f_space)
+        q = TestFunction(dp_f_space)
+        dph_dx_sol = Function(dp_f_space)
+        a = dph_dx.dx(1) * q * dx
+        L = -g*(-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
+        bc = DirichletBC(dp_f_space, 0, 'near(x[1], 1)')
+        solve(a == L, dph_dx_sol, bcs=[bc])
+        flog.debug('Solved for dph/dx.')
+
+        flog.debug('Interpolating dph/dx over 2D grid, with dph/dz=0...')
+        grad_p_h = interpolate(Expression(('dph_dx', 0), dph_dx=dph_dx_sol,
+                               degree=2), VectorFunctionSpace(dp_f_space.mesh(), 'Lagrange', 1))
+        flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(norm(grad_p_h)))
 
         # Solve the non linearity
         flog.debug('Iteratively solving non-linear problem')
@@ -106,9 +137,8 @@ class Simulation(object):
 
             # Shorthand for variables
             u = self.f['u']; p = self.f['p']
-            u_n = self.f['u_n'];
             v = self.f['v']; q = self.f['q']
-            T_n = self.f['T_n']; S_n = self.f['S_n']
+            u_n = self.f['u_n']; T_n = self.f['T_n']; S_n = self.f['S_n']
 
             # Define and solve NS problem
             bcs = []
@@ -117,17 +147,32 @@ class Simulation(object):
             if self.BCs.get('Q'):
                 bcs += self.BCs['Q']
 
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, v, q, T_n, S_n)
-            solve(lhs(steady_form) == rhs(steady_form), self.f['sol'],
-                  bcs=bcs)
+            flog.debug('Solving for u, p...')
+            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_p_h, v,
+                                                   q, T_n, S_n)
+            solve(lhs(steady_form) == rhs(steady_form), self.f['sol'], bcs=bcs)
+            flog.debug('Solved for u, p.')
 
-            (self.f['u_'], self.f['p_']) = self.f['sol'].split(True)
+            (self.f['u_'], pnh) = self.f['sol'].split(True)
             residual_u = errornorm(self.f['u_'], a)
-            flog.debug(" >>> residual u: {} <<<\n".format(residual_u))
+            flog.debug('>>> residual u: {} <<<'.format(residual_u))
 
             self.nonlin_n += 1
-
         flog.debug('Solved non-linear problem.')
+
+        # Calculate ph and build full pressure as ph+pnh
+        flog.debug('Solving for ph...')
+        p_f_space = pnh.function_space()  # so we can avoid projecting later
+        ph = TrialFunction(p_f_space)
+        q = TestFunction(p_f_space)
+        ph_sol = Function(p_f_space)
+        a = ph.dx(1)/rho_0 * q * dx
+        #L = -g * (1 - beta*(self.f['T_']-T_0) + gamma*(self.f['S_']-S_0)) * q * dx
+        L = build_buoyancy(self.f['T_'], self.f['S_']) * q * dx
+        bc = DirichletBC(p_f_space, 0, 'near(x[1], 1)')
+        solve(a == L, ph_sol, bcs=[bc])
+        self.f['p_'].assign(pnh + ph_sol)
+        flog.debug('Solved for ph.')
 
         # ------------------------
         # Temperature and salinity
@@ -136,23 +181,20 @@ class Simulation(object):
         flog.debug('Solving for T and S.')
 
         if parameters.config['beta'] != 0: #do not run if not coupled with velocity
-            T_n = self.f['T_n']; T_v = self.f['T_v']; T = self.f['T']; u_ = self.f['u_']
-            T_form = build_temperature_form(T, T_n, T_v, u_)
+            T_form = build_temperature_form(self.f['T'], self.f['T_n'],
+                                            self.f['T_v'], self.f['u_'])
             solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'])
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
-            S_n = self.f['S_n']; S_v = self.f['S_v']; S = self.f['S']; u_ = self.f['u_']
-            S_form = build_salinity_form(S, S_n, S_v, u_)
+            S_form = build_salinity_form(self.f['S'], self.f['S_n'],
+                                         self.f['S_v'], self.f['u_'])
             solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'])
 
         flog.debug('Solved for T and S.')
-
-        self.relative_errors = {
-            'u' : errornorm(self.f['u_'], self.f['u_n'])/norm(self.f['u_'], 'L2'),
-            'p' : errornorm(self.f['p_'], self.f['p_n'])/norm(self.f['p_'], 'L2'),
-            'T' : errornorm(self.f['T_'], self.f['T_n'])/norm(self.f['T_'], 'L2'),
-            'S' : errornorm(self.f['S_'], self.f['S_n'])/norm(self.f['S_'], 'L2'),
-        }
+        self.relative_errors['u'] = errornorm(self.f['u_'], self.f['u_n'])/norm(self.f['u_'], 'L2') if norm(self.f['u_'], 'L2') != 0 else 0
+        self.relative_errors['p'] = errornorm(self.f['p_'], self.f['p_n'])/norm(self.f['p_'], 'L2') if norm(self.f['p_'], 'L2') != 0 else 0
+        self.relative_errors['T'] = errornorm(self.f['T_'], self.f['T_n'])/norm(self.f['T_'], 'L2') if norm(self.f['T_'], 'L2') != 0 else 0
+        self.relative_errors['S'] = errornorm(self.f['S_'], self.f['S_n'])/norm(self.f['S_'], 'L2') if norm(self.f['S_'], 'L2') != 0 else 0
 
         self.log_progress()
 
