@@ -12,9 +12,11 @@ import logging
 import signal
 import numpy as np
 import yaml
+import csv
 from . import parameters, plot
+from .parameters import convert_constants_from_kmh_to_ms
 from .functions import (build_NS_GLS_steady_form, build_temperature_form,
-                        build_salinity_form, build_buoyancy)
+                        build_salinity_form, build_buoyancy, energy_norm)
 flog = logging.getLogger('feffi')
 
 
@@ -71,6 +73,19 @@ class Simulation(object):
             #self.xdmffile_sol.write(self.f['u_'].function_space().mesh())
             self.save_solutions_xdmf()
 
+        '''csv_simul_data_file = open(
+            os.path.join(parameters.config['plot_path'], 'simul_data.csv'),
+                         'w')
+        fieldnames = ['n',
+                      '||u||_2', '||u||_inf', 'E(u)',
+                      '||p||_2', '||p||_inf', 'E(p)',
+                      '||T||_2', '||T||_inf', 'E(T)',
+                      '||S||_2', '||S||_inf', 'E(S)']
+        self.csv_simul_data = csv.DictWriter(
+            csv_simul_data_file, delimiter=',', quotechar='"',
+            quoting=csv.QUOTE_MINIMAL, fieldnames=fieldnames)
+        self.csv_simul_data.writeheader()'''
+
         flog.info('Initialized simulation.')
         flog.info('Running parameters:\n' + str(parameters.config))
 
@@ -89,11 +104,12 @@ class Simulation(object):
 
             if self.maybe_stop():
                 self.log_progress()
-                self.save_solutions_final()
-                self.save_config()
                 flog.info('Simulation stopped at {}, after {} steps ({} seconds).'.format(
                     str(datetime.now()), self.n, round(time()-self.start_time)))
                 break
+
+        self.save_solutions_final()
+        self.save_config()
 
     def timestep(self):
         """Runs one timestep."""
@@ -198,6 +214,15 @@ class Simulation(object):
 
         self.log_progress()
 
+        '''csv_row = {'n': self.n}
+        for func in ['u', 'p', 'T', 'S']:
+            csv_row.update({
+                '||{}||_2'.format(func): norm(self.f[func+'_'], 'L2'),
+                '||{}||_inf'.format(func): norm(self.f[func+'_'].vector(), 'linf'),
+                'E({})'.format(func): energy_norm(self.f[func+'_'])
+            })
+        self.csv_simul_data.writerow(csv_row)'''
+
         if parameters.config['store_solutions']:
             self.save_solutions_xdmf()
 
@@ -287,16 +312,28 @@ class Simulation(object):
             << self.f['u_'].function_space().mesh())
         (File(os.path.join(parameters.config['plot_path'], 'solutions', 'up.xml'))
             << self.f['sol'])
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'u.xml'))
+            << self.f['u_'])
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'p.xml'))
+            << self.f['p_'])
         (File(os.path.join(parameters.config['plot_path'], 'solutions', 'T.xml'))
             << self.f['T_'])
         (File(os.path.join(parameters.config['plot_path'], 'solutions', 'S.xml'))
             << self.f['S_'])
 
     def save_config(self):
-        """Stores config used for simulation to file"""
+        """Stores config used for simulation to file."""
 
-        yaml.dump(parameters.config,
-                  open(os.path.join(parameters.config['plot_path'], 'config.yml'), 'w'))
+        # If constants had been converted from m/s to km/h, revert them back
+        if (parameters.config.get('convert_from_ms_to_kmh') and
+            parameters.config['convert_from_ms_to_kmh']):
+            to_save_config = convert_constants_from_kmh_to_ms(parameters.config)
+        else:
+            to_save_config = parameters.config
+
+        with open(os.path.join(parameters.config['plot_path'],
+                               'config.yml'), 'w') as save_handle:
+            yaml.dump(to_save_config, save_handle)
 
     def sigint_handler(self, sig, frame):
         """Catches CTRL-C when Simulation.run() is going,

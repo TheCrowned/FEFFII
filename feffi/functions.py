@@ -2,7 +2,7 @@ from fenics import (dot, inner, elem_mult, grad, nabla_grad, div,
                     dx, ds, sym, Identity, Function, TrialFunction,
                     TestFunction, FunctionSpace, VectorElement, split,
                     FiniteElement, Constant, interpolate, Expression,
-                    FacetNormal, as_vector, assemble)
+                    FacetNormal, as_vector, assemble, norm)
 from . import parameters
 import logging
 flog = logging.getLogger('feffi')
@@ -271,3 +271,12 @@ def get_matrix_diagonal(mat):
 def energy_norm(u):
     energy = 0.5 * inner(grad(u), grad(u)) * dx
     return assemble(energy)
+
+
+def get_norms(f):
+    d = {}
+    for func in ['u', 'p', 'T', 'S']:
+        d['||{}||_2'.format(func)] = norm(f[func+'_'], 'L2')
+        d['||{}||_inf'.format(func)] = norm(f[func+'_'].vector(), 'linf')
+        d['E({})'.format(func)] = energy_norm(f[func+'_'])
+    return d
