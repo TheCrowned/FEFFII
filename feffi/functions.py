@@ -156,7 +156,7 @@ def B_g(a, u, p_nh, grad_p_h, v, q):
         + (dot(dot(a, nabla_grad(u)), v))*dx
         - dot(p_nh/rho_0, div(v))*dx
         + dot(grad_p_h/rho_0, v)*dx
-        # + dot(p_nh/rho_0, dot(v, n))*ds
+        # + inner(p_nh*n/rho_0, v)*ds
         # - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
         - dot(div(u), q)*dx)
 
