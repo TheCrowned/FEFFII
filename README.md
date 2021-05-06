@@ -47,6 +47,17 @@ For what concerns simulated quantities:
 - temperature: °C
 - salinity: PSU
 
+## Tests and benchmarks
+As of today, benchmarks include `Lid Driven Cavity`, `Buoyancy Driven Cavity`, `Rayleigh-Benard Convection` and `Ford experiment`. These have been run with different parameters (i.e. with different _difficulty_), and we check that their result does not change when the model is updated. Simulations with precision 1e-5 have been run and saved in `feffi/reference-solutions`. There are a bunch of unit tests implemented in `unit_tests.py` that can be run which will check whether a newly computed solution matches the reference one.
+
+Adding a new test is simple:
+1. run the simulation you'd like to include as test. Run with a high simulation precision (like `-5`) and use the `plot_path` arg to give the plots directory a meaningful name.
+2. when the simulation is over, copy the plots folder in `feffi/reference-solutions`. The directory should include a `solutions` subdir and a `config.yml` file (plus a `simul_data.csv`?).
+3. add a new test in `unit_tests.py`.
+4. commit the new `reference-solutions` dir and `unit_tests.py` (include pngs and `simulation.log` by appending the `-f` flag to `git add`, but exclude `solutions.h5` and `solutions.xdmf`).
+
+It would be good practice to include all test simulations in `utilities/benchmarks.sh` so that they can be re-run if needed.
+
 ## TODO
 ### Short term (comments by CH)
 - Double check, for real, how the tensors of `assemble_viscosity_tensor` should be formulated. This was incorrect (I assume) for the scalar case, and have been ad-hoc extended to the vector and tensor case by CH. SO must finalize.
@@ -54,7 +65,7 @@ For what concerns simulated quantities:
 - I don't see a reason why `boundaries/` and `configs/` should *not* be part of the module, rathern than being external as they are now.
 - Is is good logic to have `--steps-n` to be "per unit time". If so (and I don't have a strong oppinion about this), make this very clear in the help, maybe even change the argument name. To me, if I see `--final-time` and `--steps-n`, I kinda put them together.
 
-### Long term (no stress) 
+### Long term (no stress)
 - **Clean up code**. I have started this in `parameters.py` to show a bit, but it is not complete. To me, this makes the code more organized, easier to read and troubleshoot. I have, to some extent, applied the below points:
     + Start using a syntax checker that conforms to PEP standards. I think I use `autopep8`, but that is kinda a personal choice.
     + Make sure to have lines that don't exceed pep8 standard (<79 chars, or whatever)
@@ -65,4 +76,4 @@ For what concerns simulated quantities:
 
         1. Save the config settings that were used (by writing the configs to file just after simulation).
         2. Adding to the saved configuration the git commit that this was done under and if it is modified.
-		This way, one could (almost) always go back to a particular simulation.
+        This way, one could (almost) always go back to a particular simulation.

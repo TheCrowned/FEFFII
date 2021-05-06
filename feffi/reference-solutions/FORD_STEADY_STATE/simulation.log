@@ -1,0 +1,40 @@
+[20:50:04] Parameters are: {'final_time': 2, 'steps_n': 10, 'simulation_precision': -5, 'degree_V': 2, 'degree_P': 1, 'degree_T': 1, 'degree_S': 1, 'convert_from_ms_to_kmh': True, 'g': 127137.6, 'nu': [3.6e-05], 'alpha': [3.6e-05], 'rho_0': 79.32098765432099, 'beta': 0.0001, 'gamma': 0, 'T_0': 0, 'S_0': 35, 'domain': 'fjord', 'domain_size_x': 100, 'domain_size_y': 1, 'shelf_size_x': 0, 'shelf_size_y': 0, 'mesh_resolution': 20, 'mesh_resolution_x': 60, 'mesh_resolution_y': 20, 'mesh_resolution_sea_y': 4, 'very_verbose': False, 'store_solutions': True, 'label': '', 'max_iter': 0, 'non_linear_max_iter': 30, 'stabilization': False, 'delta0': 1, 'tau0': 35, 'BCs': {'V': {'right': [0, 0], 'bottom': [0, 0], 'left': [0, 0], 'sea_top': [0, 0]}, 'T': {'left': '3*x[1]', 'right': '3*x[1]'}, 'Q': {'sea_top': 0}}, 'config_file': 'feffi/config/ford-experiment.yml', 'T_init': '3*x[1]', 'plot_path': '/home/stot2794/git/fenics-phd/plots/FORD_STEADY_STATE'}
+[20:50:05] BCs were only given for V, T, Q spaces.
+[20:50:05] BCs - Boundary right, space V[0] (marker 1), value 0
+[20:50:05] BCs - Boundary right, space V[1] (marker 1), value 0
+[20:50:05] BCs - Boundary bottom, space V[0] (marker 2), value 0
+[20:50:05] BCs - Boundary bottom, space V[1] (marker 2), value 0
+[20:50:05] BCs - Boundary left, space V[0] (marker 3), value 0
+[20:50:05] BCs - Boundary left, space V[1] (marker 3), value 0
+[20:50:05] BCs - Boundary sea_top, space V[0] (marker 6), value 0
+[20:50:05] BCs - Boundary sea_top, space V[1] (marker 6), value 0
+[20:50:05] BCs - Boundary left, space T (marker 3), value 3*x[1]
+[20:50:05] BCs - Boundary right, space T (marker 1), value 3*x[1]
+[20:50:05] BCs - Boundary sea_top, space Q (marker 6), value 0
+[20:50:05] Initialized simulation.
+[20:50:05] Running parameters:
+{'final_time': 2, 'steps_n': 10, 'simulation_precision': -5, 'degree_V': 2, 'degree_P': 1, 'degree_T': 1, 'degree_S': 1, 'convert_from_ms_to_kmh': True, 'g': 127137.6, 'nu': [3.6e-05], 'alpha': [3.6e-05], 'rho_0': 79.32098765432099, 'beta': 0.0001, 'gamma': 0, 'T_0': 0, 'S_0': 35, 'domain': 'fjord', 'domain_size_x': 100, 'domain_size_y': 1, 'shelf_size_x': 0, 'shelf_size_y': 0, 'mesh_resolution': 20, 'mesh_resolution_x': 60, 'mesh_resolution_y': 20, 'mesh_resolution_sea_y': 4, 'very_verbose': False, 'store_solutions': True, 'label': '', 'max_iter': 0, 'non_linear_max_iter': 30, 'stabilization': False, 'delta0': 1, 'tau0': 35, 'BCs': {'V': {'right': [0, 0], 'bottom': [0, 0], 'left': [0, 0], 'sea_top': [0, 0]}, 'T': {'left': '3*x[1]', 'right': '3*x[1]'}, 'Q': {'sea_top': 0}}, 'config_file': 'feffi/config/ford-experiment.yml', 'T_init': '3*x[1]', 'plot_path': '/home/stot2794/git/fenics-phd/plots/FORD_STEADY_STATE'}
+[20:50:05] Running full simulation; started at 2021-05-04 20:50:05.225449
+[20:50:06] Timestep 0 of 20:
+[20:50:06]   Non-linearity u-P solved in 1 steps.
+[20:50:06]   ||u|| = 0.0, ||u||_8 = 0.0, ||u-u_n|| = 0.0, ||u-u_n||/||u|| = 0
+[20:50:06]   ||p|| = 47881259.64822, ||p||_8 = 10084680.0, ||p-p_n|| = 47881259.64822, ||p-p_n||/||p|| = 1.0
+[20:50:06]   ||T|| = 16.49308, ||T||_8 = 3.0, ||T-T_n|| = 0.00155, ||T-T_n||/||T|| = 9e-05
+[20:50:17] Timestep 10 of 20:
+[20:50:17]   Non-linearity u-P solved in 1 steps.
+[20:50:17]   ||u|| = 3e-05, ||u||_8 = 3e-05, ||u-u_n|| = 1e-05, ||u-u_n||/||u|| = 0.16973
+[20:50:17]   ||p|| = 47872142.09929, ||p||_8 = 10083169.64504, ||p-p_n|| = 0.09541, ||p-p_n||/||p|| = 0.0
+[20:50:17]   ||T|| = 16.49157, ||T||_8 = 3.0, ||T-T_n|| = 0.0012, ||T-T_n||/||T|| = 7e-05
+[20:50:29] Timestep 20 of 20:
+[20:50:29]   Non-linearity u-P solved in 2 steps.
+[20:50:29]   ||u|| = 0.00012, ||u||_8 = 0.00011, ||u-u_n|| = 1e-05, ||u-u_n||/||u|| = 0.0879
+[20:50:29]   ||p|| = 47872142.57587, ||p||_8 = 10083169.55029, ||p-p_n|| = 0.09017, ||p-p_n||/||p|| = 0.0
+[20:50:29]   ||T|| = 16.49007, ||T||_8 = 3.0, ||T-T_n|| = 0.00108, ||T-T_n||/||T|| = 7e-05
+[20:50:29] Plotting Velocity...
+[20:50:31] Plotting Velocity X-component...
+[20:50:32] Plotting Velocity Y-component...
+[20:50:34] Plotting Pressure...
+[20:50:35] Plotting Temperature...
+[20:50:36] Plotting Salinity...
+[20:50:37] Plotting Mesh...
+[20:50:39] Plots can be found in /home/stot2794/git/fenics-phd/plots/FORD_STEADY_STATE

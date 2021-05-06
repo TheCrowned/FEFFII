@@ -13,10 +13,8 @@ import matplotlib.pyplot as plt
 
 parameters.define_parameters({
     'config_file' : 'feffi/config/lid-driven-cavity.yml',
-    'max_iter' : 1000
 })
 parameters.parse_commandline_args()
-
 
 # Uncomment this to use the COMSOL-like mesh, with rough interior and
 # progressively finer boundaries
@@ -62,8 +60,9 @@ flog.info(
 simul = simulation.Simulation(f, domain.BCs)
 simul.run()
 
+plot.plot_solutions(f)
 
-plot.plot_single(
+'''plot.plot_single(
     mesh,
     title='Mesh (nu = {})'.format(parameters.config['nu']),
     display=False,
@@ -80,14 +79,14 @@ plot.plot_single(
     title='Pressure (nu = {})'.format(parameters.config['nu']),
     display=False,
     file_name='pressure-{}.png'.format(parameters.config['nu']),
-    )
+    )'''
 
 # Export solutions for comparison
 #fenics.File('out/lid-driven-cavity_u_{}.xml'.format(parameters.config['nu'])) << f['u_']
 #fenics.File('out/lid-driven-cavity_p_{}.xml'.format(parameters.config['nu'])) << f['p_']
 
 # Compare with reference solutions
-ref_u = fenics.Function(f_spaces['V'].collapse())
+'''ref_u = fenics.Function(f_spaces['V'].collapse())
 ref_p = fenics.Function(f_spaces['Q'].collapse())
 fenics.File(
     'feffi/reference-solutions/lid-driven-cavity_u_{}.xml'.format(
@@ -118,3 +117,4 @@ plt.colorbar(pl)
 
 plt.savefig('out/comp.png', dpi=800)
 plt.show()
+'''
