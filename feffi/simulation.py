@@ -14,7 +14,7 @@ import numpy as np
 import yaml
 from . import parameters, plot
 from .functions import (build_NS_GLS_steady_form, build_temperature_form,
-                        build_salinity_form)
+                        build_salinity_form, build_buoyancy)
 flog = logging.getLogger('feffi')
 
 
@@ -107,7 +107,7 @@ class Simulation(object):
         tol = 10**parameters.config['simulation_precision']
         g = Constant(parameters.config['g'])
         beta = Constant(parameters.config['beta'])
-        T_0 = Constant(parameters.config['T_0'])
+        gamma = Constant(parameters.config['gamma'])
         rho_0 = Constant(parameters.config['rho_0'])
         pnh = Function(self.f['p_'].function_space()) #non-hydrostatic pressure
 
@@ -120,7 +120,7 @@ class Simulation(object):
         q = TestFunction(dp_f_space)
         dph_dx_sol = Function(dp_f_space)
         a = dph_dx.dx(1) * q * dx
-        L = g*beta*(self.f['T_'].dx(0)) * q * dx
+        L = -g*(-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
         bc = DirichletBC(dp_f_space, 0, 'near(x[1], 1)')
         solve(a == L, dph_dx_sol, bcs=[bc])
         flog.debug('Solved for dph/dx.')
@@ -137,9 +137,8 @@ class Simulation(object):
 
             # Shorthand for variables
             u = self.f['u']; p = self.f['p']
-            u_n = self.f['u_n'];
             v = self.f['v']; q = self.f['q']
-            T_n = self.f['T_n']; S_n = self.f['S_n']
+            u_n = self.f['u_n']; T_n = self.f['T_n']; S_n = self.f['S_n']
 
             # Define and solve NS problem
             flog.debug('Solving for u,p...')
@@ -151,7 +150,7 @@ class Simulation(object):
 
             (self.f['u_'], pnh) = self.f['sol'].split(True)
             residual_u = errornorm(self.f['u_'], a)
-            flog.debug(" >>> residual u: {} <<<\n".format(residual_u))
+            flog.debug('>>> residual u: {} <<<'.format(residual_u))
 
             self.nonlin_n += 1
         flog.debug('Solved non-linear problem.')
@@ -163,7 +162,8 @@ class Simulation(object):
         q = TestFunction(p_f_space)
         ph_sol = Function(p_f_space)
         a = ph.dx(1)/rho_0 * q * dx
-        L = -g * (1 - beta*(self.f['T_']-T_0)) * q * dx
+        #L = -g * (1 - beta*(self.f['T_']-T_0) + gamma*(self.f['S_']-S_0)) * q * dx
+        L = build_buoyancy(self.f['T_'], self.f['S_']) * q * dx
         bc = DirichletBC(p_f_space, 0, 'near(x[1], 1)')
         solve(a == L, ph_sol, bcs=[bc])
         self.f['p_'].assign(pnh + ph_sol)
