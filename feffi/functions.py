@@ -1,11 +1,12 @@
 from fenics import (dot, inner, elem_mult, grad, nabla_grad, div,
                     dx, ds, sym, Identity, Function, TrialFunction,
                     TestFunction, FunctionSpace, VectorElement, split,
-                    FiniteElement, Constant, interpolate, Expression)
-import fenics
+                    FiniteElement, Constant, interpolate, Expression,
+                    FacetNormal, as_vector, assemble)
 from . import parameters
 import logging
 flog = logging.getLogger('feffi')
+
 
 def define_function_spaces(mesh, **kwargs):
     """Define function spaces for velocity, pressure, temperature and salinity.
@@ -23,8 +24,10 @@ def define_function_spaces(mesh, **kwargs):
     # Allow function arguments to overwrite wide config (but keep it local)
     config = dict(parameters.config); config.update(kwargs)
 
-    V = VectorElement("Lagrange", mesh.ufl_cell(), parameters.config['degree_V'])
-    P = FiniteElement("Lagrange", mesh.ufl_cell(), parameters.config['degree_P'])
+    V = VectorElement("Lagrange", mesh.ufl_cell(),
+                      parameters.config['degree_V'])
+    P = FiniteElement("Lagrange", mesh.ufl_cell(),
+                      parameters.config['degree_P'])
 
     f_spaces = {
         'W': FunctionSpace(mesh, V * P),
@@ -37,6 +40,7 @@ def define_function_spaces(mesh, **kwargs):
     f_spaces['Q'] = f_spaces['W'].sub(1)
 
     return f_spaces
+
 
 def define_functions(f_spaces):
     """Define solution functions for velocity, pressure, temperature
@@ -78,6 +82,7 @@ def define_functions(f_spaces):
 
     return f
 
+
 def init_functions(f, **kwargs):
     """Set function values to closest stable state to speed up convergence.
 
@@ -91,9 +96,9 @@ def init_functions(f, **kwargs):
     # Allow function arguments to overwrite wide config (but keep it local)
     config = dict(parameters.config); config.update(kwargs)
 
+    # If no [TS]_init is given, use [TS]_0
     if(config.get('T_init') == None or len(config['T_init']) == 0):
         config['T_init'] = 'T_0'
-
     if(config.get('S_init') == None or len(config['S_init']) == 0):
         config['S_init'] = 'S_0'
 
@@ -101,26 +106,17 @@ def init_functions(f, **kwargs):
         interpolate(
             Expression(
                 config['T_init'],
-                T_0 = config['T_0'], # needed for fallback if T_init is not given
-                degree = 2), # would be nice to allow all config variables?,
+                T_0=config['T_0'],  # needed for fallback if T_init is not given
+                degree=2),  # would be nice to allow all config variables?,
             f['T_n'].ufl_function_space()))
     f['S_n'].assign(
         interpolate(
             Expression(
                 config['S_init'],
-                S_0 = config['S_0'],
-                degree = 2),
+                S_0=config['S_0'],
+                degree=2),
             f['S_n'].ufl_function_space()))
 
-    #It makes no sense to init p without splitting scheme?
-    '''f['p_n'].assign(
-        interpolate(
-            Expression(
-                'rho_0*g*(1-x[1])',
-                degree=2,
-                rho_0=config['rho_0'],
-                g=config['g']),
-            f['p_n'].ufl_function_space().collapse()))'''
 
 def N(a, u, p):
     """First stabilization operator, LHS differential operator.
@@ -130,7 +126,12 @@ def N(a, u, p):
     nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])
     rho_0 = parameters.config['rho_0']
 
-    return u/dt - div(elem_mult(nu, nabla_grad(u))) + dot(a, nabla_grad(u)) + grad(p)/rho_0
+    return (
+        + u/dt
+        - div(elem_mult(nu, nabla_grad(u)))
+        + dot(a, nabla_grad(u))
+        + grad(p)/rho_0)
+
 
 def Phi(a, u):
     """Second stabilization operator.
@@ -138,82 +139,87 @@ def Phi(a, u):
 
     return dot(a, nabla_grad(u))
 
-def B_g(a, u, p, v, q):
+
+def B_g(a, u, p_nh, grad_p_h, v, q):
     """Galerkin weak formulation for Navier-Stokes."""
 
-    dt = 1/parameters.config['steps_n']
+    dt = Constant(1/parameters.config['steps_n'])
     nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])
-    rho_0 = parameters.config['rho_0']
-    n = fenics.FacetNormal(a.function_space().mesh())
+    rho_0 = Constant(parameters.config['rho_0'])
+    n = FacetNormal(a.function_space().mesh())
 
+    # Boundary terms are commented out since we have no Neumann conditions,
+    # and Dirichlet conditions would zero them out anyway.
     return (
-    + dot(u, v)/dt*dx
-    + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx # sym??
-    + (dot(dot(a, nabla_grad(u)), v) )*dx
-    - dot(p/rho_0, div(v))*dx
-    - dot(p/rho_0, dot(v, n))*ds
-    - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
-    - dot(div(u), q)*dx )
+        + dot(u, v)/dt*dx
+        + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx  # sym??
+        + (dot(dot(a, nabla_grad(u)), v))*dx
+        - dot(p_nh/rho_0, div(v))*dx
+        + dot(grad_p_h/rho_0, v)*dx
+        # + dot(p_nh/rho_0, dot(v, n))*ds
+        # - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
+        - dot(div(u), q)*dx)
+
 
 def build_buoyancy(T_, S_):
-    """Build buoyancy term."""
+    """Build buoyancy term.
+
+    The degree is governed by pressure degree, since the Expression is added
+    to the pressure function."""
 
     return Expression(
-        (0, '-g*(1 - beta*(T_ - T_0) + gamma*(S_ - S_0))'), # g is given positive
-        beta = parameters.config['beta'], gamma = parameters.config['gamma'],
-        T_0 = parameters.config['T_0'], S_0 = parameters.config['S_0'],
-        g = parameters.config['g'],
-        T_ = T_, S_ = S_,
-        degree=2)
+        '-g*(1 - beta*(T_ - T_0) + gamma*(S_ - S_0))',  # g is positive
+        beta=Constant(parameters.config['beta']),
+        gamma=Constant(parameters.config['gamma']),
+        T_0=Constant(parameters.config['T_0']),
+        S_0=Constant(parameters.config['S_0']),
+        g=Constant(parameters.config['g']),
+        T_=T_, S_=S_,
+        degree=parameters.config['degree_P'])
 
-def build_NS_GLS_steady_form(a, u, u_n, p, v, q, T_, S_):
+
+def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     """Build Navier-Stokes steady state weak form + GLS stabilization."""
 
-    dt = 1/parameters.config['steps_n']
+    dt = Constant(1/parameters.config['steps_n'])
 
     # ------------------------
     # Setting stab. parameters
     # ------------------------
 
     # Init some stuff
-
-    # It would be nice to get V,P degrees from the respective function spaces,
-    # as V_deg = u.function_space().ufl_element().degree(), but it seems not
-    # possible with u,p coming from the splitting or w defined on a MixedSpace.
-
     mesh = u.ufl_domain().ufl_cargo()
     (l, k) = (parameters.config['degree_V'], parameters.config['degree_P']) # f spaces degrees
-    nu_min = min(parameters.config['nu']) #smallest nu yields biggest Re number -> most unstable
+    nu_min = min(parameters.config['nu']) # smallest nu yields biggest Re number -> most unstable
     hmin = mesh.hmin(); hmax = mesh.hmax()
     delta0 = parameters.config['delta0'] #1 # "tuning parameter" > 0
-    tau0 = parameters.config['tau0'] #35 if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
+    tau0 = parameters.config['tau0'] # if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
 
     #norm_a = fenics.norm(a) #seems to affect in negative way, and ||a|| is rarely huge
-    norm_a = 1;
+    norm_a = 1
 
     # Proper definition of stab parameters delta and tau
     Rej = norm_a*hmin/(2*nu_min)
     delta = delta0*hmin*min(1, Rej/3)/norm_a
     tau = tau0*max(nu_min, hmin)
 
-    # Build form
-    flog.debug('Building stabilized steady form with Rej = {}; delta = {}; tau = {}'.format(
-        round(Rej, 5), round(delta, 5), round(tau, 5)))
-
-    b = build_buoyancy(T_, S_)
-    f = u_n/dt + b
-    steady_form = B_g(a, u, p, v, q) - dot(f, v)*dx
+    #b = build_buoyancy(T_, S_)
+    f = u_n/dt #+ b
+    steady_form = B_g(a, u, p, grad_P_h, v, q) - dot(f, v)*dx
 
     if parameters.config['stabilization']:
-        #turn individual terms on and off by tweaking delta0, tau0 in config
+        # Build form
+        flog.debug('Stabilized form with Rej = {}; delta = {}; tau = {}'.format(
+            round(Rej, 5), round(delta, 5), round(tau, 5)))
+
+        # turn individual terms on and off by tweaking delta0, tau0 in config
         if delta > 0:
             steady_form += delta*(dot(N(a, u, p) - f, Phi(a, v)))*dx
         if tau > 0:
             steady_form += tau*(dot(div(u), div(v)))*dx
 
-        flog.debug('Stabilization terms added to variational form')
-
     return steady_form
+
 
 def build_temperature_form(T, T_n, T_v, u_):
     """Define temperature variational problem.
@@ -230,12 +236,13 @@ def build_temperature_form(T, T_n, T_v, u_):
     FEniCS Form
     """
 
-    alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha']);
-    dt = 1/parameters.config['steps_n']
+    alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'])
+    dt = Constant(1/parameters.config['steps_n'])
 
-    return ( dot((T - T_n)/dt, T_v)*dx
+    return (dot((T - T_n)/dt, T_v)*dx
            + div(u_*T)*T_v*dx
-           + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx )
+           + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx)
+
 
 def build_salinity_form(S, S_n, S_v, u_):
     """Define salinity variational problem.
@@ -255,6 +262,12 @@ def build_salinity_form(S, S_n, S_v, u_):
 
     return build_temperature_form(S, S_n, S_v, u_)
 
+
 def get_matrix_diagonal(mat):
     diag = [mat[i][i] for i in range(mat.ufl_shape[0])]
-    return fenics.as_vector(diag)
+    return as_vector(diag)
+
+
+def energy_norm(u):
+    energy = 0.5 * inner(grad(u), grad(u)) * dx
+    return assemble(energy)

@@ -1,4 +1,4 @@
-""" 
+"""
 .. module:: shelfgeometry
    :synopsis: This module contains the `class::ShelfGeometry` that
    generates semi-structured meshes for the typical shelf-ocean
@@ -20,6 +20,7 @@ from fenics import Mesh, XDMFFile, MPI
 # Python >= 3.4
 from pathlib import Path
 
+
 class ShelfGeometry(object):
     """Creates a mesh for a simple shelf geometry using pyGMSH.
 
@@ -33,12 +34,12 @@ class ShelfGeometry(object):
     coordinates can be provided. If an int, the (specified) part of
     the domain will be subdivided into int layers. If a list, this
     must contain x or y coordinates where the layers should be
-    located. 
+    located.
 
     For the horizontal meshing (base):
     If `lc_list` is None, then mesh layers will located at the
     specified coordinate points (in addition to the layers that bound
-    the domain) specified by `nx`. 
+    the domain) specified by `nx`.
     If `lc_list` is given it must be a list of characteristic mesh
     sizes (see characteristic lc in GMSH), and the length of the list
     must equal the length of `nx`.
@@ -48,8 +49,8 @@ class ShelfGeometry(object):
     `domain_parameters`[2], `domain_parameters`[0])
     If `ny_shelf` or `domain_parameters[3]` equal 0, a rectangular
     mesh will be returned.
-    
-    Paremeters
+
+    Parameters
     ----------
     domain_parameters : list or tuple
         Must contain 4 entries that describe the general layout of the
@@ -73,8 +74,8 @@ class ShelfGeometry(object):
         a shelf part with `ny_ocean` layers in the vertical.
     nx : int or list, optional
     log_level : int, optional
-		Verbosity level, either 0, 1 (default) or 2.
-        
+        Verbosity level, either 0, 1 (default) or 2.
+
     Attributes
     ----------
     geom : pygmsh Geometry
@@ -85,7 +86,7 @@ class ShelfGeometry(object):
 
     Raises
     ------
-    ValueError : 
+    ValueError :
         If both `nx` and `lc_list` are None, of different lengths etc.
     """
     def __init__(self, domain_params,
@@ -102,7 +103,7 @@ class ShelfGeometry(object):
         self.geom = pygmsh.built_in.Geometry()
         self.mesh = None
         self.log_level = log_level
-        
+
         # basic checks
         if not (nx or lc_list):
             raise ValueError("Please specify at least `nx` or `lc_list`")
@@ -114,7 +115,7 @@ class ShelfGeometry(object):
         elif not nx:
             pass
         else:
-            _arg_err = True   
+            _arg_err = True
         if isinstance(lc_list, (tuple, list, np.ndarray)):
             self.lc_list = list(lc_list)
         elif not lc_list:
@@ -168,8 +169,8 @@ class ShelfGeometry(object):
                 and self.nx[-1] == self.domain_width
                 and self.shelf_width in nx):
                 raise ValueError(
-                    "`nx` and `lc_list` must be of same length > 3 and" \
-                    "`nx` must contain the x-coordinates of the domain " \
+                    "`nx` and `lc_list` must be of same length > 3 and"
+                    "`nx` must contain the x-coordinates of the domain "
                     "start, end and shelf front")
             self.lc_list = [self.lc_list[self.nx.index(i)] for i in sorted(self.nx)]
             self.nx = list(self.nx)
@@ -184,8 +185,8 @@ class ShelfGeometry(object):
             self.lc_base_geometry(base_points, self.lc_list)
 
     def plot_mesh(self):
-        """Plots the pygmsh-generated mesh.
-        """
+        """Plots the pygmsh-generated mesh."""
+
         if not self.mesh:
             print("No mesh to plot...")
             return
@@ -232,7 +233,7 @@ class ShelfGeometry(object):
         return layers
 
     def _get_num_layers(self, num_layers, min_coor, max_coor,
-                       subdivisions=None):
+                        subdivisions=None):
         """Gets the number of layers in a suitable format for gmsh extrusion.
 
         Parameters
@@ -247,7 +248,6 @@ class ShelfGeometry(object):
         subdivisions : list of ints, optional
                 Default None. If specified, uses the number of
                 subdivision for each specified layer.
-
         """
         if isinstance(num_layers, int):
             return num_layers
@@ -275,7 +275,7 @@ class ShelfGeometry(object):
         """
         assert (shelf_points[-1] == self.shelf_width and
                 ocean_points[0] == self.shelf_width
-        ), "x-coorinated paritioning and geometry mismatch"
+                ), "x-coordinated paritioning and geometry mismatch"
         p0 = self.geom.add_point([0, 0, 0], 1e20)
         p1, line1, __ = self.geom.extrude(
             p0, translation_axis=[self.shelf_width, 0, 0],
@@ -287,18 +287,18 @@ class ShelfGeometry(object):
                 ocean_points, self.shelf_width, self.domain_width))
         line3, _, _ = self.geom.extrude(
             line1,
-            translation_axis=[0, self.domain_height-self.shelf_thickness ,0],
+            translation_axis=[0, self.domain_height-self.shelf_thickness, 0],
             num_layers=self._get_num_layers(
                 self.ny_ocean, 0, self.domain_height-self.shelf_thickness))
         line4, _, _ = self.geom.extrude(
             line2,
-            translation_axis=[0, self.domain_height-self.shelf_thickness ,0],
+            translation_axis=[0, self.domain_height-self.shelf_thickness, 0],
             num_layers=self._get_num_layers(
                 self.ny_ocean, 0, self.domain_height-self.shelf_thickness))
         # extrude ocean part beyond shelf
         if self.ny_shelf:
             line5, _, _ = self.geom.extrude(
-                line4, translation_axis=[0, self.shelf_thickness ,0],
+                line4, translation_axis=[0, self.shelf_thickness, 0],
                 num_layers=self._get_num_layers(
                     self.ny_shelf, self.domain_height-self.shelf_thickness,
                     self.domain_height))
@@ -331,7 +331,7 @@ class ShelfGeometry(object):
         for l in base_lines:
             top_line, _, _ = self.geom.extrude(
                 l, translation_axis=[
-                    0, self.domain_height-self.shelf_thickness ,0],
+                    0, self.domain_height-self.shelf_thickness, 0],
                 num_layers=self._get_num_layers(
                     self.ny_ocean, 0, self.domain_height-self.shelf_thickness))
             top_lines.append(top_line)
@@ -339,11 +339,11 @@ class ShelfGeometry(object):
         if self.ny_shelf:
             for l in top_lines[shelf_index:]:
                 _, _, _ = self.geom.extrude(
-                    l, translation_axis=[0, self.shelf_thickness ,0],
+                    l, translation_axis=[0, self.shelf_thickness, 0],
                     num_layers=self._get_num_layers(
                         self.ny_shelf, self.domain_height-self.shelf_thickness,
                         self.domain_height))
-            
+
     def generate_mesh(self, use_dolfin_xml=False,
                       **gmsh_kwargs):
         """Generates the pygmsh mesh from the constructed geometry.
@@ -354,13 +354,13 @@ class ShelfGeometry(object):
                 topology is screwed up somehow. Fenics does not find
                 all the boundary facets and can mark internal facets.
                 As a temporary fix, use dolfin-convert.
-        
+
         Parameters
         ----------
         use_dolfin_xml: bool, optional
                 Whether to use the dolfing legacy format for mesh file
                 (xml). Default is False.
-        
+
         Kwargs
         ------
         gmsh_kwargs : dict
@@ -383,7 +383,7 @@ class ShelfGeometry(object):
         }
 
         kwargs['verbose'] = True if self.log_level > 1 else False
-        
+
         if gmsh_kwargs.get('remove_faces'):
             # mutually exclusive keywords between pygmsh versions
             kwargs.pop('remove_lower_dim_cells')
@@ -452,7 +452,7 @@ class ShelfGeometry(object):
                 print("Removing ", msh_name)
                 Path(msh_name).unlink()
         self.mesh = mesh
-        
+
     def get_fenics_mesh(self, save_name=None):
         """Retrieves the fenics mesh of the pygmsh generated mesh.
 
