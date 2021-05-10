@@ -120,25 +120,31 @@ class Domain(object):
         self.define_BCs()
 
     def define_boundaries(self):
-        """Defines boundaries as SubDomains.
-        """
+        """Defines boundaries as SubDomains."""
 
         self.boundaries = {
             'right': Bound_Right(),
-            'bottom': Bound_Bottom(),
-            'left': Bound_Left()
+            'left': Bound_Left(),
+            'bottom': Bound_Bottom(self.mesh.geometric_dimension()),
         }
+
+        # For 3D, add the 2 extra domains
+        if self.mesh.geometric_dimension() == 3:
+            self.boundaries.update({
+                'front': Bound_Front(),
+                'back': Bound_Back(),
+            })
 
         # Define subdomains
         if self.config['domain'] == 'square':
             self.boundaries.update({
-                'top': Bound_Top()
+                'top': Bound_Top(self.mesh.geometric_dimension()),
             })
         elif self.config['domain'] == 'fjord':
             self.boundaries.update({
-                'ice_shelf_bottom': Bound_Ice_Shelf_Bottom(),
-                'ice_shelf_right': Bound_Ice_Shelf_Right(),
-                'sea_top': Bound_Sea_Top()
+                'ice_shelf_bottom': Bound_Ice_Shelf_Bottom(self.mesh.geometric_dimension()),
+                'ice_shelf_right': Bound_Ice_Shelf_Right(self.mesh.geometric_dimension()),
+                'sea_top': Bound_Sea_Top(self.mesh.geometric_dimension()),
             })
 
     def mark_boundaries(self):
@@ -230,17 +236,32 @@ class Domain(object):
                     # but we leave it general.
                     else:
                         point = eval(subdomain_name)
+
+                        if self.mesh.geometric_dimension() == 2:
+                            if len(point) != 2:
+                                raise ValueError('Expecting 2D BC for pressure.')
+
+                            application_point = ('near(x[0], {}) && near(x[1], {})'
+                                                 .format(point[0], point[1]))
+                            flog.info('BCs - Point ({}, {}), space Q, value {}'
+                                      .format(point[0], point[1], BC_value))
+
+                        elif self.mesh.geometric_dimension() == 3:
+                            if len(point) != 3:
+                                raise ValueError('Expecting 3D BC for pressure.')
+
+                            application_point = ('near(x[0], {}) && near(x[1], {}) && near(x[2], {})'
+                                                 .format(point[0], point[1], point[2]))
+                            flog.info('BCs - Point ({}, {}, {}), space Q, value {}'
+                                      .format(point[0], point[1], point[2], BC_value))
+
                         self.BCs[f_space_name].append(
                             DirichletBC(
                                 self.f_spaces[f_space_name],
                                 self.parse_BC(BC_value),
-                                'near(x[0], {}) && near(x[1], {})'.format(
-                                    point[0], point[1]),
+                                application_point,
                                 method='pointwise'
-                            ))
-                        flog.info(
-                            'BCs - Point ({}, {}), space Q, value {}'.format(
-                                point[0], point[1], BC_value))
+                        ))
 
     def parse_BC(self, BC):
         """Parses a single string-represented BC into a Fenics-ready one.
@@ -259,17 +280,47 @@ class Domain(object):
 
 ### SUBDOMAIN DEFINITIONS ###
 
+# When initializing (some) subdomains, pass the geometrical dimension of the domain.
+# The meaning of `x[1]` changes depending on whether it's 2D or 3D.
+
 class Bound_Top(SubDomain):
+    def __init__(self, dim):
+        self.dim = dim
+        super().__init__()
+
+    def inside(self, x, on_boundary):
+        if self.dim == 2:
+            return near(x[1], 1) and on_boundary
+        elif self.dim == 3:
+            return near(x[2], 1) and on_boundary
+
+
+class Bound_Bottom(SubDomain):
+    def __init__(self, dim):
+        self.dim = dim
+        super().__init__()
+
+    def inside(self, x, on_boundary):
+        if self.dim == 2:
+            return near(x[1], 0) and on_boundary
+        elif self.dim == 3:
+            return near(x[2], 0) and on_boundary
+
+
+class Bound_Front(SubDomain): # 3D only
+    def inside(self, x, on_boundary):
+        return near(x[1], 0) and on_boundary
+
+
+class Bound_Back(SubDomain): # 3D only
     def inside(self, x, on_boundary):
         return near(x[1], 1) and on_boundary
 
-class Bound_Bottom(SubDomain):
-    def inside(self, x, on_boundary):
-        return near(x[1], 0) and on_boundary
 
 class Bound_Left(SubDomain):
     def inside(self, x, on_boundary):
         return near(x[0], 0) and on_boundary
+
 
 class Bound_Right(SubDomain):
     def inside(self, x, on_boundary):
@@ -279,19 +330,48 @@ class Bound_Right(SubDomain):
             return (near(x[0], parameters.config['domain_size_x'])
                     and on_boundary)
 
+
 class Bound_Ice_Shelf_Bottom(SubDomain):
+    def __init__(self, dim):
+        self.dim = dim
+        super().__init__()
+
     def inside(self, x, on_boundary):
-        return (x[0] >= 0 and x[0] <= parameters.config['shelf_size_x'] and
-                near(x[1], parameters.config['domain_size_y'] - parameters.config['shelf_size_y'])
-                and on_boundary)
+        if self.dim == 2:
+            return (x[0] >= 0 and x[0] <= parameters.config['shelf_size_x'] and
+                    near(x[1], parameters.config['domain_size_y'] - parameters.config['shelf_size_y'])
+                    and on_boundary)
+        elif self.dim == 3:
+            return (x[0] >= 0 and x[0] <= parameters.config['shelf_size_x'] and
+                    near(x[2], parameters.config['domain_size_y'] - parameters.config['shelf_size_y'])
+                    and on_boundary)
+
 
 class Bound_Ice_Shelf_Right(SubDomain):
+    def __init__(self, dim):
+        self.dim = dim
+        super().__init__()
+
     def inside(self, x, on_boundary):
-        return (near(x[0], parameters.config['shelf_size_x']) and
-                x[1] >= parameters.config['domain_size_y'] - parameters.config['shelf_size_y'] and
-                x[1] <= parameters.config['domain_size_y'] and on_boundary)
+        if self.dim == 2:
+            return (near(x[0], parameters.config['shelf_size_x']) and
+                    x[1] >= parameters.config['domain_size_y'] - parameters.config['shelf_size_y'] and
+                    x[1] <= parameters.config['domain_size_y'] and on_boundary)
+        elif self.dim == 3:
+            return (near(x[0], parameters.config['shelf_size_x']) and
+                    x[2] >= parameters.config['domain_size_y'] - parameters.config['shelf_size_y'] and
+                    x[2] <= parameters.config['domain_size_y'] and on_boundary)
+
 
 class Bound_Sea_Top(SubDomain):
+    def __init__(self, dim):
+        self.dim = dim
+        super().__init__()
+
     def inside(self, x, on_boundary):
-        return (x[0] >= parameters.config['shelf_size_x'] and
-                near(x[1], parameters.config['domain_size_y']) and on_boundary)
+        if self.dim == 2:
+            return (x[0] >= parameters.config['shelf_size_x'] and
+                    near(x[1], parameters.config['domain_size_y']) and on_boundary)
+        elif self.dim == 3:
+            return (x[0] >= parameters.config['shelf_size_x'] and
+                    near(x[2], parameters.config['domain_size_y']) and on_boundary)
