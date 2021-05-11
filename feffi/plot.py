@@ -11,6 +11,9 @@ flog = logging.getLogger('feffi')
 def plot_single(to_plot, **kwargs):
     """Plots a single Fenics-plottable object (ex. function, mesh).
 
+    Warning: 3D plotting only works if `ax.set_aspect('equal')` is disabled
+    in FEniCS (https://bitbucket.org/fenics-project/dolfin/issues/1087/3d-objects-cannot-be-plotted-with).
+
     Parameters
     ----------
     to_plot : fenics-plottable object
