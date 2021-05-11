@@ -11,5 +11,5 @@ dependencies:
   - pyyaml
   - pip
   - pip:
-    - pygmsh
+    - pygmsh==6.1.1
     - gmsh

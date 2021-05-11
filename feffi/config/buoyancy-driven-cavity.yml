@@ -1,0 +1,24 @@
+final_time: 10000000000 # until convergence
+steps_n: 100
+g: 1
+nu: 
+- 1
+alpha:
+- 1
+rho_0: 1
+beta: 1000
+gamma: 0
+T_0: 0
+domain: square
+mesh_resolution: 15
+BCs:
+    V:
+        right: [0,0]
+        bottom: [0,0]
+        left: [0,0]
+        top: [0,0]
+    Q:
+        '(1,1)': 0
+    T:
+        right: 1
+        left: 0
