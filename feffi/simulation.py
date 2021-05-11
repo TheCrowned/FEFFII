@@ -272,6 +272,12 @@ class Simulation(object):
 
         round_precision = abs(parameters.config['simulation_precision']) if parameters.config['simulation_precision'] <= 0 else 0
 
+        # Calculate \int_\Omega \nabla \cdot u * dx
+        try:
+            div_u = math.floor(math.log10(abs(assemble(div(self.f['u_']) * dx))))
+        except ValueError: # if 0, math.log10 will complain
+            div_u = '-inf'
+
         self.log('Timestep {} of {}:'. format(self.n, self.iterations_n))
         self.log('  Non-linearity u-P solved in {} steps.'.format(self.nonlin_n))
         self.log('  ||u|| = {}, ||u||_8 = {}, ||u-u_n|| = {}, ||u-u_n||/||u|| = {}, div(u) = 1e{}'.format(
@@ -279,7 +285,7 @@ class Simulation(object):
             round(norm(self.f['u_'].vector(), 'linf'), round_precision),
             round(self.relative_errors['u']*norm(self.f['u_'], 'L2'), round_precision),
             round(self.relative_errors['u'], round_precision),
-            math.floor(math.log10(abs(assemble(div(self.f['u_']) * dx))))))
+            div_u))
         self.log('  ||p|| = {}, ||p||_8 = {}, ||p-p_n|| = {}, ||p-p_n||/||p|| = {}'.format(
             round(norm(self.f['p_'], 'L2'), round_precision),
             round(norm(self.f['p_'].vector(), 'linf'), round_precision),
