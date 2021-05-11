@@ -1,0 +1,32 @@
+final_time: 2
+steps_n: 10
+convert_from_ms_to_kmh: True
+nu: 
+- 0.01
+alpha:
+- 0.01
+rho_0: 1028
+beta: 0.0001
+gamma: 0
+T_0: 0
+domain: fjord
+domain_size_x: 100
+domain_size_y: 1
+shelf_size_x: 0
+shelf_size_y: 0
+mesh_resolution_x: 60
+mesh_resolution_y: 20
+mesh_resolution_sea_y: 4
+mesh_resolution: 20
+T_init: '3*x[1]'
+BCs:
+    V:
+        right: [0, 0]
+        bottom: [0,0]
+        left: [0,0]
+        sea_top: [0,0]
+    T:
+        left: 3*x[1]
+        right: 3*x[1]
+    Q:
+        sea_top: 0

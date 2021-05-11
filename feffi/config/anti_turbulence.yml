@@ -1,0 +1,39 @@
+final_time: 1
+steps_n: 20000
+simulation_precision: -3
+g: 9.81
+nu: 
+- 0.01
+alpha:
+  - 0.001
+rho_0: 1028
+beta: 0.0001
+gamma: 1
+T_0: 0
+S_0: 0
+domain: fjord
+domain_size_x: 4
+domain_size_y: 1
+shelf_size_x: 0
+shelf_size_y: 0
+mesh_resolution_x: 100
+mesh_resolution_y: 25
+mesh_resolution_sea_y: 1
+store_solutions: False
+max_iter: 0
+BCs:
+    V:
+        right: [0,'null']
+        bottom: ['null',0]
+        left: [0,'null']
+        sea_top: ['null', 0]
+    Q:
+        '(2,1)': 0
+    T:
+        bottom: 0
+        sea_top: 0
+        left: 0
+        right: 0
+    S:
+        sea_top: '10*(cos(pi*x[0]/4))*cos(pi*x[0]/4)'
+

@@ -1,0 +1,50 @@
+
+final_time: 10000000
+steps_n: 10
+simulation_precision: -3
+max_iter: 1
+store_solutions: False
+checkpoint_interval: 2
+melt_boundary: 
+    - 'left'
+
+convert_from_ms_to_kmh: True
+rho_0: 1028
+T_0: 0
+S_0: 34
+g: 9.81
+nu: 
+    - 1
+alpha:
+    - 1
+beta: 0.0001
+gamma: 0.00076
+domain: fjord
+domain_size_x: 4
+domain_size_y: 1
+shelf_size_x: 0
+shelf_size_y: 0
+mesh_resolution_x: 80
+mesh_resolution_y: 20
+mesh_resolution_sea_y: 1
+
+T_init: '0.2 - 2*x[1]'
+S_init: '34.7 - 2*x[1]'
+
+BCs:
+    V:
+        left: [0, 0]
+        bottom: [0,0]
+        right: [0,0]
+        sea_top: [0, 0]
+    T:
+        right: '0.2 - 2*x[1]'
+    S:
+        right: '34.7 - 2*x[1]'
+    Q:
+        '(2,1)': 0
+
+stabilization: True    
+delta0: 1
+tau0: 35
+

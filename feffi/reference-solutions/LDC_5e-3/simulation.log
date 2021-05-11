@@ -1,0 +1,137 @@
+[15:26:24] BCs were only given for V, Q spaces.
+[15:26:24] BCs - Boundary right, space V[0] (marker 1), value 0
+[15:26:24] BCs - Boundary right, space V[1] (marker 1), value 0
+[15:26:24] BCs - Boundary bottom, space V[0] (marker 2), value 0
+[15:26:24] BCs - Boundary bottom, space V[1] (marker 2), value 0
+[15:26:24] BCs - Boundary left, space V[0] (marker 3), value 0
+[15:26:24] BCs - Boundary left, space V[1] (marker 3), value 0
+[15:26:24] BCs - Boundary top, space V[0] (marker 4), value 1
+[15:26:24] BCs - Boundary top, space V[1] (marker 4), value 0
+[15:26:24] BCs - Point (0, 0), space Q, value 0
+[15:26:24] ## Running lid driven benchmark with parameters 
+{'final_time': 10000000000, 'steps_n': 10, 'simulation_precision': -5, 'degree_V': 2, 'degree_P': 1, 'degree_T': 1, 'degree_S': 1, 'convert_from_ms_to_kmh': False, 'g': 0, 'nu': [0.005], 'alpha': [1], 'rho_0': 1, 'beta': 0, 'gamma': 0, 'T_0': 1, 'S_0': 35, 'domain': 'square', 'domain_size_x': 2, 'domain_size_y': 1, 'shelf_size_x': 0.7, 'shelf_size_y': 0.1, 'mesh_resolution': 25, 'mesh_resolution_x': 20, 'mesh_resolution_y': 10, 'mesh_resolution_sea_y': 1, 'very_verbose': False, 'store_solutions': True, 'label': '', 'max_iter': 5000, 'non_linear_max_iter': 30, 'stabilization': False, 'delta0': 1, 'tau0': 35, 'BCs': {'V': {'right': [0, 0], 'bottom': [0, 0], 'left': [0, 0], 'top': [1, 0]}, 'Q': {'(0,0)': 0}}, 'config_file': 'feffi/config/lid-driven-cavity.yml', 'plot_path': '/home/stot2794/git/fenics-phd/plots/LDC_5e-3'} ##
+[15:26:24] Initialized simulation.
+[15:26:24] Running parameters:
+{'final_time': 10000000000, 'steps_n': 10, 'simulation_precision': -5, 'degree_V': 2, 'degree_P': 1, 'degree_T': 1, 'degree_S': 1, 'convert_from_ms_to_kmh': False, 'g': 0, 'nu': [0.005], 'alpha': [1], 'rho_0': 1, 'beta': 0, 'gamma': 0, 'T_0': 1, 'S_0': 35, 'domain': 'square', 'domain_size_x': 2, 'domain_size_y': 1, 'shelf_size_x': 0.7, 'shelf_size_y': 0.1, 'mesh_resolution': 25, 'mesh_resolution_x': 20, 'mesh_resolution_y': 10, 'mesh_resolution_sea_y': 1, 'very_verbose': False, 'store_solutions': True, 'label': '', 'max_iter': 5000, 'non_linear_max_iter': 30, 'stabilization': False, 'delta0': 1, 'tau0': 35, 'BCs': {'V': {'right': [0, 0], 'bottom': [0, 0], 'left': [0, 0], 'top': [1, 0]}, 'Q': {'(0,0)': 0}}, 'config_file': 'feffi/config/lid-driven-cavity.yml', 'plot_path': '/home/stot2794/git/fenics-phd/plots/LDC_5e-3'}
+[15:26:24] Running full simulation; started at 2021-05-04 15:26:24.646690
+[15:26:26] Timestep 0 of 100000000000:
+[15:26:26]   Non-linearity u-P solved in 5 steps.
+[15:26:26]   ||u|| = 0.10259, ||u||_8 = 1.0, ||u-u_n|| = 0.10259, ||u-u_n||/||u|| = 1.0
+[15:26:26]   ||p|| = 0.06964, ||p||_8 = 0.86997, ||p-p_n|| = 0.06964, ||p-p_n||/||p|| = 1.0
+[15:26:43] Timestep 10 of 100000000000:
+[15:26:43]   Non-linearity u-P solved in 4 steps.
+[15:26:43]   ||u|| = 0.18821, ||u||_8 = 1.0, ||u-u_n|| = 0.00648, ||u-u_n||/||u|| = 0.03441
+[15:26:43]   ||p|| = 0.03911, ||p||_8 = 1.07979, ||p-p_n|| = 0.00173, ||p-p_n||/||p|| = 0.04424
+[15:27:00] Timestep 20 of 100000000000:
+[15:27:00]   Non-linearity u-P solved in 4 steps.
+[15:27:00]   ||u|| = 0.20981, ||u||_8 = 1.0, ||u-u_n|| = 0.00379, ||u-u_n||/||u|| = 0.01806
+[15:27:00]   ||p|| = 0.04325, ||p||_8 = 1.1166, ||p-p_n|| = 0.00087, ||p-p_n||/||p|| = 0.02007
+[15:27:16] Timestep 30 of 100000000000:
+[15:27:16]   Non-linearity u-P solved in 3 steps.
+[15:27:16]   ||u|| = 0.22207, ||u||_8 = 1.0, ||u-u_n|| = 0.00267, ||u-u_n||/||u|| = 0.01201
+[15:27:16]   ||p|| = 0.04636, ||p||_8 = 1.13021, ||p-p_n|| = 0.00058, ||p-p_n||/||p|| = 0.01254
+[15:27:30] Timestep 40 of 100000000000:
+[15:27:30]   Non-linearity u-P solved in 3 steps.
+[15:27:30]   ||u|| = 0.23083, ||u||_8 = 1.0, ||u-u_n|| = 0.002, ||u-u_n||/||u|| = 0.00866
+[15:27:30]   ||p|| = 0.04861, ||p||_8 = 1.13689, ||p-p_n|| = 0.00045, ||p-p_n||/||p|| = 0.00924
+[15:27:44] Timestep 50 of 100000000000:
+[15:27:44]   Non-linearity u-P solved in 3 steps.
+[15:27:44]   ||u|| = 0.23766, ||u||_8 = 1.0, ||u-u_n|| = 0.00152, ||u-u_n||/||u|| = 0.00641
+[15:27:44]   ||p|| = 0.0504, ||p||_8 = 1.14085, ||p-p_n|| = 0.00036, ||p-p_n||/||p|| = 0.00707
+[15:27:57] Timestep 60 of 100000000000:
+[15:27:57]   Non-linearity u-P solved in 3 steps.
+[15:27:57]   ||u|| = 0.24307, ||u||_8 = 1.0, ||u-u_n|| = 0.00116, ||u-u_n||/||u|| = 0.00478
+[15:27:57]   ||p|| = 0.05188, ||p||_8 = 1.14348, ||p-p_n|| = 0.00028, ||p-p_n||/||p|| = 0.0054
+[15:28:10] Timestep 70 of 100000000000:
+[15:28:10]   Non-linearity u-P solved in 3 steps.
+[15:28:10]   ||u|| = 0.24731, ||u||_8 = 1.0, ||u-u_n|| = 0.00088, ||u-u_n||/||u|| = 0.00355
+[15:28:10]   ||p|| = 0.05309, ||p||_8 = 1.14535, ||p-p_n|| = 0.00022, ||p-p_n||/||p|| = 0.0041
+[15:28:24] Timestep 80 of 100000000000:
+[15:28:24]   Non-linearity u-P solved in 3 steps.
+[15:28:24]   ||u|| = 0.25059, ||u||_8 = 1.0, ||u-u_n|| = 0.00066, ||u-u_n||/||u|| = 0.00264
+[15:28:24]   ||p|| = 0.05406, ||p||_8 = 1.1467, ||p-p_n|| = 0.00017, ||p-p_n||/||p|| = 0.00309
+[15:28:37] Timestep 90 of 100000000000:
+[15:28:37]   Non-linearity u-P solved in 3 steps.
+[15:28:37]   ||u|| = 0.25309, ||u||_8 = 1.0, ||u-u_n|| = 0.0005, ||u-u_n||/||u|| = 0.00196
+[15:28:37]   ||p|| = 0.05482, ||p||_8 = 1.14768, ||p-p_n|| = 0.00013, ||p-p_n||/||p|| = 0.00233
+[15:28:51] Timestep 100 of 100000000000:
+[15:28:51]   Non-linearity u-P solved in 3 steps.
+[15:28:51]   ||u|| = 0.25497, ||u||_8 = 1.0, ||u-u_n|| = 0.00037, ||u-u_n||/||u|| = 0.00145
+[15:28:51]   ||p|| = 0.0554, ||p||_8 = 1.14838, ||p-p_n|| = 0.0001, ||p-p_n||/||p|| = 0.00175
+[15:29:04] Timestep 110 of 100000000000:
+[15:29:04]   Non-linearity u-P solved in 3 steps.
+[15:29:04]   ||u|| = 0.25638, ||u||_8 = 1.0, ||u-u_n|| = 0.00028, ||u-u_n||/||u|| = 0.00108
+[15:29:04]   ||p|| = 0.05586, ||p||_8 = 1.14888, ||p-p_n|| = 7e-05, ||p-p_n||/||p|| = 0.00131
+[15:29:17] Timestep 120 of 100000000000:
+[15:29:17]   Non-linearity u-P solved in 3 steps.
+[15:29:17]   ||u|| = 0.25743, ||u||_8 = 1.0, ||u-u_n|| = 0.00021, ||u-u_n||/||u|| = 0.0008
+[15:29:17]   ||p|| = 0.0562, ||p||_8 = 1.14924, ||p-p_n|| = 5e-05, ||p-p_n||/||p|| = 0.00098
+[15:29:28] Timestep 130 of 100000000000:
+[15:29:28]   Non-linearity u-P solved in 2 steps.
+[15:29:28]   ||u|| = 0.25821, ||u||_8 = 1.0, ||u-u_n|| = 0.00015, ||u-u_n||/||u|| = 0.00059
+[15:29:28]   ||p|| = 0.05645, ||p||_8 = 1.1495, ||p-p_n|| = 4e-05, ||p-p_n||/||p|| = 0.00073
+[15:29:38] Timestep 140 of 100000000000:
+[15:29:38]   Non-linearity u-P solved in 2 steps.
+[15:29:38]   ||u|| = 0.25879, ||u||_8 = 1.0, ||u-u_n|| = 0.00011, ||u-u_n||/||u|| = 0.00044
+[15:29:38]   ||p|| = 0.05665, ||p||_8 = 1.14968, ||p-p_n|| = 3e-05, ||p-p_n||/||p|| = 0.00054
+[15:29:47] Timestep 150 of 100000000000:
+[15:29:47]   Non-linearity u-P solved in 2 steps.
+[15:29:47]   ||u|| = 0.25921, ||u||_8 = 1.0, ||u-u_n|| = 8e-05, ||u-u_n||/||u|| = 0.00032
+[15:29:47]   ||p|| = 0.05679, ||p||_8 = 1.14982, ||p-p_n|| = 2e-05, ||p-p_n||/||p|| = 0.0004
+[15:29:57] Timestep 160 of 100000000000:
+[15:29:57]   Non-linearity u-P solved in 2 steps.
+[15:29:57]   ||u|| = 0.25953, ||u||_8 = 1.0, ||u-u_n|| = 6e-05, ||u-u_n||/||u|| = 0.00024
+[15:29:57]   ||p|| = 0.0569, ||p||_8 = 1.14991, ||p-p_n|| = 2e-05, ||p-p_n||/||p|| = 0.00029
+[15:30:07] Timestep 170 of 100000000000:
+[15:30:07]   Non-linearity u-P solved in 2 steps.
+[15:30:07]   ||u|| = 0.25976, ||u||_8 = 1.0, ||u-u_n|| = 5e-05, ||u-u_n||/||u|| = 0.00018
+[15:30:07]   ||p|| = 0.05697, ||p||_8 = 1.14998, ||p-p_n|| = 1e-05, ||p-p_n||/||p|| = 0.00022
+[15:30:17] Timestep 180 of 100000000000:
+[15:30:17]   Non-linearity u-P solved in 2 steps.
+[15:30:17]   ||u|| = 0.25993, ||u||_8 = 1.0, ||u-u_n|| = 3e-05, ||u-u_n||/||u|| = 0.00013
+[15:30:17]   ||p|| = 0.05703, ||p||_8 = 1.15004, ||p-p_n|| = 1e-05, ||p-p_n||/||p|| = 0.00016
+[15:30:27] Timestep 190 of 100000000000:
+[15:30:27]   Non-linearity u-P solved in 2 steps.
+[15:30:27]   ||u|| = 0.26006, ||u||_8 = 1.0, ||u-u_n|| = 2e-05, ||u-u_n||/||u|| = 0.0001
+[15:30:27]   ||p|| = 0.05708, ||p||_8 = 1.15007, ||p-p_n|| = 1e-05, ||p-p_n||/||p|| = 0.00012
+[15:30:37] Timestep 200 of 100000000000:
+[15:30:37]   Non-linearity u-P solved in 2 steps.
+[15:30:37]   ||u|| = 0.26015, ||u||_8 = 1.0, ||u-u_n|| = 2e-05, ||u-u_n||/||u|| = 7e-05
+[15:30:37]   ||p|| = 0.05711, ||p||_8 = 1.1501, ||p-p_n|| = 0.0, ||p-p_n||/||p|| = 9e-05
+[15:30:47] Timestep 210 of 100000000000:
+[15:30:47]   Non-linearity u-P solved in 2 steps.
+[15:30:47]   ||u|| = 0.26022, ||u||_8 = 1.0, ||u-u_n|| = 1e-05, ||u-u_n||/||u|| = 5e-05
+[15:30:47]   ||p|| = 0.05713, ||p||_8 = 1.15012, ||p-p_n|| = 0.0, ||p-p_n||/||p|| = 6e-05
+[15:30:57] Timestep 220 of 100000000000:
+[15:30:57]   Non-linearity u-P solved in 1 steps.
+[15:30:57]   ||u|| = 0.26027, ||u||_8 = 1.0, ||u-u_n|| = 1e-05, ||u-u_n||/||u|| = 4e-05
+[15:30:57]   ||p|| = 0.05715, ||p||_8 = 1.15014, ||p-p_n|| = 0.0, ||p-p_n||/||p|| = 3e-05
+[15:31:03] Timestep 230 of 100000000000:
+[15:31:03]   Non-linearity u-P solved in 1 steps.
+[15:31:03]   ||u|| = 0.26031, ||u||_8 = 1.0, ||u-u_n|| = 1e-05, ||u-u_n||/||u|| = 3e-05
+[15:31:03]   ||p|| = 0.05716, ||p||_8 = 1.15015, ||p-p_n|| = 0.0, ||p-p_n||/||p|| = 4e-05
+[15:31:10] Timestep 240 of 100000000000:
+[15:31:10]   Non-linearity u-P solved in 1 steps.
+[15:31:10]   ||u|| = 0.26034, ||u||_8 = 1.0, ||u-u_n|| = 1e-05, ||u-u_n||/||u|| = 2e-05
+[15:31:10]   ||p|| = 0.05717, ||p||_8 = 1.15016, ||p-p_n|| = 0.0, ||p-p_n||/||p|| = 3e-05
+[15:31:16] Timestep 250 of 100000000000:
+[15:31:16]   Non-linearity u-P solved in 1 steps.
+[15:31:16]   ||u|| = 0.26036, ||u||_8 = 1.0, ||u-u_n|| = 0.0, ||u-u_n||/||u|| = 1e-05
+[15:31:16]   ||p|| = 0.05718, ||p||_8 = 1.15016, ||p-p_n|| = 0.0, ||p-p_n||/||p|| = 2e-05
+[15:31:23] Timestep 260 of 100000000000:
+[15:31:23]   Non-linearity u-P solved in 1 steps.
+[15:31:23]   ||u|| = 0.26037, ||u||_8 = 1.0, ||u-u_n|| = 0.0, ||u-u_n||/||u|| = 1e-05
+[15:31:23]   ||p|| = 0.05718, ||p||_8 = 1.15017, ||p-p_n|| = 0.0, ||p-p_n||/||p|| = 1e-05
+[15:31:29] Timestep 270 of 100000000000:
+[15:31:29]   Non-linearity u-P solved in 1 steps.
+[15:31:29]   ||u|| = 0.26038, ||u||_8 = 1.0, ||u-u_n|| = 0.0, ||u-u_n||/||u|| = 1e-05
+[15:31:29]   ||p|| = 0.05719, ||p||_8 = 1.15017, ||p-p_n|| = 0.0, ||p-p_n||/||p|| = 1e-05
+[15:31:30] Stopping simulation: all variables reached desired precision.
+[15:31:30] Simulation stopped at 2021-05-04 15:31:30.376140, after 272 steps (306 seconds).
+[15:31:30] Plotting Velocity...
+[15:31:31] Plotting Velocity X-component...
+[15:31:33] Plotting Velocity Y-component...
+[15:31:34] Plotting Pressure...
+[15:31:35] Plotting Temperature...
+[15:31:36] Plotting Salinity...
+[15:31:38] Plotting Mesh...
