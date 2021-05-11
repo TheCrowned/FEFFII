@@ -79,10 +79,10 @@ def plot_solutions(f, **kwargs):
 
     plot_single(f['u_'], file_name='velxy.png',
                 title='Velocity', **kwargs)
-    plot_single(f['u_'][0], file_name='velx.png',
-                title='Velocity X-component', **kwargs)
-    plot_single(f['u_'][1], file_name='vely.png',
-                title='Velocity Y-component', **kwargs)
+    # Velocity components
+    for i in range(f['u_'].geometric_dimension()):
+        plot_single(f['u_'][i], file_name='velx{}.png'.format(i),
+                    title='Velocity component {}'.format(i), **kwargs)
     plot_single(f['p_'], file_name='pressure.png',
                 title='Pressure', **kwargs)
     plot_single(f['T_'], file_name='temperature.png',
