@@ -1,8 +1,8 @@
-from fenics import (assemble, File, solve, norm, XDMFFile, lhs, rhs, dx,
+from fenics import (assemble, File, solve, norm, XDMFFile, lhs, rhs, dx, div,
                     TestFunction, TrialFunction, Function, DirichletBC,
                     Constant, VectorFunctionSpace, FunctionSpace,
                     interpolate, Expression, project)
-from math import log
+import math
 from pathlib import Path
 from time import time
 from datetime import datetime
@@ -12,7 +12,7 @@ import logging
 import signal
 import numpy as np
 import yaml
-import csv
+#import csv
 from . import parameters, plot
 from .parameters import convert_constants_from_kmh_to_ms
 from .functions import (build_NS_GLS_steady_form, build_temperature_form,
@@ -274,11 +274,12 @@ class Simulation(object):
 
         self.log('Timestep {} of {}:'. format(self.n, self.iterations_n))
         self.log('  Non-linearity u-P solved in {} steps.'.format(self.nonlin_n))
-        self.log('  ||u|| = {}, ||u||_8 = {}, ||u-u_n|| = {}, ||u-u_n||/||u|| = {}'.format(
+        self.log('  ||u|| = {}, ||u||_8 = {}, ||u-u_n|| = {}, ||u-u_n||/||u|| = {}, div(u) = 1e{}'.format(
             round(norm(self.f['u_'], 'L2'), round_precision),
             round(norm(self.f['u_'].vector(), 'linf'), round_precision),
             round(self.relative_errors['u']*norm(self.f['u_'], 'L2'), round_precision),
-            round(self.relative_errors['u'], round_precision)))
+            round(self.relative_errors['u'], round_precision),
+            math.floor(math.log10(abs(assemble(div(self.f['u_']) * dx))))))
         self.log('  ||p|| = {}, ||p||_8 = {}, ||p-p_n|| = {}, ||p-p_n||/||p|| = {}'.format(
             round(norm(self.f['p_'], 'L2'), round_precision),
             round(norm(self.f['p_'].vector(), 'linf'), round_precision),
