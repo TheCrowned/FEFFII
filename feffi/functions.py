@@ -1,4 +1,4 @@
-from fenics import (dot, inner, elem_mult, grad, nabla_grad, div,
+from fenics import (dot, inner, elem_mult, grad, nabla_grad, div, cross,
                     dx, ds, sym, Identity, Function, TrialFunction,
                     TestFunction, FunctionSpace, VectorElement, split,
                     FiniteElement, Constant, interpolate, Expression,
@@ -148,19 +148,26 @@ def B_g(a, u, p_nh, grad_p_h, v, q):
     dt = Constant(1/parameters.config['steps_n'])
     nu = parameters.assemble_viscosity_tensor(parameters.config['nu'], dim)
     rho_0 = Constant(parameters.config['rho_0'])
+    Omega = Constant((0, 0, parameters.config['Omega_0']))
     n = FacetNormal(a.function_space().mesh())
 
     # Boundary terms are commented out since we have no Neumann conditions,
     # and Dirichlet conditions would zero them out anyway.
-    return (
+    F = (
         + dot(u, v)/dt*dx
-        + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx  # sym??
         + (dot(dot(a, nabla_grad(u)), v))*dx
+        + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx  # sym??
         - dot(p_nh/rho_0, div(v))*dx
         + dot(grad_p_h/rho_0, v)*dx
         # + inner(p_nh*n/rho_0, v)*ds
         # - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
         - dot(div(u), q)*dx)
+
+    # Add Coriolis acceleration in 3D
+    if dim == 3:
+        F += dot(cross(2*Omega, u), v)*dx
+
+    return F
 
 
 def build_buoyancy(T_, S_):
