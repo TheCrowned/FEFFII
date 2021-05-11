@@ -1,7 +1,7 @@
 from fenics import (assemble, File, solve, norm, XDMFFile, lhs, rhs, dx,
                     TestFunction, TrialFunction, Function, DirichletBC,
-                    Constant, VectorFunctionSpace, FunctionSpace, interpolate,
-                    Expression, errornorm)
+                    Constant, VectorFunctionSpace, FunctionSpace,
+                    interpolate, Expression, project)
 from math import log
 from pathlib import Path
 from time import time
@@ -125,7 +125,8 @@ class Simulation(object):
         beta = Constant(parameters.config['beta'])
         gamma = Constant(parameters.config['gamma'])
         rho_0 = Constant(parameters.config['rho_0'])
-        pnh = Function(self.f['p_'].function_space()) #non-hydrostatic pressure
+        pnh = Function(self.f['p_'].function_space()) # non-hydrostatic pressure
+        dim = pnh.function_space().mesh().geometric_dimension() # 2D or 3D
 
         # Obtain dph/dx
         # A linear space is used even though dT/dx will most likely be
@@ -141,9 +142,13 @@ class Simulation(object):
         solve(a == L, dph_dx_sol, bcs=[bc])
         flog.debug('Solved for dph/dx.')
 
-        flog.debug('Interpolating dph/dx over 2D grid, with dph/dz=0...')
-        grad_p_h = interpolate(Expression(('dph_dx', 0), dph_dx=dph_dx_sol,
-                               degree=2), VectorFunctionSpace(dp_f_space.mesh(), 'Lagrange', 1))
+        if dim == 2:
+            grad_ph_tup = ('dph_dx', 0)
+        elif dim == 3:
+            grad_ph_tup = ('dph_dx', 0, 0)
+
+        grad_p_h = interpolate(Expression(grad_ph_tup, dph_dx=dph_dx_sol, degree=2),
+                               VectorFunctionSpace(dp_f_space.mesh(), 'Lagrange', 1))
         flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(norm(grad_p_h)))
 
         # Solve the non linearity
@@ -170,7 +175,7 @@ class Simulation(object):
             flog.debug('Solved for u, p.')
 
             (self.f['u_'], pnh) = self.f['sol'].split(True)
-            residual_u = errornorm(self.f['u_'], a)
+            residual_u = norm(project(self.f['u_']-a, a.function_space()), 'L2')
             flog.debug('>>> residual u: {} <<<'.format(residual_u))
 
             self.nonlin_n += 1
@@ -207,10 +212,10 @@ class Simulation(object):
             solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'])
 
         flog.debug('Solved for T and S.')
-        self.relative_errors['u'] = errornorm(self.f['u_'], self.f['u_n'])/norm(self.f['u_'], 'L2') if norm(self.f['u_'], 'L2') != 0 else 0
-        self.relative_errors['p'] = errornorm(self.f['p_'], self.f['p_n'])/norm(self.f['p_'], 'L2') if norm(self.f['p_'], 'L2') != 0 else 0
-        self.relative_errors['T'] = errornorm(self.f['T_'], self.f['T_n'])/norm(self.f['T_'], 'L2') if norm(self.f['T_'], 'L2') != 0 else 0
-        self.relative_errors['S'] = errornorm(self.f['S_'], self.f['S_n'])/norm(self.f['S_'], 'L2') if norm(self.f['S_'], 'L2') != 0 else 0
+        self.relative_errors['u'] = norm(project(self.f['u_']-self.f['u_n'], self.f['u_'].function_space()), 'L2')/norm(self.f['u_'], 'L2') if norm(self.f['u_'], 'L2') != 0 else 0
+        self.relative_errors['p'] = norm(project(self.f['p_']-self.f['p_n'], self.f['p_'].function_space()), 'L2')/norm(self.f['p_'], 'L2') if norm(self.f['p_'], 'L2') != 0 else 0
+        self.relative_errors['T'] = norm(project(self.f['T_']-self.f['T_n'], self.f['T_'].function_space()), 'L2')/norm(self.f['T_'], 'L2') if norm(self.f['T_'], 'L2') != 0 else 0
+        self.relative_errors['S'] = norm(project(self.f['S_']-self.f['S_n'], self.f['S_'].function_space()), 'L2')/norm(self.f['S_'], 'L2') if norm(self.f['S_'], 'L2') != 0 else 0
 
         self.log_progress()
 
