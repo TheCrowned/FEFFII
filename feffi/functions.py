@@ -122,8 +122,9 @@ def N(a, u, p):
     """First stabilization operator, LHS differential operator.
     Corresponds to operator L(U) in LBB paper."""
 
+    dim = a.function_space().mesh().geometric_dimension()
     dt = 1/parameters.config['steps_n']
-    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])
+    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'], dim)
     rho_0 = parameters.config['rho_0']
 
     return (
@@ -143,8 +144,9 @@ def Phi(a, u):
 def B_g(a, u, p_nh, grad_p_h, v, q):
     """Galerkin weak formulation for Navier-Stokes."""
 
+    dim = a.function_space().mesh().geometric_dimension()
     dt = Constant(1/parameters.config['steps_n'])
-    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'])
+    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'], dim)
     rho_0 = Constant(parameters.config['rho_0'])
     n = FacetNormal(a.function_space().mesh())
 
@@ -236,7 +238,8 @@ def build_temperature_form(T, T_n, T_v, u_):
     FEniCS Form
     """
 
-    alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'])
+    dim = T.function_space().mesh().geometric_dimension()
+    alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
 
     return (dot((T - T_n)/dt, T_v)*dx
