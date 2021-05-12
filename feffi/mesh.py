@@ -78,6 +78,8 @@ def add_sill(mesh, center, height, width):
     `boundaries.Domain.mark_boundaries()`, otherwise the sill countour will
     not have proper BCs applied.
 
+    Warning: NOT 3D ready.
+
     Parameters
     ----------
     mesh : Mesh to deform
@@ -94,37 +96,37 @@ def add_sill(mesh, center, height, width):
     """
 
     x = mesh.coordinates()[:, 0]
-    y = mesh.coordinates()[:, 1]
+    z = mesh.coordinates()[:, 1]
 
     alpha = 4*height/width**2
     sill_limit_left = center - sqrt(height/alpha)
     sill_limit_right = center + sqrt(height/alpha)
 
-    if (sill_limit_left < 0 or
-       (parameters.config['domain'] == 'square' and sill_limit_right > 1) or
-       (parameters.config['domain'] == 'fjord' and sill_limit_right > parameters.config['domain_size_x'])):
+    if sill_limit_left < min(x) or sill_limit_right > max(x):
         raise ValueError('Sill x-boundaries ({}, {}) lie out of domain margins ({}, {}).'
-                         .format(sill_limit_left, sill_limit_right, 0, parameters.config['domain_size_x']))
+                         .format(sill_limit_left, sill_limit_right, min(x), max(x)))
 
-    if ((parameters.config['domain'] == 'square' and height > 1) or
-        (parameters.config['domain'] == 'fjord' and height > parameters.config['domain_size_y'])):
-        raise ValueError('Sill y-tip {} lie out of domain margin {}.'
-                         .format(height, parameters.config['domain_size_y']))
+    if height > max(z):
+        raise ValueError('Sill z-tip {} lie out of domain margin {}.'
+                         .format(height, max(z)))
 
+    # Define sill parabolic function
     def sill_f(x): return (-alpha * (x-center)**2) + height
 
-    new_y = list(y)
-    for i in range(len(new_y)):
+    # Deform domain for y within sill boundaries
+    new_z = list(z)
+    for i in range(len(new_z)):
+        new_z[i] = 0
+
         if(x[i] < sill_limit_right and x[i] > sill_limit_left):
-            new_y[i] = y[i] + sill_f(x[i])*(1-y[i])
-        else:
-            new_y[i] = 0
+            new_z[i] = z[i] + sill_f(x[i])*(1-z[i])
+
 
     # Pointwise max to obtain not only new contour, but also correct
     # mesh outside of the sill area.
-    y = np.maximum(y, new_y)
+    z = np.maximum(z, new_z)
 
-    mesh.coordinates()[:] = np.array([x, y]).transpose()
+    mesh.coordinates()[:] = np.array([x, z]).transpose()
 
     '''def refine_mesh_at_point(self, target):
         """Refines mesh at a given point, taking points in a ball of radius mesh.hmax() around the target.
