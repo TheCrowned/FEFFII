@@ -96,7 +96,12 @@ def add_sill(mesh, center, height, width):
     """
 
     x = mesh.coordinates()[:, 0]
-    z = mesh.coordinates()[:, 1]
+
+    if mesh.geometric_dimension() == 2:
+        z = mesh.coordinates()[:, 1]
+    elif mesh.geometric_dimension() == 3:
+        y = mesh.coordinates()[:, 1]
+        z = mesh.coordinates()[:, 2]
 
     alpha = 4*height/width**2
     sill_limit_left = center - sqrt(height/alpha)
@@ -114,19 +119,19 @@ def add_sill(mesh, center, height, width):
     def sill_f(x): return (-alpha * (x-center)**2) + height
 
     # Deform domain for y within sill boundaries
-    new_z = list(z)
+    new_z = [0]*(len(z)) # init all entries to 0
     for i in range(len(new_z)):
-        new_z[i] = 0
-
         if(x[i] < sill_limit_right and x[i] > sill_limit_left):
             new_z[i] = z[i] + sill_f(x[i])*(1-z[i])
-
 
     # Pointwise max to obtain not only new contour, but also correct
     # mesh outside of the sill area.
     z = np.maximum(z, new_z)
 
-    mesh.coordinates()[:] = np.array([x, z]).transpose()
+    if mesh.geometric_dimension() == 2:
+        mesh.coordinates()[:] = np.array([x, z]).transpose()
+    elif mesh.geometric_dimension() == 3:
+        mesh.coordinates()[:] = np.array([x, y, z]).transpose()
 
     '''def refine_mesh_at_point(self, target):
         """Refines mesh at a given point, taking points in a ball of radius mesh.hmax() around the target.
