@@ -32,7 +32,7 @@ f = feffi.functions.define_functions(f_spaces)
 domain = feffi.boundaries.Domain(mesh, f_spaces)
 simul = feffi.simulation.Simulation(f, domain.BCs)
 
-print("Mesh hmin is {}".format(mesh.hmin()))
+print("\n\nMesh hmin is {}\n".format(mesh.hmin()))
 
 # Repeatedly run 1 timestep and deform mesh
 for x in range(15):
