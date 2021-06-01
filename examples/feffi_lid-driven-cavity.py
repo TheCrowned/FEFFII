@@ -32,10 +32,9 @@ f = feffi.functions.define_functions(f_spaces)
 domain = feffi.boundaries.Domain(mesh, f_spaces)
 simul = feffi.simulation.Simulation(f, domain.BCs)
 
-print("\n\nMesh hmin is {}\n".format(mesh.hmin()))
-
 # Repeatedly run 1 timestep and deform mesh
 for x in range(15):
+    print("\n\nMesh hmax is {}\n".format(mesh.hmax()))
     simul.timestep()
 
     # 0.02 x-wise displacement
@@ -49,6 +48,7 @@ for x in range(15):
 
     # Move mesh according to given expression
     ALE.move(mesh, disp)
+    mesh.bounding_box_tree().build(mesh)
 
     #feffi.plot.plot_single(f['u_'], display=True)
     feffi.plot.plot_single(mesh, display=True,
