@@ -1,7 +1,9 @@
-from fenics import MeshFunction, File, DirichletBC, Constant, Expression, SubDomain, near
+from fenics import (MeshFunction, File, DirichletBC, Constant, Expression,
+                    SubDomain, near, BoundaryMesh, ALE)
 from os import system
-from numpy import max
+import numpy as np
 import logging
+import itertools
 from . import parameters
 flog = logging.getLogger('feffi')
 
@@ -117,6 +119,7 @@ class Domain(object):
             self.define_boundaries()
 
         self.mark_boundaries()
+        self.store_subdomains_indexes()
         self.define_BCs()
 
     def define_boundaries(self):
@@ -167,6 +170,28 @@ class Domain(object):
             self.subdomains_markers[name] = i
             i += 1
 
+    def store_subdomains_indexes(self):
+        """
+        Stores a dictionary containing the association between each subdomain
+        and the mesh points that belong to it, with the respective indexes.
+        """
+
+        self.subdomains_points = {}
+        b_mesh = BoundaryMesh(self.mesh, 'exterior')
+
+        for (name, subdomain) in self.boundaries.items():
+            b_points = {}
+
+            for p_idx in range(len(b_mesh.coordinates())):
+                if subdomain.inside(b_mesh.coordinates()[p_idx], True):
+                    b_points[p_idx] = b_mesh.coordinates()[p_idx]
+
+            b_orientation = get_boundary_orientation(list(b_points.values()))
+            print('boundary {} oriented wrt to {} coord'.format(name, b_orientation))
+            b_points = dict(sorted(b_points.items(),
+                                   key=lambda dict_entry: dict_entry[1][b_orientation]))
+            self.subdomains_points[name] = b_points
+
     def show_boundaries(self):
         """
         Exports boundaries data and open Paraview for display.
@@ -181,6 +206,74 @@ class Domain(object):
         # It would be nice to call
         # `paraview --data=boundaries.pvd --script=SMTH`
         # with a python script that would apply the view, maybe.
+
+    def deform_boundary(self, boundary_label, goal_profile):
+        """
+
+        """
+
+        goal_profile_length = curve_length(goal_profile)
+
+        # Current left profile
+        curr_profile = self.subdomains_points[boundary_label]
+        curr_profile_length = curve_length(list(curr_profile.values()))
+
+        print(('Current mesh left profile has {} vertexes, perimeter {} and coordinates \n {}\n\n'
+               .format(len(curr_profile), curr_profile_length, curr_profile)))
+        print(('Goal mesh left profile has {} vertexes, perimeter {} and coordinates \n {}'
+               .format(len(goal_profile), goal_profile_length, goal_profile)))
+
+        # Obtain the new ocean profile
+        goal_p_idx = 0
+        curr_profile_iter = itertools.cycle(list(curr_profile.items()))
+        curr_profile_curr_p = next(curr_profile_iter)
+        new_profile = {curr_profile_curr_p[0]: goal_profile[0]} # first point matches both for ice and ocean
+        new_profile_last_p = goal_profile[0]
+
+        # Goal mesh is supposed to be finer than current mesh.
+        # First task: to obtain a goal mesh of equal grane as current one.
+        for i in range(1, len(list(curr_profile.items()))-1):
+            curr_profile_prev_p_idx = curr_profile_curr_p[0]
+            curr_profile_prev_p_coord = curr_profile_curr_p[1]
+
+            curr_profile_curr_p = next(curr_profile_iter)
+            curr_profile_curr_p_idx = curr_profile_curr_p[0]
+            curr_profile_curr_p_coord = curr_profile_curr_p[1]
+
+            d = np.linalg.norm(np.subtract(curr_profile_curr_p_coord, curr_profile_prev_p_coord))/curr_profile_length
+            direction_vector = np.subtract(goal_profile[goal_p_idx+1], new_profile_last_p)
+            new_p = new_profile_last_p + np.multiply(direction_vector, d*goal_profile_length/np.linalg.norm(direction_vector))
+            new_profile[curr_profile_curr_p_idx] = new_p
+
+            new_profile_last_p = new_p
+            if new_profile_last_p[1] >= goal_profile[goal_p_idx+1][1]: # first coord forces it to be vertical boundary
+                goal_p_idx += 1
+
+        # set last point, also matching ice exactly
+        curr_profile_curr_p = next(curr_profile_iter)
+        new_profile[curr_profile_curr_p[0]] = goal_profile[-1]
+
+        # new_profile contains now the new ocean profile coming from the ice. We'll take gradual steps to reach it
+
+        total_steps = 1 # n of steps during which we want to spread the deformation out
+        for x in range(total_steps):
+            deform_coeff = (x+1)/total_steps #how much to deform the mesh in this single t step
+
+            #simul.timestep() #run one ocean timestep
+
+            # Deform boundary mesh and move whole mesh according to new boundary
+            b_mesh = BoundaryMesh(self.mesh, 'exterior')
+            for (p_idx, p_coord) in new_profile.items():
+                print(('old point {} becomes {}'
+                      .format(b_mesh.coordinates()[p_idx],
+                              (deform_coeff*new_profile[p_idx][0],
+                               new_profile[p_idx][1]))))
+
+                b_mesh.coordinates()[p_idx][0] = deform_coeff*new_profile[p_idx][0]
+                b_mesh.coordinates()[p_idx][1] = new_profile[p_idx][1]
+
+            ALE.move(self.mesh, b_mesh)
+            self.mesh.bounding_box_tree().build(self.mesh)
 
     def define_BCs(self):
         """Defines boundary conditions."""
@@ -375,3 +468,47 @@ class Bound_Sea_Top(SubDomain):
         elif self.dim == 3:
             return (x[0] >= parameters.config['shelf_size_x'] and
                     near(x[2], parameters.config['domain_size_y']) and on_boundary)
+
+def get_boundary_orientation(points):
+    """
+    Determine boundary orientation (i.e. whether it is vertical/horizontal).
+    This does not generalize well to 3D, as the problem is ambigouos there.
+
+    Parameters
+    ----------
+    points : list
+         Points belonging to the boundary.
+
+    Output
+    ------
+    d : int
+        Coordinate of growth.
+
+    Examples
+    --------
+    l = [(0,0), (0,0.2), (0,0.4), (0,0.6), (0,0.8), (0,1)]
+    get_boundary_orientation(l) # will return 1
+    """
+
+    points = np.array(points)
+    dim = len(points[0])
+
+    for d in range(dim):
+        # Assume we are only interested in x- and z-oriented boundaries.
+        # In 3D, we accept to get garbage result for y-oriented boundaries.
+        if d == 1 and dim == 3:
+            continue
+
+        if min(points[:,d]) != max(points[:,d]): #this doesn't generalize to 3d
+            return d
+
+    raise ValueError('Given points list does not seem to have an orientation.')
+
+def curve_length(curve_points):
+    '''Naive curve length calculation with pythagorean theorem.'''
+
+    profile_length = 0
+    for i in range(1, len(curve_points)):
+        profile_length += np.linalg.norm(np.subtract(curve_points[i],
+                                                     curve_points[i-1]))
+    return profile_length
