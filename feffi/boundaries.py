@@ -212,7 +212,56 @@ class Domain(object):
 
         """
 
-        goal_profile_length = curve_length(goal_profile)
+        def closest_k_nodes(node, nodes, k):
+            result = {}
+            nodes = np.asarray(nodes)
+            mask = np.ones(len(nodes), dtype=bool)
+            distances = np.sum((nodes-node)**2, axis=1)
+
+            closest_node_idx = -1
+            max_dist = -1
+            for _ in range(k):
+                prev_closest_node_idx = closest_node_idx
+                closest_node_idx = np.argmin(distances[mask])
+
+                if prev_closest_node_idx > -1 and closest_node_idx >= prev_closest_node_idx:
+                    closest_node_idx += 1
+
+                result[closest_node_idx] = {'coord': nodes[closest_node_idx], 'dist': distances[closest_node_idx]}
+                mask[closest_node_idx] = False
+
+            return result
+
+        # Deform boundary mesh and move whole mesh according to new boundary
+        b_mesh = BoundaryMesh(self.mesh, 'exterior')
+        for (p_idx, p_coord) in self.subdomains_points[boundary_label].items():
+            #p_coord = b_mesh.coordinates()[p_idx]
+            closest = closest_k_nodes(p_coord, goal_profile, self.mesh.geometric_dimension())
+
+            denom = 0
+            avg = 0
+            for entry in closest.values():
+                if entry['dist'] == 0:
+                    continue
+
+                denom += 1/entry['dist']
+                avg += (1/entry['dist'])*entry['coord']
+
+            new_p = avg/denom
+
+            print(('old point {} becomes {}'
+                  .format(b_mesh.coordinates()[p_idx], new_p)))
+
+            b_mesh.coordinates()[p_idx][0] = new_p[0]
+            b_mesh.coordinates()[p_idx][1] = new_p[1]
+            if self.mesh.geometric_dimension() == 3:
+                b_mesh.coordinates()[p_idx][2] = new_p[2]
+
+        ALE.move(self.mesh, b_mesh)
+        self.mesh.bounding_box_tree().build(self.mesh)
+
+
+        '''goal_profile_length = curve_length(goal_profile)
 
         # Current left profile
         curr_profile = self.subdomains_points[boundary_label]
@@ -273,7 +322,7 @@ class Domain(object):
                 b_mesh.coordinates()[p_idx][1] = new_profile[p_idx][1]
 
             ALE.move(self.mesh, b_mesh)
-            self.mesh.bounding_box_tree().build(self.mesh)
+            self.mesh.bounding_box_tree().build(self.mesh)'''
 
     def define_BCs(self):
         """Defines boundary conditions."""
