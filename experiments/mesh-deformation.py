@@ -64,11 +64,11 @@ for i in range(total_steps):
                     for (x, y, z) in goal_profile]
 
     domain.deform_boundary('left', goal_profile_now)
-    plot(f['u_'], title='Starting (ocean) mesh')
+    plot(mesh, title='Starting (ocean) mesh')
     plt.show()
     plt.close()
 
-    plot(f['u_'], title='{} (ocean) vel'.format(i))
+    plot(mesh, title='{} (ocean) vel'.format(i))
     filename = 'mesh{}.png'.format(i)
     plt.savefig(filename, dpi=300)
     plt.close()
