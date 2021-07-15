@@ -228,6 +228,13 @@ class Simulation(object):
             })
         self.csv_simul_data.writerow(csv_row)'''
 
+        # Safe checkpoint - python readable files
+        if parameters.config['checkpoint_interval'] != 0:
+            if self.n % parameters.config['checkpoint_interval'] == 0:
+                flog.debug('--- Save Checkpoint at Timestep {} ---'.format(self.n))
+                self.save_solutions_final()
+
+        # Store solution for paraview
         if parameters.config['store_solutions']:
             self.save_solutions_xdmf()
 
@@ -322,15 +329,15 @@ class Simulation(object):
 
         (File(os.path.join(parameters.config['plot_path'], 'solutions', 'mesh.xml'))
             << self.f['u_'].function_space().mesh())
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'up.xml'))
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'up_{}.xml'.format(self.n)))
             << self.f['sol'])
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'u.xml'))
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'u_{}.xml'.format(self.n)))
             << self.f['u_'])
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'p.xml'))
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'p_{}.xml'.format(self.n)))
             << self.f['p_'])
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'T.xml'))
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'T_{}.xml'.format(self.n)))
             << self.f['T_'])
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'S.xml'))
+        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'S_{}.xml'.format(self.n)))
             << self.f['S_'])
 
     def save_config(self):
