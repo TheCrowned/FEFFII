@@ -150,13 +150,13 @@ class Simulation(object):
 
         self.log_progress()
 
-        # Safe checkpoint - python read-able
+        # Safe checkpoint - python readable files
         if parameters.config['checkpoint_interval'] != 0:
             if self.n % parameters.config['checkpoint_interval'] == 0:
-                print('  --- Save Checkpoint at Timestep {} ---  '.format(self.n))
+                flog.debug('--- Save Checkpoint at Timestep {} ---'.format(self.n))
                 self.save_solutions_final()
 
-        # store solution for paraview
+        # Store solution for paraview
         if parameters.config['store_solutions']:
             self.save_solutions_xdmf()
 
