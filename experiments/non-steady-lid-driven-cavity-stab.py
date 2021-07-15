@@ -12,13 +12,14 @@ from fenics import (dot, inner, elem_mult, grad,
 # ------------------
 # Setting parameters
 # ------------------
-output_dir = 'lid-driven-cavity-stab/'
 Re = 400
 nu = 1/Re
 stab = True
 nofpoints = 50  # for mesh
 tol = 1e-6  #for steady state iterations
 max_iter = 30
+final_time = 1 #for time dependent
+step_size = 0.1
 l = 1 # velocity elements degree
 k = 1 # pressure elements degree
 
@@ -76,77 +77,96 @@ bc_top_ = DirichletBC(W.sub(0), Constant((1, 0)), Top())
 # ------------------------
 
 def N(a, u, p):
-    return -nu*div(nabla_grad(u)) + dot(a, nabla_grad(u)) + grad(p)
+    return u/step_size - nu*div(nabla_grad(u)) + dot(a, nabla_grad(u)) + grad(p)
 
 def B_g(a, u, p, v, q):
     return (
+    + (1/step_size)*dot(u, v)*dx
     + nu*inner(nabla_grad(u), nabla_grad(v))*dx
     + (1/2)*(dot(dot(a, nabla_grad(u)), v) - dot(dot(a, nabla_grad(v)), u))*dx # why a minus? Obscure.
     - dot(p, div(v))*dx
     - dot(div(u), q)*dx ) # this is the only term that is not strictly in B_g in the paper
 
 
-# Init some vars
-n = 0
-residual_u = 1e22
-plot_info = {'Rej': [], 'norm_a': [], 'delta': [], 'tau': [], 'residual_u': [], 'residual_p': []}
-
 # Start the dance
-while (residual_u > tol or residual_p > tol) and n <= max_iter:
+dt = 0
+residual_utime = 1e22
+while residual_utime > tol:
 
-    (a, p_old) = sol.split(True)
+    # Init some vars
+    n = 0
+    residual_u, residual_p = 1e22, 1e22
+    plot_info = {'Rej': [], 'norm_a': [], 'delta': [], 'tau': [], 'residual_u': [], 'residual_p': []}
+    u_old = sol.split(True)[0]
 
-    # ------------------------
-    # Setting stab. parameters
-    # ------------------------
+    print(':: dt {} of {} ::'.format(dt, final_time))
 
-    norm_a = fenics.norm(a)
-    if norm_a == 0: #first iteration, a = 0 -> would div by zero
-       norm_a = 1
+    while (residual_u > tol or residual_p > tol) and n <= max_iter:
 
-    Rej = norm_a*hmin/(2*nu)
-    delta0 = 0.8 # "tuning parameter" > 0
-    tau0 = 35 if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
-    delta = delta0*hmin*min(1, Rej/3)/norm_a
-    tau = tau0*max(nu, hmin)
-    alpha = hmax**(1+max(k, l))
+        (a, p_old) = sol.split(True)
 
-    print('n = {}; Rej = {}; delta = {}; tau = {}; alpha = {}'.format(
-        n, round(Rej, 5), round(delta, 5), round(tau, 5), round(alpha, 5)))
+        # ------------------------
+        # Setting stab. parameters
+        # ------------------------
 
-    # ------------------------------
-    # Define variational formulation
-    # ------------------------------
+        norm_a = fenics.norm(a)
+        if norm_a == 0: #first iteration, a = 0 -> would div by zero
+           norm_a = 1
 
-    steady_form = B_g(a, u, p, v, q) + alpha*dot(p, q)*dx
-    if stab:
-        #turn individual terms on and off by tweaking delta0, tau0
-        if delta > 0:
-            steady_form += delta*(dot(N(a, u, p), N(a, v, q)))*dx
-        if tau > 0:
-            steady_form += tau*(dot(div(u), div(v)))*dx
+        Rej = norm_a*hmin/(2*nu)
+        delta0 = 0.8 # "tuning parameter" > 0
+        tau0 = 35 if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
+        delta = delta0*hmin*min(1, Rej/3)/norm_a
+        tau = tau0*max(nu, hmin)
+        alpha = hmax**(1+max(k, l))
 
-    solve(fenics.lhs(steady_form) == fenics.rhs(steady_form),
-          sol, bcs=[bcp_, bc_noslip_, bc_top_])
+        print('n = {}; Rej = {}; delta = {}; tau = {}; alpha = {}'.format(
+            n, round(Rej, 5), round(delta, 5), round(tau, 5), round(alpha, 5)))
 
-    (u_new, p_new) = sol.split(True)
-    residual_u = fenics.errornorm(u_new, a)
-    residual_p = fenics.errornorm(p_new, p_old)
-    print(" >>> residual u: {}, residual p: {}<<<\n". format(residual_u, residual_p))
+        # ------------------------------
+        # Define variational formulation
+        # ------------------------------
 
-    # Save info to plot later
-    plot_info['residual_u'].append(residual_u)
-    plot_info['residual_p'].append(residual_p)
-    plot_info['Rej'].append(Rej)
-    plot_info['tau'].append(tau)
-    plot_info['delta'].append(delta)
-    plot_info['norm_a'].append(norm_a)
+        steady_form = B_g(a, u, p, v, q)  - dot(u_old/step_size, v)*dx
+        f_stab = u_old/step_size
 
-    n += 1
+        # APPLY STABILIZATION
+        if stab:
+            #turn individual terms on and off by tweaking delta0, tau0
+            if delta > 0:
+                steady_form += delta*(dot(N(a, u, p) - f_stab, N(a, v, q)))*dx
+            if tau > 0:
+                steady_form += tau*(dot(div(u), div(v)))*dx
+
+        A = fenics.lhs(steady_form)
+        f = fenics.rhs(steady_form)
+
+        solve(A == f, sol, bcs=[bcp_, bc_noslip_, bc_top_])
+
+        (u_new, p_new) = sol.split(True)
+        residual_u = fenics.errornorm(u_new, a)
+        residual_p = fenics.errornorm(p_new, p_old)
+        print(" >>> residual u: {}, residual p: {}<<<\n". format(residual_u, residual_p))
+
+        # Save info to plot later
+        plot_info['residual_u'].append(residual_u)
+        plot_info['residual_p'].append(residual_p)
+        plot_info['Rej'].append(Rej)
+        plot_info['tau'].append(tau)
+        plot_info['delta'].append(delta)
+        plot_info['norm_a'].append(norm_a)
+
+        n += 1
+
+    dt += step_size
+
+    residual_utime = fenics.errornorm(u_new, u_old)
+    print("--------------------------------------------------")
+    print(" >>> residual u, time: {}". format(residual_utime))
 
 (u_sol, p_sol) = sol.split(True)
 
-x = list(range(n))
+'''x = list(range(n))
 plt.plot(x, plot_info['residual_u'], label = "Residual_u")
 plt.plot(x, plot_info['residual_p'], label = "Residual_p")
 plt.plot(x, plot_info['Rej'], label = "Rej")
@@ -155,7 +175,7 @@ plt.plot(x, plot_info['delta'], label = "delta")
 plt.plot(x, plot_info['norm_a'], label = "norm_a")
 plt.legend()
 plt.show()
-
+'''
 pl=fenics.plot(u_sol)
 plt.colorbar(pl)
 plt.show()
