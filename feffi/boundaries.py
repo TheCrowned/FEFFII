@@ -157,6 +157,7 @@ class Domain(object):
         Association between boundaries and markers is stored into
         `self.subdomains_markers`.
         """
+
         # Mark subdomains and store this matching
         self.marked_subdomains = MeshFunction(
             "size_t",
@@ -174,6 +175,9 @@ class Domain(object):
         """
         Stores a dictionary containing the association between each subdomain
         and the mesh points that belong to it, with the respective indexes.
+
+        I simply haven't found a way to obtain the points with a given marking
+        through fenics, so I hacked myself.
         """
 
         self.subdomains_points = {}
@@ -182,14 +186,19 @@ class Domain(object):
         for (name, subdomain) in self.boundaries.items():
             b_points = {}
 
+            # For every point on the mesh boundary, check if it belongs to
+            # the current subdomain and add it to the related dict.
             for p_idx in range(len(b_mesh.coordinates())):
                 if subdomain.inside(b_mesh.coordinates()[p_idx], True):
                     b_points[p_idx] = b_mesh.coordinates()[p_idx]
 
-            b_orientation = get_boundary_orientation(list(b_points.values()))
-            print('boundary {} oriented wrt to {} coord'.format(name, b_orientation))
-            b_points = dict(sorted(b_points.items(),
-                                   key=lambda dict_entry: dict_entry[1][b_orientation]))
+            # "Guess" how the boundary is oriented so we can sort points wrt
+            # that coordinate. -- Not needed with k closest neighbors
+            #b_orientation = get_boundary_orientation(list(b_points.values()))
+            #print('boundary {} oriented wrt to {} coord'.format(name, b_orientation))
+            #b_points = dict(sorted(b_points.items(),
+            #                       key=lambda dict_entry: dict_entry[1][b_orientation]))
+
             self.subdomains_points[name] = b_points
 
     def show_boundaries(self):
@@ -209,10 +218,66 @@ class Domain(object):
 
     def deform_boundary(self, boundary_label, goal_profile):
         """
+        Deforms a boundary with respect to the given goal profile (2D or 3D).
 
+        For the given boundary label (ex. `top`, `left`, ...), deforms its
+        geometry to match the given goal profile.
+        For each node `p` of the boundary, find its 2 (or 3, depending on mesh
+        dimension) closest neighbors. Compute their weighted average (weighted
+        wrt the inverse of the distance from `p`). Move `p` to this average.
+
+        Parameters
+        ----------
+        boundary_label : string
+            Label of boundary to be deformed (ex. left, right, top, bottom, ...)
+        goal_profile : list
+            Points representing the new boundary.
+
+        Examples
+        --------
+        1)  feffi.parameters.define_parameters({
+                'config_file' : 'feffi/config/lid-driven-cavity.yml',
+            })
+
+            points = [Point(0,0), Point(1,0), Point(1,1), Point(0,1)] # square
+            mesh = generate_mesh(domain, 10, 'cgal')
+            f_spaces = feffi.functions.define_function_spaces(mesh)
+            f = feffi.functions.define_functions(f_spaces)
+            domain = feffi.boundaries.Domain(mesh, f_spaces)
+            simul = feffi.simulation.Simulation(f, domain.BCs)
+
+            step_size = 0.1
+            goal_profile = [(0.5*(y-0.5)**2-0.1, y)
+                                for y in np.arange(min(mesh.coordinates()[:,1]),
+                                                   max(mesh.coordinates()[:,1])+step_size,
+                                                   step_size)]
+
+            simul.timestep()
+            domain.deform_boundary('left', goal_profile_now)
+            simul.timestep()
         """
 
+        flog.info('Deforming boundary {}...'.format(boundary_label))
+
         def closest_k_nodes(node, nodes, k):
+            """
+            Finds the k closest points (`nodes`) to `node`.
+
+            Parameters
+            ----------
+            node : (tuple)
+                The node wrt whom look for closest neigbors.
+            nodes : list/np.array
+                List of tuples with nodes among which to look for closest neighbors.
+            k : int
+                Number of closest nodes to find.
+
+            Return
+            ------
+            result : dict
+                `k` elements from `nodes`.
+            """
+
             result = {}
             nodes = np.asarray(nodes)
             mask = np.ones(len(nodes), dtype=bool)
@@ -224,105 +289,53 @@ class Domain(object):
                 prev_closest_node_idx = closest_node_idx
                 closest_node_idx = np.argmin(distances[mask])
 
-                if prev_closest_node_idx > -1 and closest_node_idx >= prev_closest_node_idx:
+                # When nodes get hidden indexes can get messed up
+                if prev_closest_node_idx > -1 \
+                   and closest_node_idx >= prev_closest_node_idx:
                     closest_node_idx += 1
 
-                result[closest_node_idx] = {'coord': nodes[closest_node_idx], 'dist': distances[closest_node_idx]}
+                result[closest_node_idx] = {
+                    'coord': nodes[closest_node_idx],
+                    'dist': distances[closest_node_idx]
+                }
+
+                # Hide already picked node so it cannot be chosen again
                 mask[closest_node_idx] = False
 
             return result
 
-        # Deform boundary mesh and move whole mesh according to new boundary
-        b_mesh = BoundaryMesh(self.mesh, 'exterior')
-        for (p_idx, p_coord) in self.subdomains_points[boundary_label].items():
-            #p_coord = b_mesh.coordinates()[p_idx]
-            closest = closest_k_nodes(p_coord, goal_profile, self.mesh.geometric_dimension())
 
-            denom = 0
-            avg = 0
+        b_mesh = BoundaryMesh(self.mesh, 'exterior')
+
+        # Get closest k closest neighbors to p from goal_profile and compute
+        # weighted average.
+        for (p_idx, p_coord) in self.subdomains_points[boundary_label].items():
+            closest = closest_k_nodes(p_coord, goal_profile,
+                                      self.mesh.geometric_dimension())
+
+            denom, avg = 0, 0
             for entry in closest.values():
+                # With an exact match, no average is needed
                 if entry['dist'] == 0:
-                    continue
+                    #continue
+                    avg = entry['coord']
+                    break
 
                 denom += 1/entry['dist']
                 avg += (1/entry['dist'])*entry['coord']
-
             new_p = avg/denom
 
-            print(('old point {} becomes {}'
-                  .format(b_mesh.coordinates()[p_idx], new_p)))
+            flog.debug(('Point {} becomes {}'.format(p_coord, new_p)))
 
-            b_mesh.coordinates()[p_idx][0] = new_p[0]
-            b_mesh.coordinates()[p_idx][1] = new_p[1]
-            if self.mesh.geometric_dimension() == 3:
-                b_mesh.coordinates()[p_idx][2] = new_p[2]
+            # Actually move boundary point
+            for i in range(len(new_p)):
+                b_mesh.coordinates()[p_idx][i] = new_p[i]
 
+        # Move boundary and rebuild bounding box tree
         ALE.move(self.mesh, b_mesh)
         self.mesh.bounding_box_tree().build(self.mesh)
 
-
-        '''goal_profile_length = curve_length(goal_profile)
-
-        # Current left profile
-        curr_profile = self.subdomains_points[boundary_label]
-        curr_profile_length = curve_length(list(curr_profile.values()))
-
-        print(('Current mesh left profile has {} vertexes, perimeter {} and coordinates \n {}\n\n'
-               .format(len(curr_profile), curr_profile_length, curr_profile)))
-        print(('Goal mesh left profile has {} vertexes, perimeter {} and coordinates \n {}'
-               .format(len(goal_profile), goal_profile_length, goal_profile)))
-
-        # Obtain the new ocean profile
-        goal_p_idx = 0
-        curr_profile_iter = itertools.cycle(list(curr_profile.items()))
-        curr_profile_curr_p = next(curr_profile_iter)
-        new_profile = {curr_profile_curr_p[0]: goal_profile[0]} # first point matches both for ice and ocean
-        new_profile_last_p = goal_profile[0]
-
-        # Goal mesh is supposed to be finer than current mesh.
-        # First task: to obtain a goal mesh of equal grane as current one.
-        for i in range(1, len(list(curr_profile.items()))-1):
-            curr_profile_prev_p_idx = curr_profile_curr_p[0]
-            curr_profile_prev_p_coord = curr_profile_curr_p[1]
-
-            curr_profile_curr_p = next(curr_profile_iter)
-            curr_profile_curr_p_idx = curr_profile_curr_p[0]
-            curr_profile_curr_p_coord = curr_profile_curr_p[1]
-
-            d = np.linalg.norm(np.subtract(curr_profile_curr_p_coord, curr_profile_prev_p_coord))/curr_profile_length
-            direction_vector = np.subtract(goal_profile[goal_p_idx+1], new_profile_last_p)
-            new_p = new_profile_last_p + np.multiply(direction_vector, d*goal_profile_length/np.linalg.norm(direction_vector))
-            new_profile[curr_profile_curr_p_idx] = new_p
-
-            new_profile_last_p = new_p
-            if new_profile_last_p[1] >= goal_profile[goal_p_idx+1][1]: # first coord forces it to be vertical boundary
-                goal_p_idx += 1
-
-        # set last point, also matching ice exactly
-        curr_profile_curr_p = next(curr_profile_iter)
-        new_profile[curr_profile_curr_p[0]] = goal_profile[-1]
-
-        # new_profile contains now the new ocean profile coming from the ice. We'll take gradual steps to reach it
-
-        total_steps = 1 # n of steps during which we want to spread the deformation out
-        for x in range(total_steps):
-            deform_coeff = (x+1)/total_steps #how much to deform the mesh in this single t step
-
-            #simul.timestep() #run one ocean timestep
-
-            # Deform boundary mesh and move whole mesh according to new boundary
-            b_mesh = BoundaryMesh(self.mesh, 'exterior')
-            for (p_idx, p_coord) in new_profile.items():
-                print(('old point {} becomes {}'
-                      .format(b_mesh.coordinates()[p_idx],
-                              (deform_coeff*new_profile[p_idx][0],
-                               new_profile[p_idx][1]))))
-
-                b_mesh.coordinates()[p_idx][0] = deform_coeff*new_profile[p_idx][0]
-                b_mesh.coordinates()[p_idx][1] = new_profile[p_idx][1]
-
-            ALE.move(self.mesh, b_mesh)
-            self.mesh.bounding_box_tree().build(self.mesh)'''
+        flog.info('Deformed boundary {}.'.format(boundary_label))
 
     def define_BCs(self):
         """Defines boundary conditions."""
@@ -517,47 +530,3 @@ class Bound_Sea_Top(SubDomain):
         elif self.dim == 3:
             return (x[0] >= parameters.config['shelf_size_x'] and
                     near(x[2], parameters.config['domain_size_y']) and on_boundary)
-
-def get_boundary_orientation(points):
-    """
-    Determine boundary orientation (i.e. whether it is vertical/horizontal).
-    This does not generalize well to 3D, as the problem is ambigouos there.
-
-    Parameters
-    ----------
-    points : list
-         Points belonging to the boundary.
-
-    Output
-    ------
-    d : int
-        Coordinate of growth.
-
-    Examples
-    --------
-    l = [(0,0), (0,0.2), (0,0.4), (0,0.6), (0,0.8), (0,1)]
-    get_boundary_orientation(l) # will return 1
-    """
-
-    points = np.array(points)
-    dim = len(points[0])
-
-    for d in range(dim):
-        # Assume we are only interested in x- and z-oriented boundaries.
-        # In 3D, we accept to get garbage result for y-oriented boundaries.
-        if d == 1 and dim == 3:
-            continue
-
-        if min(points[:,d]) != max(points[:,d]): #this doesn't generalize to 3d
-            return d
-
-    raise ValueError('Given points list does not seem to have an orientation.')
-
-def curve_length(curve_points):
-    '''Naive curve length calculation with pythagorean theorem.'''
-
-    profile_length = 0
-    for i in range(1, len(curve_points)):
-        profile_length += np.linalg.norm(np.subtract(curve_points[i],
-                                                     curve_points[i-1]))
-    return profile_length
