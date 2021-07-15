@@ -1,7 +1,9 @@
-from fenics import MeshFunction, File, DirichletBC, Constant, Expression, SubDomain, near
+from fenics import (MeshFunction, File, DirichletBC, Constant, Expression,
+                    SubDomain, near, BoundaryMesh, ALE)
 from os import system
-from numpy import max
+import numpy as np
 import logging
+import itertools
 from . import parameters
 flog = logging.getLogger('feffi')
 
@@ -117,6 +119,7 @@ class Domain(object):
             self.define_boundaries()
 
         self.mark_boundaries()
+        self.store_subdomains_indexes()
         self.define_BCs()
 
     def define_boundaries(self):
@@ -154,6 +157,7 @@ class Domain(object):
         Association between boundaries and markers is stored into
         `self.subdomains_markers`.
         """
+
         # Mark subdomains and store this matching
         self.marked_subdomains = MeshFunction(
             "size_t",
@@ -166,6 +170,36 @@ class Domain(object):
             subdomain.mark(self.marked_subdomains, i)
             self.subdomains_markers[name] = i
             i += 1
+
+    def store_subdomains_indexes(self):
+        """
+        Stores a dictionary containing the association between each subdomain
+        and the mesh points that belong to it, with the respective indexes.
+
+        I simply haven't found a way to obtain the points with a given marking
+        through fenics, so I hacked myself.
+        """
+
+        self.subdomains_points = {}
+        b_mesh = BoundaryMesh(self.mesh, 'exterior')
+
+        for (name, subdomain) in self.boundaries.items():
+            b_points = {}
+
+            # For every point on the mesh boundary, check if it belongs to
+            # the current subdomain and add it to the related dict.
+            for p_idx in range(len(b_mesh.coordinates())):
+                if subdomain.inside(b_mesh.coordinates()[p_idx], True):
+                    b_points[p_idx] = b_mesh.coordinates()[p_idx]
+
+            # "Guess" how the boundary is oriented so we can sort points wrt
+            # that coordinate. -- Not needed with k closest neighbors
+            #b_orientation = get_boundary_orientation(list(b_points.values()))
+            #print('boundary {} oriented wrt to {} coord'.format(name, b_orientation))
+            #b_points = dict(sorted(b_points.items(),
+            #                       key=lambda dict_entry: dict_entry[1][b_orientation]))
+
+            self.subdomains_points[name] = b_points
 
     def show_boundaries(self):
         """
@@ -181,6 +215,127 @@ class Domain(object):
         # It would be nice to call
         # `paraview --data=boundaries.pvd --script=SMTH`
         # with a python script that would apply the view, maybe.
+
+    def deform_boundary(self, boundary_label, goal_profile):
+        """
+        Deforms a boundary with respect to the given goal profile (2D or 3D).
+
+        For the given boundary label (ex. `top`, `left`, ...), deforms its
+        geometry to match the given goal profile.
+        For each node `p` of the boundary, find its 2 (or 3, depending on mesh
+        dimension) closest neighbors. Compute their weighted average (weighted
+        wrt the inverse of the distance from `p`). Move `p` to this average.
+
+        Parameters
+        ----------
+        boundary_label : string
+            Label of boundary to be deformed (ex. left, right, top, bottom, ...)
+        goal_profile : list
+            Points representing the new boundary.
+
+        Examples
+        --------
+        1)  feffi.parameters.define_parameters({
+                'config_file' : 'feffi/config/lid-driven-cavity.yml',
+            })
+
+            points = [Point(0,0), Point(1,0), Point(1,1), Point(0,1)] # square
+            mesh = generate_mesh(domain, 10, 'cgal')
+            f_spaces = feffi.functions.define_function_spaces(mesh)
+            f = feffi.functions.define_functions(f_spaces)
+            domain = feffi.boundaries.Domain(mesh, f_spaces)
+            simul = feffi.simulation.Simulation(f, domain.BCs)
+
+            step_size = 0.1
+            goal_profile = [(0.5*(y-0.5)**2-0.1, y)
+                                for y in np.arange(min(mesh.coordinates()[:,1]),
+                                                   max(mesh.coordinates()[:,1])+step_size,
+                                                   step_size)]
+
+            simul.timestep()
+            domain.deform_boundary('left', goal_profile_now)
+            simul.timestep()
+        """
+
+        flog.info('Deforming boundary {}...'.format(boundary_label))
+
+        def closest_k_nodes(node, nodes, k):
+            """
+            Finds the k closest points (`nodes`) to `node`.
+
+            Parameters
+            ----------
+            node : (tuple)
+                The node wrt whom look for closest neigbors.
+            nodes : list/np.array
+                List of tuples with nodes among which to look for closest neighbors.
+            k : int
+                Number of closest nodes to find.
+
+            Return
+            ------
+            result : dict
+                `k` elements from `nodes`.
+            """
+
+            result = {}
+            nodes = np.asarray(nodes)
+            mask = np.ones(len(nodes), dtype=bool)
+            distances = np.sum((nodes-node)**2, axis=1)
+
+            closest_node_idx = -1
+            max_dist = -1
+            for _ in range(k):
+                prev_closest_node_idx = closest_node_idx
+                closest_node_idx = np.argmin(distances[mask])
+
+                # When nodes get hidden indexes can get messed up
+                if prev_closest_node_idx > -1 \
+                   and closest_node_idx >= prev_closest_node_idx:
+                    closest_node_idx += 1
+
+                result[closest_node_idx] = {
+                    'coord': nodes[closest_node_idx],
+                    'dist': distances[closest_node_idx]
+                }
+
+                # Hide already picked node so it cannot be chosen again
+                mask[closest_node_idx] = False
+
+            return result
+
+
+        b_mesh = BoundaryMesh(self.mesh, 'exterior')
+
+        # Get closest k closest neighbors to p from goal_profile and compute
+        # weighted average.
+        for (p_idx, p_coord) in self.subdomains_points[boundary_label].items():
+            closest = closest_k_nodes(p_coord, goal_profile,
+                                      self.mesh.geometric_dimension())
+
+            denom, avg = 0, 0
+            for entry in closest.values():
+                # With an exact match, no average is needed
+                if entry['dist'] == 0:
+                    #continue
+                    avg = entry['coord']
+                    break
+
+                denom += 1/entry['dist']
+                avg += (1/entry['dist'])*entry['coord']
+            new_p = avg/denom
+
+            flog.debug(('Point {} becomes {}'.format(p_coord, new_p)))
+
+            # Actually move boundary point
+            for i in range(len(new_p)):
+                b_mesh.coordinates()[p_idx][i] = new_p[i]
+
+        # Move boundary and rebuild bounding box tree
+        ALE.move(self.mesh, b_mesh)
+        self.mesh.bounding_box_tree().build(self.mesh)
+
+        flog.info('Deformed boundary {}.'.format(boundary_label))
 
     def define_BCs(self):
         """Defines boundary conditions."""
