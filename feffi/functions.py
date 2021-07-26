@@ -2,8 +2,10 @@ from fenics import (dot, inner, elem_mult, grad, nabla_grad, div, cross,
                     dx, ds, sym, Identity, Function, TrialFunction,
                     TestFunction, FunctionSpace, VectorElement, split,
                     FiniteElement, Constant, interpolate, Expression,
-                    FacetNormal, as_vector, assemble, norm)
+                    FacetNormal, as_vector, assemble, norm, MixedElement,
+                    TestFunctions, TrialFunctions, solve, lhs, rhs)
 from . import parameters
+from .plot import plot_single
 import logging
 flog = logging.getLogger('feffi')
 
@@ -230,7 +232,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     return steady_form
 
 
-def build_temperature_form(T, T_n, T_v, u_):
+def build_temperature_form(T, T_n, T_v, u_, S_, p_): #S_
     """Define temperature variational problem.
 
     Parameters
@@ -248,10 +250,13 @@ def build_temperature_form(T, T_n, T_v, u_):
     dim = T.function_space().mesh().geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
+    Fh = heat_flux_forcing(u_, T_n, S_, p_)
 
     return (dot((T - T_n)/dt, T_v)*dx
            + div(u_*T)*T_v*dx
-           + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx)
+           + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx
+           #+ dot(Fh, v)*dx
+    )
 
 
 def build_salinity_form(S, S_n, S_v, u_):
@@ -271,6 +276,69 @@ def build_salinity_form(S, S_n, S_v, u_):
     """
 
     return build_temperature_form(S, S_n, S_v, u_)
+
+
+def heat_flux_forcing(uw, Tw, Sw, pzd):
+
+    # introduce all constants
+    # from Asai Davies 2016 ISOMIP Paper
+    Cd = 2.5*10**(-3)
+    cw = 3974
+    gammaT = 1.15*10**(-2)
+    gammaS = gammaT/3
+    L = 3.34*10**5
+    lam1 = -0.0573
+    lam2 = 0.0832
+    lam3 = -7.53*10**(-8)
+    rhofw = 1000
+    rhosw = 1028
+    Ut = 0.01
+
+    # Ustar from Uw and U_tidal
+    Ustar = norm(uw)#np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
+
+    (mw, Tzd, Szd) = solve_3eqs_system(uw, Tw, Sw, pzd)
+
+    return -cw*(rhosw*Ustar*gammaT+rhofw*mw)*(Tzd-Tw)
+
+
+def solve_3eqs_system(uw, Tw, Sw, pzd):
+    mesh = uw.function_space().mesh()
+
+    # introduce all constants
+    # from Asai Davies 2016 ISOMIP Paper
+    Cd = 2.5*10**(-3)
+    cw = 3974
+    gammaT = 1.15*10**(-2)
+    gammaS = gammaT/3
+    L = 3.34*10**5
+    lam1 = -0.0573
+    lam2 = 0.0832
+    lam3 = -7.53*10**(-8)
+    rhofw = 1000
+    rhosw = 1028
+    Ut = 0.01
+
+    # Ustar from Uw and U_tidal
+    Ustar = norm(uw)# np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
+
+    P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
+    element = MixedElement([P1, P1, P1])
+    V = FunctionSpace(mesh, element)
+    v_1, v_2, v_3 = TestFunctions(V)
+    mw, Tzd, Szd = TrialFunctions(V)
+    sol = Function(V)
+
+    F = ( Tzd#*v_1*dx
+          #(+ Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
+          #(+ rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx
+    )
+
+    solve(lhs(F) == rhs(F), sol)
+    splitted = sol.split()
+    plot_single(splitted[0])
+    plot_single(splitted[1])
+    plot_single(splitted[2])
 
 
 def get_matrix_diagonal(mat):
