@@ -203,7 +203,8 @@ class Simulation(object):
 
         if parameters.config['beta'] != 0: #do not run if not coupled with velocity
             T_form = build_temperature_form(self.f['T'], self.f['T_n'],
-                                            self.f['T_v'], self.f['u_'])
+                                            self.f['T_v'], self.f['u_'],
+                                            self.f['S_'], self.f['p_'])
             solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'], solver_parameters={'linear_solver':'mumps'})
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
