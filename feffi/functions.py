@@ -266,7 +266,7 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, Szd, domain):
         rhofw = 1000
         rhosw = 1028
         Ut = 0.01
-        Ustar = Cd*norm(u_)+Ut**2 # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
+        Ustar = (Cd*norm(u_)+Ut**2)**(1/2) # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
         Tw = T_n
 
         Fh = -cw*(rhosw*Ustar*gammaT+rhofw*mw)*(Tzd-Tw)
@@ -310,7 +310,7 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Tzd, Szd, domain):
         rhofw = 1000
         rhosw = 1028
         Ut = 0.01
-        Ustar = Cd*norm(u_)+Ut**2 # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
+        Ustar = (Cd*norm(u_)+Ut**2)**(1/2) # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
         Sw = S_n
         Fh = -(rhosw*Ustar*gammaS+rhofw*mw)*(Szd-Sw)
 
@@ -337,7 +337,7 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     Ut = 0.01
 
     # Ustar from Uw and U_tidal
-    Ustar = Cd*norm(uw)+Ut**2 # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
+    Ustar = (Cd*norm(u_)+Ut**2)**(1/2) # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
 
     P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
     element = MixedElement([P1, P1, P1])
