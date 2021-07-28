@@ -232,7 +232,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     return steady_form
 
 
-def build_temperature_form(T, T_n, T_v, u_, S_, p_): #S_
+def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, Szd):
     """Define temperature variational problem.
 
     Parameters
@@ -250,18 +250,31 @@ def build_temperature_form(T, T_n, T_v, u_, S_, p_): #S_
     dim = T.function_space().mesh().geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
-    Fh = heat_flux_forcing(u_, T_n, S_, p_)
 
-    return (dot((T - T_n)/dt, T_v)*dx
-           + div(u_*T)*T_v*dx
-           + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx
-           #+ dot(Fh, v)*dx
-    )
+    F = (dot((T - T_n)/dt, T_v)*dx
+         + div(u_*T)*T_v*dx
+         + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx)
+
+    ## (Maybe) Build heat flux forcing term ##
+    if mw is not False:
+        Cd = 2.5*10**(-3)
+        cw = 3974
+        gammaT = 1.15*10**(-2)
+        rhofw = 1000
+        rhosw = 1028
+        Ut = 0.01
+        Ustar = Cd*norm(u_)+Ut**2 # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
+        Tw = T_n
+
+        Fh = -cw*(rhosw*Ustar*gammaT+rhofw*mw)*(Tzd-Tw)
+
+        F += dot(Fh, T_v)*dx
+
+    return F
 
 
-def build_salinity_form(S, S_n, S_v, u_):
+def build_salinity_form(S, S_n, S_v, u_, mw, Tzd, Szd):
     """Define salinity variational problem.
-    Calls build_temperature_form with salinity variables inside.
 
     Parameters
     ----------
@@ -275,31 +288,29 @@ def build_salinity_form(S, S_n, S_v, u_):
     FEniCS Form
     """
 
-    return build_temperature_form(S, S_n, S_v, u_)
+    dim = S.function_space().mesh().geometric_dimension()
+    alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
+    dt = Constant(1/parameters.config['steps_n'])
 
+    F = (dot((S - S_n)/dt, S_v)*dx
+         + div(u_*S)*S_v*dx
+         + dot(elem_mult(get_matrix_diagonal(alpha), grad(S)), grad(S_v))*dx)
 
-def heat_flux_forcing(uw, Tw, Sw, pzd):
+    ## (Maybe) Build salinity flux forcing term ##
+    if mw is not False:
+        Cd = 2.5*10**(-3)
+        gammaT = 1.15*10**(-2)
+        gammaS = gammaT/3
+        rhofw = 1000
+        rhosw = 1028
+        Ut = 0.01
+        Ustar = Cd*norm(u_)+Ut**2 # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
+        Sw = S_n
+        Fh = -(rhosw*Ustar*gammaS+rhofw*mw)*(Szd-Sw)
 
-    # introduce all constants
-    # from Asai Davies 2016 ISOMIP Paper
-    Cd = 2.5*10**(-3)
-    cw = 3974
-    gammaT = 1.15*10**(-2)
-    gammaS = gammaT/3
-    L = 3.34*10**5
-    lam1 = -0.0573
-    lam2 = 0.0832
-    lam3 = -7.53*10**(-8)
-    rhofw = 1000
-    rhosw = 1028
-    Ut = 0.01
+        F += dot(Fh, S_v)*dx
 
-    # Ustar from Uw and U_tidal
-    Ustar = norm(uw)#np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
-
-    (mw, Tzd, Szd) = solve_3eqs_system(uw, Tw, Sw, pzd)
-
-    return -cw*(rhosw*Ustar*gammaT+rhofw*mw)*(Tzd-Tw)
+    return F
 
 
 def solve_3eqs_system(uw, Tw, Sw, pzd):
@@ -320,7 +331,7 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     Ut = 0.01
 
     # Ustar from Uw and U_tidal
-    Ustar = norm(uw)# np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
+    Ustar = Cd*norm(uw)+Ut**2 # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
 
     P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
     element = MixedElement([P1, P1, P1])
@@ -329,16 +340,23 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     mw, Tzd, Szd = TrialFunctions(V)
     sol = Function(V)
 
-    F = ( Tzd#*v_1*dx
-          #(+ Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
-          #(+ rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx
+    F = ( (+ rhofw*mw*L + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
+          + Tzd*v_2*dx - lam1*Szd*v_2*dx - lam2*v_2*dx - lam3*pzd*v_2*dx
+          + (rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx
     )
+    # why doesn't it work if each term has its own v_1*dx? I get a integration domain missing error.
 
     solve(lhs(F) == rhs(F), sol)
-    splitted = sol.split()
-    plot_single(splitted[0])
-    plot_single(splitted[1])
-    plot_single(splitted[2])
+    sol_splitted = sol.split()
+
+    '''if norm(splitted[0]) != 0:
+        plot_single(splitted[0], display=True, title='meltrate')
+    if norm(splitted[1]) != 0:
+        plot_single(splitted[1], display=True, title='Tzd')
+    if norm(splitted[2]) != 0:
+        plot_single(splitted[2], display=True, title='Szd')'''
+
+    return (sol_splitted[0], sol_splitted[1], sol_splitted[2])
 
 
 def get_matrix_diagonal(mat):
