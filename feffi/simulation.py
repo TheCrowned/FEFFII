@@ -16,7 +16,8 @@ import yaml
 from . import parameters, plot
 from .parameters import convert_constants_from_kmh_to_ms
 from .functions import (build_NS_GLS_steady_form, build_temperature_form,
-                        build_salinity_form, build_buoyancy, energy_norm)
+                        build_salinity_form, build_buoyancy, energy_norm,
+                        solve_3eqs_system)
 flog = logging.getLogger('feffi')
 
 
@@ -199,20 +200,37 @@ class Simulation(object):
         # Temperature and salinity
         # ------------------------
 
-        flog.debug('Solving for T and S.')
+        # 3 equations system to obtain T and S forcing terms
+        if(parameters.config['include_3eqs']):
+            flog.debug('Solving 3 equations system...')
+            (mw, Tzd, Szd) = solve_3eqs_system(self.f['u_'], self.f['T_'],
+                                               self.f['S_'], self.f['p_'])
+            flog.debug(('Solved 3 equations system:\n'
+                        ' - mw: {}\n - Tzd: {}\n - Szd: {}'
+                        .format(norm(mw), norm(Tzd), norm(Szd))))
+        else:
+            mw, Tzd, Szd = False, False, False
+
+        print(mw)
+
+        flog.debug('Solving for T and S...')
 
         if parameters.config['beta'] != 0: #do not run if not coupled with velocity
             T_form = build_temperature_form(self.f['T'], self.f['T_n'],
                                             self.f['T_v'], self.f['u_'],
-                                            self.f['S_'], self.f['p_'])
-            solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'], solver_parameters={'linear_solver':'mumps'})
+                                            mw, Tzd, Szd)
+            solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'],
+                  solver_parameters={'linear_solver':'mumps'})
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
             S_form = build_salinity_form(self.f['S'], self.f['S_n'],
-                                         self.f['S_v'], self.f['u_'])
-            solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'], solver_parameters={'linear_solver':'mumps'})
+                                         self.f['S_v'], self.f['u_'],
+                                         mw, Tzd, Szd)
+            solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'],
+                  solver_parameters={'linear_solver':'mumps'})
 
         flog.debug('Solved for T and S.')
+
         self.relative_errors['u'] = norm(project(self.f['u_']-self.f['u_n'], self.f['u_'].function_space()), 'L2')/norm(self.f['u_'], 'L2') if norm(self.f['u_'], 'L2') != 0 else 0
         self.relative_errors['p'] = norm(project(self.f['p_']-self.f['p_n'], self.f['p_'].function_space()), 'L2')/norm(self.f['p_'], 'L2') if norm(self.f['p_'], 'L2') != 0 else 0
         self.relative_errors['T'] = norm(project(self.f['T_']-self.f['T_n'], self.f['T_'].function_space()), 'L2')/norm(self.f['T_'], 'L2') if norm(self.f['T_'], 'L2') != 0 else 0
