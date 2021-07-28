@@ -161,8 +161,8 @@ def init_logging():
         fenics.set_log_level(logging.WARNING)  # default is INFO
     else:
         fenics.set_log_level(logging.ERROR)
-    #logging.getLogger('UFL').setLevel(logging.WARNING)
-    #logging.getLogger('FFC').setLevel(logging.WARNING)
+        logging.getLogger('FFC').setLevel(logging.WARNING)
+        logging.getLogger('UFL').setLevel(logging.WARNING)
 
 
 def parse_commandline_args():
