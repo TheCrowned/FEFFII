@@ -57,9 +57,10 @@ class Simulation(object):
         feffi.plot.plot_solutions(f, display = True)
     """
 
-    def __init__(self, f, BCs):
+    def __init__(self, f, domain):
         self.f = f
-        self.BCs = BCs
+        self.domain = domain
+        self.BCs = domain.BCs
         self.n = 0
         self.iterations_n = parameters.config['steps_n']*int(parameters.config['final_time'])
         self.relative_errors = {}
@@ -211,21 +212,19 @@ class Simulation(object):
         else:
             mw, Tzd, Szd = False, False, False
 
-        print(mw)
-
         flog.debug('Solving for T and S...')
 
         if parameters.config['beta'] != 0: #do not run if not coupled with velocity
             T_form = build_temperature_form(self.f['T'], self.f['T_n'],
                                             self.f['T_v'], self.f['u_'],
-                                            mw, Tzd, Szd)
+                                            mw, Tzd, Szd, self.domain)
             solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'],
                   solver_parameters={'linear_solver':'mumps'})
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
             S_form = build_salinity_form(self.f['S'], self.f['S_n'],
                                          self.f['S_v'], self.f['u_'],
-                                         mw, Tzd, Szd)
+                                         mw, Tzd, Szd, self.domain)
             solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'],
                   solver_parameters={'linear_solver':'mumps'})
 
