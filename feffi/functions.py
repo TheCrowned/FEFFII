@@ -3,7 +3,7 @@ from fenics import (dot, inner, elem_mult, grad, nabla_grad, div, cross,
                     TestFunction, FunctionSpace, VectorElement, split,
                     FiniteElement, Constant, interpolate, Expression,
                     FacetNormal, as_vector, assemble, norm, MixedElement,
-                    TestFunctions, TrialFunctions, solve, lhs, rhs)
+                    TestFunctions, TrialFunctions, solve, lhs, rhs, Measure)
 from . import parameters
 from .plot import plot_single
 import logging
@@ -232,7 +232,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     return steady_form
 
 
-def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, Szd):
+def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, Szd, domain):
     """Define temperature variational problem.
 
     Parameters
@@ -247,9 +247,12 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, Szd):
     FEniCS Form
     """
 
-    dim = T.function_space().mesh().geometric_dimension()
+    mesh = T.function_space().mesh()
+    dim = mesh.geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
+    n = FacetNormal(mesh)
+    ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
     F = (dot((T - T_n)/dt, T_v)*dx
          + div(u_*T)*T_v*dx
@@ -268,12 +271,12 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, Szd):
 
         Fh = -cw*(rhosw*Ustar*gammaT+rhofw*mw)*(Tzd-Tw)
 
-        F += dot(Fh, T_v)*dx
+        F += dot(Fh, T_v)*ds(domain.subdomains_markers['left'])
 
     return F
 
 
-def build_salinity_form(S, S_n, S_v, u_, mw, Tzd, Szd):
+def build_salinity_form(S, S_n, S_v, u_, mw, Tzd, Szd, domain):
     """Define salinity variational problem.
 
     Parameters
@@ -288,9 +291,12 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Tzd, Szd):
     FEniCS Form
     """
 
-    dim = S.function_space().mesh().geometric_dimension()
+    mesh = S.function_space().mesh()
+    dim = mesh.geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
+    n = FacetNormal(mesh)
+    ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
     F = (dot((S - S_n)/dt, S_v)*dx
          + div(u_*S)*S_v*dx
@@ -308,7 +314,7 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Tzd, Szd):
         Sw = S_n
         Fh = -(rhosw*Ustar*gammaS+rhofw*mw)*(Szd-Sw)
 
-        F += dot(Fh, S_v)*dx
+        F += dot(Fh, S_v)*ds(domain.subdomains_markers['left'])
 
     return F
 
@@ -349,12 +355,12 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     solve(lhs(F) == rhs(F), sol)
     sol_splitted = sol.split()
 
-    '''if norm(splitted[0]) != 0:
-        plot_single(splitted[0], display=True, title='meltrate')
-    if norm(splitted[1]) != 0:
-        plot_single(splitted[1], display=True, title='Tzd')
-    if norm(splitted[2]) != 0:
-        plot_single(splitted[2], display=True, title='Szd')'''
+    if norm(sol_splitted[0]) != 0:
+        plot_single(sol_splitted[0], display=True, title='meltrate')
+    if norm(sol_splitted[1]) != 0:
+        plot_single(sol_splitted[1], display=True, title='Tzd')
+    if norm(sol_splitted[2]) != 0:
+        plot_single(sol_splitted[2], display=True, title='Szd')
 
     return (sol_splitted[0], sol_splitted[1], sol_splitted[2])
 

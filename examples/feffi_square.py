@@ -35,7 +35,7 @@ feffi.functions.init_functions(f)
 domain = feffi.boundaries.Domain(mesh, f_spaces)
 
 # Initializes a feffi simulation
-simulation = feffi.simulation.Simulation(f, domain.BCs)
+simulation = feffi.simulation.Simulation(f, domain)
 
 # Run simulation until a stopping criteria is met. You may also advance by
 # individual timesteps with `simulation.timestep()`
