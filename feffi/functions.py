@@ -337,7 +337,7 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     Ut = 0.01
 
     # Ustar from Uw and U_tidal
-    Ustar = (Cd*norm(u_)+Ut**2)**(1/2) # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
+    Ustar = (Cd*norm(uw)+Ut**2)**(1/2) # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
 
     P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
     element = MixedElement([P1, P1, P1])
