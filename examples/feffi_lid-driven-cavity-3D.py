@@ -23,7 +23,7 @@ functions.init_functions(f) # Init functions to closest steady state
 domain = boundaries.Domain(mesh, f_spaces)
 #domain.show_boundaries()
 
-simul = simulation.Simulation(f, domain.BCs)
+simul = simulation.Simulation(f, domain)
 simul.run()
 #simul.timestep()
 

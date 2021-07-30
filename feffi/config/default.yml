@@ -18,7 +18,6 @@ gamma: 0.00076
 T_0: 1
 S_0: 35
 Omega_0: -5e-5
-include_3eqs: True
 
 domain: square
 domain_size_x: 2
@@ -56,3 +55,5 @@ BCs:
     S:
         right: 35
         left: 34.5
+melt_boundaries:
+    - 

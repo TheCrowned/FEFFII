@@ -6,6 +6,8 @@ from fenics import (dot, inner, elem_mult, grad, nabla_grad, div, cross,
                     TestFunctions, TrialFunctions, solve, lhs, rhs, Measure)
 from . import parameters
 from .plot import plot_single
+from .meltparametrization import (build_heat_flux_forcing_term,
+                                  build_salinity_flux_forcing_term)
 import logging
 flog = logging.getLogger('feffi')
 
@@ -232,7 +234,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     return steady_form
 
 
-def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, Szd, domain):
+def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
     """Define temperature variational problem.
 
     Parameters
@@ -251,8 +253,6 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, Szd, domain):
     dim = mesh.geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
-    n = FacetNormal(mesh)
-    ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
     F = (dot((T - T_n)/dt, T_v)*dx
          + div(u_*T)*T_v*dx
@@ -260,23 +260,18 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, Szd, domain):
 
     ## (Maybe) Build heat flux forcing term ##
     if mw is not False:
-        Cd = 2.5*10**(-3)
-        cw = 3974
-        gammaT = 1.15*10**(-2)
-        rhofw = 1000
-        rhosw = 1028
-        Ut = 0.01
-        Ustar = (Cd*norm(u_)+Ut**2)**(1/2) # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
-        Tw = T_n
+        n = FacetNormal(mesh)
+        ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
-        Fh = -cw*(rhosw*Ustar*gammaT+rhofw*mw)*(Tzd-Tw)
-
-        F += dot(Fh, T_v)*ds(domain.subdomains_markers['left'])
+        Fh = build_heat_flux_forcing_term(u_, T_n, mw, Tzd)
+        for domain_label in parameters.config['melt_boundaries']:
+            if domain_label != None:
+                F += dot(Fh, T_v)*ds(domain.subdomains_markers[domain_label])
 
     return F
 
 
-def build_salinity_form(S, S_n, S_v, u_, mw, Tzd, Szd, domain):
+def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
     """Define salinity variational problem.
 
     Parameters
@@ -295,8 +290,6 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Tzd, Szd, domain):
     dim = mesh.geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
-    n = FacetNormal(mesh)
-    ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
     F = (dot((S - S_n)/dt, S_v)*dx
          + div(u_*S)*S_v*dx
@@ -304,65 +297,15 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Tzd, Szd, domain):
 
     ## (Maybe) Build salinity flux forcing term ##
     if mw is not False:
-        Cd = 2.5*10**(-3)
-        gammaT = 1.15*10**(-2)
-        gammaS = gammaT/3
-        rhofw = 1000
-        rhosw = 1028
-        Ut = 0.01
-        Ustar = (Cd*norm(u_)+Ut**2)**(1/2) # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
-        Sw = S_n
-        Fh = -(rhosw*Ustar*gammaS+rhofw*mw)*(Szd-Sw)
+        n = FacetNormal(mesh)
+        ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
-        F += dot(Fh, S_v)*ds(domain.subdomains_markers['left'])
+        Fs = build_salinity_flux_forcing_term(u_, S_n, mw, Szd)
+        for domain_label in parameters.config['melt_boundaries']:
+            if domain_label != None:
+                F += dot(Fs, S_v)*ds(domain.subdomains_markers[domain_label])
 
     return F
-
-
-def solve_3eqs_system(uw, Tw, Sw, pzd):
-    mesh = uw.function_space().mesh()
-
-    # introduce all constants
-    # from Asai Davies 2016 ISOMIP Paper
-    Cd = 2.5*10**(-3)
-    cw = 3974
-    gammaT = 1.15*10**(-2)
-    gammaS = gammaT/3
-    L = 3.34*10**5
-    lam1 = -0.0573
-    lam2 = 0.0832
-    lam3 = -7.53*10**(-8)
-    rhofw = 1000
-    rhosw = 1028
-    Ut = 0.01
-
-    # Ustar from Uw and U_tidal
-    Ustar = (Cd*norm(uw)+Ut**2)**(1/2) # np.sqrt(Cd*(np.sqrt(Uw[0]**2 + Uw[1]**2)+Ut**2))            # Ustar^2 = Cd(Uw^2 + Ut^2)
-
-    P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
-    element = MixedElement([P1, P1, P1])
-    V = FunctionSpace(mesh, element)
-    v_1, v_2, v_3 = TestFunctions(V)
-    mw, Tzd, Szd = TrialFunctions(V)
-    sol = Function(V)
-
-    F = ( (+ rhofw*mw*L + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
-          + Tzd*v_2*dx - lam1*Szd*v_2*dx - lam2*v_2*dx - lam3*pzd*v_2*dx
-          + (rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx
-    )
-    # why doesn't it work if each term has its own v_1*dx? I get a integration domain missing error.
-
-    solve(lhs(F) == rhs(F), sol)
-    sol_splitted = sol.split()
-
-    if norm(sol_splitted[0]) != 0:
-        plot_single(sol_splitted[0], display=True, title='meltrate')
-    if norm(sol_splitted[1]) != 0:
-        plot_single(sol_splitted[1], display=True, title='Tzd')
-    if norm(sol_splitted[2]) != 0:
-        plot_single(sol_splitted[2], display=True, title='Szd')
-
-    return (sol_splitted[0], sol_splitted[1], sol_splitted[2])
 
 
 def get_matrix_diagonal(mat):

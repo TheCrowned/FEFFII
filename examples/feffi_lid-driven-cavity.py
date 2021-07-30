@@ -30,7 +30,7 @@ feffi.plot.plot_single(mesh, display=True, title="Starting mesh")
 f_spaces = feffi.functions.define_function_spaces(mesh)
 f = feffi.functions.define_functions(f_spaces)
 domain = feffi.boundaries.Domain(mesh, f_spaces)
-simul = feffi.simulation.Simulation(f, domain.BCs)
+simul = feffi.simulation.Simulation(f, domain)
 
 # Repeatedly run 1 timestep and deform mesh
 for x in range(15):
