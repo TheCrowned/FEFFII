@@ -26,6 +26,7 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     sol = Function(V)
 
     Ustar = (Cd*norm(uw)**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2)
+    # should Ustar be in some way only computed on the boundary??
     F = ( (+ rhofw*mw*L + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
            + (Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
            + (rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx )
