@@ -345,6 +345,9 @@ class Domain(object):
         for (f_space_name, BCs_set) in self.config['BCs'].items():
             self.BCs[f_space_name] = []
 
+            if BCs_set is None:
+                continue
+
             for (subdomain_name, BC_value) in BCs_set.items():
 
                 # Vector valued function spaces (i.e. velocity) should have
