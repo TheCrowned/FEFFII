@@ -22,7 +22,7 @@ f = functions.define_functions(f_spaces)
 functions.init_functions(f) # Init functions to closest steady state
 domain = boundaries.Domain(mesh, f_spaces)
 
-simul = simulation.Simulation(f, domain.BCs)
+simul = simulation.Simulation(f, domain)
 simul.run()
 
 plot.plot_solutions(f, display=False)
