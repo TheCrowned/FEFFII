@@ -25,5 +25,5 @@ BCs:
     Q:
         '(1,1)': 0
     S:
-melting_boundaries:
+melt_boundaries:
     - left
