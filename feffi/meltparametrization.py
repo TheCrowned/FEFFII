@@ -17,6 +17,29 @@ rhosw = Constant(1028)
 Ut = Constant(0.01)
 
 def solve_3eqs_system(uw, Tw, Sw, pzd):
+    """
+    Solves the 3 equations system for melt-rate formulation.
+
+    (Notation and equations found in ISOMIP paper:
+    https://gmd.copernicus.org/articles/9/2471/2016/ )
+
+    Parameters
+    ----------
+    uw : FEniCS Function
+        Ocean velocity
+    Tw : FEniCS Function
+        Ocean temperature
+    Sw : FEniCS Function
+        Ocean salinity
+    pzdw : FEniCS Function
+        Ocean pressure
+
+    Return
+    ------
+    mw : meltrate
+    Tzd : temperature field at ice-ocean interface
+    Szd : salinity field at ice-ocean interface
+    """
     mesh = uw.function_space().mesh()
     P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
     element = MixedElement([P1, P1, P1])
