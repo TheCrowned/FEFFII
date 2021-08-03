@@ -6,15 +6,15 @@ from fenics import (dx, Function, FunctionSpace, FiniteElement, lhs, rhs,
 # from Asai Davies 2016 ISOMIP Paper
 Cd = Constant(2.5*10**(-3))
 cw = Constant(3974)
-gammaT = Constant(1.15*10**(-2))
-gammaS = Constant(gammaT/35) # John had gammaS=gammaT/3 cause he says salinity change is not strong enough. ISOMIP paper provides a way to tune these gammas wrt the desired meltrate
+gammaT = Constant(1.15*10**(-4)) # this depends on mesh resolution (1.15*10**(-2) for mesh-res 10)
+gammaS = Constant(gammaT/35)     # John had gammaS=gammaT/3 cause he says salinity change is not strong enough. ISOMIP paper provides a way to tune these gammas wrt the desired meltrate
 L = Constant(3.34*10**5)
 lam1 = Constant(-0.0573)
 lam2 = Constant(0.0832)
 lam3 = Constant(-7.53*10**(-8))
 rhofw = Constant(1000)
 rhosw = Constant(1028)
-Ut = Constant(0.01)
+Ut = Constant(0.01) # Constant(0.01) ignore for now
 
 def solve_3eqs_system(uw, Tw, Sw, pzd):
     """
@@ -31,7 +31,7 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
         Ocean temperature
     Sw : FEniCS Function
         Ocean salinity
-    pzdw : FEniCS Function
+    pzd : FEniCS Function
         Ocean pressure
 
     Return
@@ -49,6 +49,8 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     sol = Function(V)
 
     Ustar = (Cd*norm(uw)**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2)
+    #Ustar = (Cd*uw**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2) # ustar should be a function
+    #Ustar = (Cd*(uw.sub(0)**2+uw.sub(1)**2))**(1/2)              # Ustar = sqrt(Cd)*Uw
     # should Ustar be in some way only computed on the boundary??
     F = ( (+ rhofw*mw*L + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
            + (Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
