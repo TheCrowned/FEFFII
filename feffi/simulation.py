@@ -173,8 +173,8 @@ class Simulation(object):
             flog.debug('Solving for u, p...')
             steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_p_h, v,
                                                    q, T_n, S_n)
-            solve(lhs(steady_form) == rhs(steady_form), self.f['sol'], bcs=bcs,
-                  solver_parameters={'linear_solver':'mumps'})
+            solve(lhs(steady_form) == rhs(steady_form), self.f['sol'], bcs=bcs)
+                  #solver_parameters={'linear_solver':'mumps'})
             flog.debug('Solved for u, p.')
 
             (self.f['u_'], pnh) = self.f['sol'].split(True)
@@ -193,7 +193,7 @@ class Simulation(object):
         a = ph.dx(1)/rho_0 * q * dx
         L = build_buoyancy(self.f['T_'], self.f['S_']) * q * dx
         bc = DirichletBC(p_f_space, 0, 'near(x[1], 1)')
-        solve(a == L, ph_sol, bcs=[bc], solver_parameters={'linear_solver':'mumps'})
+        solve(a == L, ph_sol, bcs=[bc])#, solver_parameters={'linear_solver':'mumps'})
         self.f['p_'].assign(pnh + ph_sol)
         flog.debug('Solved for ph.')
 
@@ -221,15 +221,15 @@ class Simulation(object):
             T_form = build_temperature_form(self.f['T'], self.f['T_n'],
                                             self.f['T_v'], self.f['u_'],
                                             mw, Tzd, self.domain)
-            solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'],
-                  solver_parameters={'linear_solver':'mumps'})
+            solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'])
+                  #solver_parameters={'linear_solver':'mumps'})
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
             S_form = build_salinity_form(self.f['S'], self.f['S_n'],
                                          self.f['S_v'], self.f['u_'],
                                          mw, Szd, self.domain)
-            solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'],
-                  solver_parameters={'linear_solver':'mumps'})
+            solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'])
+                  #solver_parameters={'linear_solver':'mumps'})
 
         flog.debug('Solved for T and S.')
 
