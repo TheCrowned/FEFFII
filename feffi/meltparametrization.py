@@ -48,9 +48,9 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     mw, Tzd, Szd = TrialFunctions(V)
     sol = Function(V)
 
-    Ustar = (Cd*norm(uw)**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2)
+    #Ustar = (Cd*norm(uw)**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2)
     #Ustar = (Cd*uw**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2) # ustar should be a function
-    #Ustar = (Cd*(uw.sub(0)**2+uw.sub(1)**2))**(1/2)              # Ustar = sqrt(Cd)*Uw
+    Ustar = (Cd*(uw.sub(0)**2+uw.sub(1)**2)+Ut**2)**(1/2)        # Ut is needed, maybe in case uw is 0 at some point?
     # should Ustar be in some way only computed on the boundary??
     F = ( (+ rhofw*mw*L + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
            + (Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
