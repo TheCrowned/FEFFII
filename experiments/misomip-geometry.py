@@ -57,7 +57,7 @@ def create_layer(lower_h, higher_h):
 span = min(np.asarray(bedrock).flatten())
 span_prev = span - 10
 n = 0
-origin = (np.average(x), np.average(y))
+
 while span < -715:#max(np.asarray(bedrock).flatten()):
     l = create_layer(span_prev, span)
     print('Created layer {} with {} points at height {}'.format(n, len(l), span))
@@ -80,14 +80,15 @@ while span < -715:#max(np.asarray(bedrock).flatten()):
         plt.scatter(np.asarray(l_sfrondato)[:,0], np.asarray(l_sfrondato)[:,1])
         plt.show()
 
+        origin = (np.average(np.asarray(l_sfrondato)[:,0]), np.average(np.asarray(l_sfrondato)[:,1]))
         l = sorted(l_sfrondato, key=angle_counterclockwise_sort)
         print('sorted points')
         print(l)
 
-    Points = [Point(p) for p in l_sfrondato]
+    Points = [Point((p[0]/10000, p[1]/10000)) for p in l_sfrondato]
     g2d = mshr.Polygon(Points)
     print('built polygon')
-    g3d = mshr.Extrude2D(g2d, 1)#(span_prev-span)/1000) #height is in meters
+    g3d = mshr.Extrude2D(g2d, 0.1)#(span_prev-span)/1000) #height is in meters
     print('extruded 3d')
 
     try:
