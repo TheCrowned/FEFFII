@@ -128,7 +128,8 @@ class Simulation(object):
         gamma = Constant(parameters.config['gamma'])
         rho_0 = Constant(parameters.config['rho_0'])
         pnh = Function(self.f['p_'].function_space()) # non-hydrostatic pressure
-        dim = pnh.function_space().mesh().geometric_dimension() # 2D or 3D
+        mesh = pnh.function_space().mesh()
+        dim = mesh.geometric_dimension() # 2D or 3D
 
         # Obtain dph/dx
         # A linear space is used even though dT/dx will most likely be
@@ -140,7 +141,9 @@ class Simulation(object):
         dph_dx_sol = Function(dp_f_space)
         a = dph_dx.dx(1) * q * dx
         L = -g*(-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
-        bc = DirichletBC(dp_f_space, 0, 'near(x[1], 1)')
+        bc_point = ('near(x[1], {})'.format(max(mesh.coordinates()[:,1])))
+        bc = DirichletBC(dp_f_space, 0, bc_point)
+        #bc = DirichletBC(dp_f_space, 0, 'near(x[1],1)')
         solve(a == L, dph_dx_sol, bcs=[bc])
         flog.debug('Solved for dph/dx.')
 
@@ -192,7 +195,9 @@ class Simulation(object):
         ph_sol = Function(p_f_space)
         a = ph.dx(1)/rho_0 * q * dx
         L = build_buoyancy(self.f['T_'], self.f['S_']) * q * dx
-        bc = DirichletBC(p_f_space, 0, 'near(x[1], 1)')
+        bc_point = ('near(x[1], {})'.format(max(mesh.coordinates()[:,1])))
+        bc = DirichletBC(p_f_space, 0, bc_point)
+        #bc = DirichletBC(p_f_space, 0, 'near(x[1],1)')
         solve(a == L, ph_sol, bcs=[bc])#, solver_parameters={'linear_solver':'mumps'})
         self.f['p_'].assign(pnh + ph_sol)
         flog.debug('Solved for ph.')

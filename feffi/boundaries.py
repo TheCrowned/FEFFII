@@ -126,9 +126,9 @@ class Domain(object):
         """Defines boundaries as SubDomains."""
 
         self.boundaries = {
-            'right': Bound_Right(),
-            'left': Bound_Left(),
-            'bottom': Bound_Bottom(self.mesh.geometric_dimension()),
+            'right': Bound_Right(self.mesh),
+            'left': Bound_Left(self.mesh),
+            'bottom': Bound_Bottom(self.mesh),
         }
 
         # For 3D, add the 2 extra domains
@@ -141,7 +141,7 @@ class Domain(object):
         # Define subdomains
         if self.config['domain'] == 'square':
             self.boundaries.update({
-                'top': Bound_Top(self.mesh.geometric_dimension()),
+                'top': Bound_Top(self.mesh),
             })
         elif self.config['domain'] == 'fjord':
             self.boundaries.update({
@@ -442,27 +442,35 @@ class Domain(object):
 # The meaning of `x[1]` changes depending on whether it's 2D or 3D.
 
 class Bound_Top(SubDomain):
-    def __init__(self, dim):
-        self.dim = dim
+    def __init__(self, mesh):
+        self.mesh = mesh
         super().__init__()
 
     def inside(self, x, on_boundary):
-        if self.dim == 2:
-            return near(x[1], 1) and on_boundary
-        elif self.dim == 3:
-            return near(x[2], 1) and on_boundary
+        dim = self.mesh.geometric_dimension()
+
+        if dim == 2:
+            top_coord = max(self.mesh.coordinates()[:,1])
+            return near(x[1], top_coord) and on_boundary
+        elif dim == 3:
+            top_coord = max(self.mesh.coordinates()[:,2])
+            return near(x[2], top_coord) and on_boundary
 
 
 class Bound_Bottom(SubDomain):
-    def __init__(self, dim):
-        self.dim = dim
+    def __init__(self, mesh):
+        self.mesh = mesh
         super().__init__()
 
     def inside(self, x, on_boundary):
-        if self.dim == 2:
-            return near(x[1], 0) and on_boundary
-        elif self.dim == 3:
-            return near(x[2], 0) and on_boundary
+        dim = self.mesh.geometric_dimension()
+
+        if dim == 2:
+            bottom_coord = min(self.mesh.coordinates()[:,1])
+            return near(x[1], bottom_coord) and on_boundary
+        elif dim == 3:
+            bottom_coord = min(self.mesh.coordinates()[:,2])
+            return near(x[2], bottom_coord) and on_boundary
 
 
 class Bound_Front(SubDomain): # 3D only
@@ -476,17 +484,23 @@ class Bound_Back(SubDomain): # 3D only
 
 
 class Bound_Left(SubDomain):
+    def __init__(self, mesh):
+        self.mesh = mesh
+        super().__init__()
+
     def inside(self, x, on_boundary):
-        return near(x[0], 0) and on_boundary
+        left_coord = min(self.mesh.coordinates()[:,0])
+        return near(x[0], left_coord) and on_boundary
 
 
 class Bound_Right(SubDomain):
+    def __init__(self, mesh):
+        self.mesh = mesh
+        super().__init__()
+
     def inside(self, x, on_boundary):
-        if parameters.config['domain'] == 'square':
-            return near(x[0], 1) and on_boundary
-        elif parameters.config['domain'] == 'fjord':
-            return (near(x[0], parameters.config['domain_size_x'])
-                    and on_boundary)
+        right_coord = max(self.mesh.coordinates()[:,0])
+        return near(x[0], right_coord) and on_boundary
 
 
 class Bound_Ice_Shelf_Bottom(SubDomain):
