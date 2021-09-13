@@ -50,6 +50,8 @@ For what concerns simulated quantities:
 ## Tests and benchmarks
 As of today, benchmarks include `Lid Driven Cavity`, `Buoyancy Driven Cavity`, `Rayleigh-Benard Convection` and `Ford experiment`. These have been run with different parameters (i.e. with different _difficulty_), and we check that their result does not change when the model is updated. Simulations with precision 1e-5 have been run and saved in `feffi/reference-solutions`. There are a bunch of unit tests implemented in `unit_tests.py` that can be run which will check whether a newly computed solution matches the reference one.
 
+To run a quick suite of basic benchmarks, use `python test/unit_tests.py FEFFIBenchmarksTestsQuick` (which include LDC nu 1e-2, BDC 100). For a more thorough set, use `python test/unit_tests.py FEFFIBenchmarksTestsThorough` (includes all the others).
+
 Adding a new test is simple:
 1. run the simulation you'd like to include as test. Run with a high simulation precision (like `-5`) and use the `plot_path` arg to give the plots directory a meaningful name.
 2. when the simulation is over, copy the plots folder in `feffi/reference-solutions`. The directory should include a `solutions` subdir and a `config.yml` file (plus a `simul_data.csv`?).

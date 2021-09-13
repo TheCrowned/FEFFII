@@ -30,7 +30,7 @@ class FEFFIBenchmarksTestsBase(unittest.TestCase):
         f = feffi.functions.define_functions(f_spaces)
         feffi.functions.init_functions(f)
         domain = feffi.boundaries.Domain(mesh, f_spaces)
-        simul = feffi.simulation.Simulation(f, domain.BCs)
+        simul = feffi.simulation.Simulation(f, domain)
         simul.run()
         return f
 
