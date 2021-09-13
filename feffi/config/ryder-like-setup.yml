@@ -1,0 +1,31 @@
+final_time: 10
+steps_n: 10000
+simulation_precision: -3
+g: 9.81
+nu: 
+- 100
+alpha:
+- 100
+rho_0: 1028
+beta: 0.0001
+gamma: 0.00076
+T_0: 1
+S_0: 35
+domain: square
+mesh_resolution: 10
+max_iter: 0
+BCs:
+    V:
+        right: [0,0]
+        bottom: [0,0]
+        left: [0,0]
+        top: [0,0]
+    T:
+        
+    Q:
+        '(1,1)': 0
+    S:
+melt_boundaries:
+    - left
+convert_from_ms_to_kmh: True
+very_verbose: True
