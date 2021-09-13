@@ -117,7 +117,7 @@ class Simulation(object):
         """Runs one timestep."""
 
         # ---------------------
-        # Velocity and pressure
+        # VELOCITY AND PRESSURE
         # ---------------------
 
         # Init some vars
@@ -130,20 +130,23 @@ class Simulation(object):
         pnh = Function(self.f['p_'].function_space()) # non-hydrostatic pressure
         mesh = pnh.function_space().mesh()
         dim = mesh.geometric_dimension() # 2D or 3D
+        z_coord = dim-1 # z-coord in mesh points changes depending on 2/3D
 
-        # Obtain dph/dx
-        # A linear space is used even though dT/dx will most likely be
-        # piecewise constant.
+        # ----------------
+        # Calculate dph/dx
+        # ----------------
         flog.debug('Solving for dph/dx...')
-        dp_f_space = self.f['p_'].function_space()
-        dph_dx = TrialFunction(dp_f_space)
-        q = TestFunction(dp_f_space)
-        dph_dx_sol = Function(dp_f_space)
-        a = dph_dx.dx(1) * q * dx
-        L = -g*(-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
-        bc_point = ('near(x[1], {})'.format(max(mesh.coordinates()[:,1])))
-        bc = DirichletBC(dp_f_space, 0, bc_point)
-        #bc = DirichletBC(dp_f_space, 0, 'near(x[1],1)')
+
+        # Use P function space even if we compute gradient, which should be one degree lower
+        dph_dx_f_space = self.f['p_'].function_space()
+
+        dph_dx = TrialFunction(dph_dx_f_space)
+        q = TestFunction(dph_dx_f_space)
+        dph_dx_sol = Function(dph_dx_f_space)
+        a = dph_dx.dx(z_coord) * q * dx ## !!!!! use z_coord!!!
+        L = -g * (-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
+        bc_domain = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
+        bc = DirichletBC(dph_dx_f_space, 0, bc_domain)
         solve(a == L, dph_dx_sol, bcs=[bc])
         flog.debug('Solved for dph/dx.')
 
@@ -152,58 +155,69 @@ class Simulation(object):
         elif dim == 3:
             grad_ph_tup = ('dph_dx', 0, 0)
 
-        grad_p_h = interpolate(Expression(grad_ph_tup, dph_dx=dph_dx_sol, degree=2),
-                               VectorFunctionSpace(dp_f_space.mesh(), 'Lagrange', 1))
-        flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(norm(grad_p_h)))
+        grad_ph = interpolate(Expression(grad_ph_tup, dph_dx=dph_dx_sol, degree=2), ## degree=2 ????
+                              VectorFunctionSpace(dph_dx_f_space.mesh(), 'Lagrange', 1))
+        # Linear space is used for grad_ph even though dT/dx will most likely be
+        # piecewise constant. Can't hurt, I guess.
 
-        # Solve the non linearity
+        flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(round(norm(grad_ph), 2)))
+
+        # --------------------------
+        # Solve GLS Navier-Stokes eq
+        # --------------------------
+
+        # Shorthand for variables
+        u = self.f['u']; p = self.f['p']
+        v = self.f['v']; q = self.f['q']
+        u_n = self.f['u_n']; T_n = self.f['T_n']; S_n = self.f['S_n']
+
+        # Define BCs
+        bcs = []
+        if self.BCs.get('V'):
+            bcs += self.BCs['V']
+        if self.BCs.get('Q'):
+            bcs += self.BCs['Q']
+
+        # Solve non-linearity iteratively
         flog.debug('Iteratively solving non-linear problem')
         while residual_u > tol and self.nonlin_n <= parameters.config['non_linear_max_iter']:
-            a = self.f['sol'].split(True)[0] #this is the "u_n" of this non-linear loop
-
-            # Shorthand for variables
-            u = self.f['u']; p = self.f['p']
-            v = self.f['v']; q = self.f['q']
-            u_n = self.f['u_n']; T_n = self.f['T_n']; S_n = self.f['S_n']
+            a = self.f['sol'].split(True)[0] # this is the "u_n" of this non-linear loop
 
             # Define and solve NS problem
-            bcs = []
-            if self.BCs.get('V'):
-                bcs += self.BCs['V']
-            if self.BCs.get('Q'):
-                bcs += self.BCs['Q']
-
             flog.debug('Solving for u, p...')
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_p_h, v,
+            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_ph, v,
                                                    q, T_n, S_n)
             solve(lhs(steady_form) == rhs(steady_form), self.f['sol'], bcs=bcs)
                   #solver_parameters={'linear_solver':'mumps'})
             flog.debug('Solved for u, p.')
 
-            (self.f['u_'], pnh) = self.f['sol'].split(True)
+            (self.f['u_'], pnh) = self.f['sol'].split(True) # only used to calculate residual
             residual_u = norm(project(self.f['u_']-a, a.function_space()), 'L2')
             flog.debug('>>> residual u: {} <<<'.format(residual_u))
-
             self.nonlin_n += 1
-        flog.debug('Solved non-linear problem.')
 
-        # Calculate ph and build full pressure as ph+pnh
+        flog.debug('Solved non-linear problem (u, p).')
+
+        # ------------
+        # Calculate ph
+        # ------------
         flog.debug('Solving for ph...')
-        p_f_space = pnh.function_space()  # so we can avoid projecting later
-        ph = TrialFunction(p_f_space)
-        q = TestFunction(p_f_space)
-        ph_sol = Function(p_f_space)
-        a = ph.dx(1)/rho_0 * q * dx
+        ph_f_space = pnh.function_space()  # so we can avoid projecting later
+        ph = TrialFunction(ph_f_space)
+        q = TestFunction(ph_f_space)
+        ph_sol = Function(ph_f_space)
+        a = ph.dx(z_coord)/rho_0 * q * dx
         L = build_buoyancy(self.f['T_'], self.f['S_']) * q * dx
-        bc_point = ('near(x[1], {})'.format(max(mesh.coordinates()[:,1])))
-        bc = DirichletBC(p_f_space, 0, bc_point)
-        #bc = DirichletBC(p_f_space, 0, 'near(x[1],1)')
-        solve(a == L, ph_sol, bcs=[bc])#, solver_parameters={'linear_solver':'mumps'})
-        self.f['p_'].assign(pnh + ph_sol)
+        bc_domain = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
+        bc = DirichletBC(ph_f_space, 0, bc_domain)
+        solve(a == L, ph_sol, bcs=[bc])
         flog.debug('Solved for ph.')
 
+        # Build full pressure as ph+pnh
+        self.f['p_'].assign(pnh + ph_sol)
+
         # ------------------------
-        # Temperature and salinity
+        # TEMPERATURE AND SALINITY
         # ------------------------
 
         # Solve 3 equations system to obtain T and S forcing terms
@@ -227,14 +241,12 @@ class Simulation(object):
                                             self.f['T_v'], self.f['u_'],
                                             mw, Tzd, self.domain)
             solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'])
-                  #solver_parameters={'linear_solver':'mumps'})
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
             S_form = build_salinity_form(self.f['S'], self.f['S_n'],
                                          self.f['S_v'], self.f['u_'],
                                          mw, Szd, self.domain)
             solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'])
-                  #solver_parameters={'linear_solver':'mumps'})
 
         flog.debug('Solved for T and S.')
 
