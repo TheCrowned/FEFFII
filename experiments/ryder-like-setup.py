@@ -23,7 +23,7 @@ import tempfile
 
 def main():
     feffi.parameters.define_parameters({
-        'config_file' : 'feffi/config/john-setup.yml',
+        'config_file' : 'feffi/config/ryder-like-setup.yml',
     })
 
     #points = [(0,0,0), (1,0,0), (1,1,0), (0,1,0)]#, (0, 0.1,0)]
