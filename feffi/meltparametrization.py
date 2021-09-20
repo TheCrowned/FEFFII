@@ -82,6 +82,9 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
 
     solve(lhs(F) == rhs(F), sol)
     sol_splitted = sol.split()
+    sol_splitted[0].rename('mw', 'meltrate')
+    sol_splitted[1].rename('Tzd', 'Tzd')
+    sol_splitted[2].rename('Szd', 'Szd')
     return (sol_splitted[0], sol_splitted[1], sol_splitted[2])
 
 
@@ -98,7 +101,14 @@ def build_heat_flux_forcing_term(u_, Tw, mw, Tzd):
     #Ustar = (Cd*norm(u_)**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2)
     Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
     Fh = -cw*(rhosw*Ustar*gammaT+rhofw*mw)*(Tzd-Tw)
-    return Fh
+
+    Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
+    Ustar = fenics.interpolate(Ustar, Tzd.function_space().collapse())
+    Fh_func = fenics.Expression('-cw*(rhosw*Ustar*gammaT+rhofw*mw)*(Tzd-Tw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaT=gammaT, rhofw=rhofw, Tzd=Tzd, Tw=Tw, mw=mw, cw=cw)
+    Fh_func = fenics.interpolate(Fh_func, Tzd.function_space().collapse())
+    Fh_func.rename('heat_flux', '')
+
+    return Fh, Fh_func
 
 
 def build_salinity_flux_forcing_term(u_, Sw, mw, Szd):
@@ -113,4 +123,11 @@ def build_salinity_flux_forcing_term(u_, Sw, mw, Szd):
     #Ustar = (Cd*norm(u_)**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2)
     Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
     Fs = -(rhosw*Ustar*gammaS+rhofw*mw)*(Szd-Sw)
-    return Fs
+
+    Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
+    Ustar = fenics.interpolate(Ustar, Szd.function_space().collapse())
+    Fs_func = fenics.Expression('-(rhosw*Ustar*gammaS+rhofw*mw)*(Szd-Sw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaS=gammaS, rhofw=rhofw, Szd=Szd, Sw=Sw, mw=mw)
+    Fs_func = fenics.interpolate(Fs_func, Szd.function_space().collapse())
+    Fs_func.rename('salt_flux', '')
+
+    return Fs, Fs_func

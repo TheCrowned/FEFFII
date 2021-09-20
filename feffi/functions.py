@@ -4,7 +4,7 @@ from fenics import (dot, inner, elem_mult, grad, nabla_grad, div, cross,
                     FiniteElement, Constant, interpolate, Expression,
                     FacetNormal, as_vector, assemble, norm, MixedElement,
                     TestFunctions, TrialFunctions, solve, lhs, rhs, Measure)
-from . import parameters
+from . import parameters, boundaries
 from .plot import plot_single
 from .meltparametrization import (build_heat_flux_forcing_term,
                                   build_salinity_flux_forcing_term)
@@ -263,7 +263,8 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
         n = FacetNormal(mesh)
         ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
-        Fh = build_heat_flux_forcing_term(u_, T_n, mw, Tzd)
+        Fh, Fh_func = build_heat_flux_forcing_term(u_, T_n, mw, Tzd)
+        boundaries.visualize_f_on_boundary(Fh_func, domain, 'left')
         for domain_label in parameters.config['melt_boundaries']:
             if domain_label != None:
                 F += dot(Fh, T_v)*ds(domain.subdomains_markers[domain_label])
@@ -300,7 +301,8 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
         n = FacetNormal(mesh)
         ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
-        Fs = build_salinity_flux_forcing_term(u_, S_n, mw, Szd)
+        Fs, Fs_func = build_salinity_flux_forcing_term(u_, S_n, mw, Szd)
+        boundaries.visualize_f_on_boundary(Fs_func, domain, 'left')
         for domain_label in parameters.config['melt_boundaries']:
             if domain_label != None:
                 F += dot(Fs, S_v)*ds(domain.subdomains_markers[domain_label])
