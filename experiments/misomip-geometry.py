@@ -54,9 +54,23 @@ def create_layer(lower_h, higher_h):
 #plt.scatter(l[:,0], l[:,1])
 #plt.show()
 
-span = min(np.asarray(bedrock).flatten())
+span = -720#min(np.asarray(bedrock).flatten())
 span_prev = span - 10
 n = 0
+
+def clear_layer(l):
+    idx = 1
+    l_cleared = [l[0]]
+    while idx < len(l)-1:
+        diff1 = np.subtract(l[idx], l[idx-1])
+        diff2 = np.subtract(l[idx+1], l[idx])
+        if ((diff1[0] != 0 and diff1[1] != 0)
+        or  (diff2[0] != 0 and diff2[1] != 0)):
+            l_cleared.append(l[idx])
+        idx += 1
+    l_cleared.append(l[-1])
+    return l_cleared
+
 
 while span < -715:#max(np.asarray(bedrock).flatten()):
     l = create_layer(span_prev, span)
@@ -65,30 +79,22 @@ while span < -715:#max(np.asarray(bedrock).flatten()):
     old_l = []
     while old_l != l:
         old_l = list(l)
-        idx = 1
-        l_sfrondato = [l[0]]
-        while idx < len(l)-1:
-            print(np.subtract(l[idx+1], l[idx-1]))
-            if np.subtract(l[idx+1], l[idx-1])[0] != 0 and np.subtract(l[idx+1], l[idx-1])[1] != 0:
-                print('adding point {}'.format(l[idx]))
-                l_sfrondato.append(l[idx])
-            idx += 1
-        l_sfrondato.append(l[-1])
-        print('sfrondato layer, ora {} punti'.format(len(l_sfrondato)))
-        print(l_sfrondato)
+        l = clear_layer(l)
+        print('sfrondato layer, ora {} punti'.format(len(l)))
+        print(l)
 
-        plt.scatter(np.asarray(l_sfrondato)[:,0], np.asarray(l_sfrondato)[:,1])
+        plt.scatter(np.asarray(l)[:,0], np.asarray(l)[:,1])
         plt.show()
 
-        origin = (np.average(np.asarray(l_sfrondato)[:,0]), np.average(np.asarray(l_sfrondato)[:,1]))
-        l = sorted(l_sfrondato, key=angle_counterclockwise_sort)
+        origin = (np.average(np.asarray(l)[:,0]), np.average(np.asarray(l)[:,1]))
+        l = sorted(l, key=angle_counterclockwise_sort)
         print('sorted points')
         print(l)
 
-    Points = [Point((p[0]/10000, p[1]/10000)) for p in l_sfrondato]
+    Points = [Point((p[0]/10000, p[1]/10000)) for p in l]
     g2d = mshr.Polygon(Points)
     print('built polygon')
-    g3d = mshr.Extrude2D(g2d, 0.1)#(span_prev-span)/1000) #height is in meters
+    g3d = mshr.Extrude2D(g2d, (span_prev-span)/1000) #height is in meters
     print('extruded 3d')
 
     try:
