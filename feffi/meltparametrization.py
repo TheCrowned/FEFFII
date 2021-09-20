@@ -2,20 +2,26 @@ from fenics import (dx, Function, FunctionSpace, FiniteElement, lhs, rhs,
                     Constant, norm, MixedElement, TestFunctions, solve,
                     TrialFunctions, ln)
 from . import parameters
+import fenics
 
-# introduce all constants
-# from Asai Davies 2016 ISOMIP Paper
-Cd = Constant(2.5*10**(-3))
-cw = Constant(3974)
-gammaT = Constant(1.15*10**(-4)) # this depends on mesh resolution (1.15*10**(-2) for mesh-res 10)
-gammaS = Constant(gammaT/35)     # John had gammaS=gammaT/3 cause he says salinity change is not strong enough. ISOMIP paper provides a way to tune these gammas wrt the desired meltrate
-L = Constant(3.34*10**5)
-lam1 = Constant(-0.0573)
-lam2 = Constant(0.0832)
-lam3 = Constant(-7.53*10**(-8))
-rhofw = Constant(1000)#/(3.6**2))
-rhosw = Constant(1028)#/(3.6**2))
-Ut = Constant(0.01)#*3.6) # Constant(0.01) ignore for now
+
+def get_3eqs_default_constants():
+    """Values from Asai Davies 2016 ISOMIP Paper."""
+
+    return {
+        'Cd' : 2.5*10**(-3),
+        'cw' : 3974,
+        'gammaT' : 1.15*10**(-4), # this depends on mesh resolution (1.15*10**(-2) for mesh-res 10)
+        'gammaS' : 1.15*10**(-4)/35,     # John had gammaS=gammaT/3 cause he says salinity change is not strong enough. ISOMIP paper provides a way to tune these gammas wrt the desired meltrate
+        'L' : 3.34*10**5,
+        'lam1' : -0.0573,
+        'lam2' : 0.0832,
+        'lam3' : -7.53*10**(-8),
+        'rhofw' : 1000,
+        'rhosw' : 1028,
+        'Ut' : 0.01,
+    }
+
 
 def solve_3eqs_system(uw, Tw, Sw, pzd):
     """
@@ -49,6 +55,19 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     mw, Tzd, Szd = TrialFunctions(V)
     sol = Function(V)
 
+    ## Shorthand for constants
+    Cd    = parameters.config['3eqs']['Cd']
+    cw    = parameters.config['3eqs']['cw']
+    rhofw = parameters.config['3eqs']['rhofw']
+    rhosw = parameters.config['3eqs']['rhosw']
+    lam1  = parameters.config['3eqs']['lam1']
+    lam2  = parameters.config['3eqs']['lam2']
+    lam3  = parameters.config['3eqs']['lam3']
+    L     = parameters.config['3eqs']['L']
+    Ut    = parameters.config['3eqs']['Ut']
+    gammaT    = parameters.config['3eqs']['gammaT']
+    gammaS    = parameters.config['3eqs']['gammaS']
+
     #Ustar = (Cd*norm(uw)**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2)
     #Ustar = (Cd*uw**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2) # ustar should be a function
     Ustar = (Cd*(uw.sub(0)**2+uw.sub(1)**2)+Ut**2)**(1/2)        # Ut is needed, maybe in case uw is 0 at some point?
@@ -67,6 +86,15 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
 
 
 def build_heat_flux_forcing_term(u_, Tw, mw, Tzd):
+
+    ## Shorthand for constants
+    Cd    = parameters.config['3eqs']['Cd']
+    cw    = parameters.config['3eqs']['cw']
+    rhofw = parameters.config['3eqs']['rhofw']
+    rhosw = parameters.config['3eqs']['rhosw']
+    Ut    = parameters.config['3eqs']['Ut']
+    gammaT    = parameters.config['3eqs']['gammaT']
+
     #Ustar = (Cd*norm(u_)**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2)
     Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
     Fh = -cw*(rhosw*Ustar*gammaT+rhofw*mw)*(Tzd-Tw)
@@ -74,6 +102,14 @@ def build_heat_flux_forcing_term(u_, Tw, mw, Tzd):
 
 
 def build_salinity_flux_forcing_term(u_, Sw, mw, Szd):
+
+    ## Shorthand for constants
+    Cd    = parameters.config['3eqs']['Cd']
+    rhofw = parameters.config['3eqs']['rhofw']
+    rhosw = parameters.config['3eqs']['rhosw']
+    Ut    = parameters.config['3eqs']['Ut']
+    gammaS    = parameters.config['3eqs']['gammaS']
+
     #Ustar = (Cd*norm(u_)**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2)
     Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
     Fs = -(rhosw*Ustar*gammaS+rhofw*mw)*(Szd-Sw)

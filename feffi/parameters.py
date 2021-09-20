@@ -6,8 +6,7 @@ import fenics
 import time
 import numpy as np
 from pathlib import Path
-from .functions import define_function_spaces, define_functions
-from .boundaries import Domain
+from .meltparametrization import get_3eqs_default_constants
 
 flog = logging.getLogger('feffi')
 config = {}
@@ -110,6 +109,9 @@ def define_parameters(user_config={}):
             config['plot_path'])
 
     Path(config['plot_path']).mkdir(parents=True, exist_ok=True)
+
+    # Melt parametrization 3-equations system constants setup
+    config['3eqs'] = get_3eqs_default_constants()
 
     if config.get('convert_from_ms_to_kmh') and config['convert_from_ms_to_kmh']:
         config.update(convert_constants_from_ms_to_kmh(config))
@@ -404,6 +406,11 @@ def reload_status(plot_path):
     f_spaces : (dict)
     """
 
+    # This module should import as little as possible, since config is
+    # re-imported by virtually all other modules. We'd get circular imports otherwise.
+    from .functions import define_function_spaces, define_functions
+    from .boundaries import Domain
+
     # Load config
     config_file_path = os.path.join(plot_path, 'config.yml')
     define_parameters({'config_file': config_file_path, 'plot_path': plot_path})
@@ -493,6 +500,11 @@ def convert_constants_from_ms_to_kmh(config):
     config['nu'] = [i*0.0036 for i in config['nu']]
     config['alpha'] = [i*0.0036 for i in config['alpha']]
 
+    config['3eqs']['L'] *= 3.6**2
+    config['3eqs']['rhofw'] /= 3.6**2
+    config['3eqs']['rhosw'] /= 3.6**2
+    config['3eqs']['Ut'] *= 3.6
+
     return config
 
 
@@ -506,6 +518,11 @@ def convert_constants_from_kmh_to_ms(config):
     config['rho_0'] *= 3.6**2
     config['nu'] = [i/0.0036 for i in config['nu']]
     config['alpha'] = [i/0.0036 for i in config['alpha']]
+
+    config['3eqs']['L'] /= 3.6**2
+    config['3eqs']['rhofw'] *= 3.6**2
+    config['3eqs']['rhosw'] *= 3.6**2
+    config['3eqs']['Ut'] /= 3.6
 
     return config
 
