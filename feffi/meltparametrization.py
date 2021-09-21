@@ -65,16 +65,18 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     lam3  = parameters.config['3eqs']['lam3']
     L     = parameters.config['3eqs']['L']
     Ut    = parameters.config['3eqs']['Ut']
-    gammaT    = parameters.config['3eqs']['gammaT']
-    gammaS    = parameters.config['3eqs']['gammaS']
 
     #Ustar = (Cd*norm(uw)**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2)
     #Ustar = (Cd*uw**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2) # ustar should be a function
     Ustar = (Cd*(uw.sub(0)**2+uw.sub(1)**2)+Ut**2)**(1/2)        # Ut is needed, maybe in case uw is 0 at some point?
     #gamT = 1/(2.12*ln((Ustar*mesh.hmax())/max(parameters.config['nu']))+12.5*(max(parameters.config['nu'])/max(parameters.config['alpha']))-9) # from other paper
 
+    Ustar_expr = fenics.interpolate(fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=uw.sub(0), u2=uw.sub(1)), V.extract_sub_space([1]).collapse())
+    gammaT = fenics.Expression('1/(2.12*std::log(Ustar*h/nu)+pow(12.5*(nu/alpha), 2/3)-9)', degree=2, Ustar=Ustar_expr, h=mesh.hmin(), nu=parameters.config['nu'][0], alpha=parameters.config['alpha'][0])
+    gammaS = gammaT
+
     # should Ustar be in some way only computed on the boundary??
-    F = ( (+ rhofw*mw*L + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
+    F = ( (+ rhofw*mw*L + rhosw*Ustar*cw*gammaT*(Tzd-Tw))*v_1*dx
            + (Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
            + (rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx )
            # last equation should have lhs rhofw*mw*Szd, but this is a common
@@ -97,6 +99,9 @@ def build_heat_flux_forcing_term(u_, Tw, mw, Tzd):
     rhosw = parameters.config['3eqs']['rhosw']
     Ut    = parameters.config['3eqs']['Ut']
     gammaT    = parameters.config['3eqs']['gammaT']
+
+    #Ustar_expr = fenics.interpolate(fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1)), Tzd.function_space().collapse())
+    #gammaT = fenics.Expression('Ustar/(2.12*std::log(Ustar*h/nu)+pow(12.5*(nu/alpha), 2/3)-9)', degree=2, Ustar=Ustar_expr, h=mesh.hmin(), nu=parameters.config['nu'][0], alpha=parameters.config['alpha'][0])
 
     #Ustar = (Cd*norm(u_)**2+Ut**2)**(1/2) # Ustar^2 = Cd(Uw^2 + Ut^2)
     Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)

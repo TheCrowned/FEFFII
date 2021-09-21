@@ -29,9 +29,10 @@ def main():
     #points = [(0,0,0), (1,0,0), (1,1,0), (0,1,0)]#, (0, 0.1,0)]
     points = [(0,0,0), (5,0,0), (5,1,0), (1,1,0), (0, 0.1,0)]
     g = pygmsh.built_in.Geometry()
-    pol = g.add_polygon(points, lcar=0.5)
+    pol = g.add_polygon(points, lcar=0.1)
     mesh = generate_mesh(g)
-    fenics_mesh = Mesh(MPI.comm_world, 'mesh-misomip.xml')
+    fenics_mesh = Mesh('mesh-misomip.xml')
+    #fenics_mesh = UnitSquareMesh(10,10)
     #plot(fenics_mesh)
     #plt.show()
 
@@ -72,7 +73,7 @@ def main():
     #domain.show_boundaries()
 
     simulation = feffi.simulation.Simulation(f, domain)
-    for i in range(200):
+    for i in range(10):
         simulation.timestep()
         feffi.boundaries.visualize_f_on_boundary(simulation.mw, domain, 'left')
         feffi.boundaries.visualize_f_on_boundary(simulation.Tzd, domain, 'left')
