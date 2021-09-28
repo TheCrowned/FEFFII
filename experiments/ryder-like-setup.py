@@ -68,14 +68,17 @@ def main():
           'T' : {},
           'S' : {}
         })
-    domain.show_boundaries()
+    #domain.show_boundaries()
 
     simulation = feffi.simulation.Simulation(f, domain)
-    #for i in range(200):
-    #    simulation.timestep()
-    #feffi.plot.plot_solutions(f, display=True)
-    simulation.run()
-    feffi.plot.plot_solutions(f)
+    for i in range(200):
+        simulation.timestep()
+        feffi.boundaries.visualize_f_on_boundary(simulation.mw, domain, 'left')
+        feffi.boundaries.visualize_f_on_boundary(simulation.Tzd, domain, 'left')
+        feffi.boundaries.visualize_f_on_boundary(simulation.Szd, domain, 'left')
+    feffi.plot.plot_solutions(f, display=True)
+    #simulation.run()
+    #feffi.plot.plot_solutions(f)
 
 def generate_mesh(geom):
     geo_name = 'mesh-misomip.geo'

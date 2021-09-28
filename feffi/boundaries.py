@@ -436,6 +436,15 @@ class Domain(object):
         return parsed_BC
 
 
+def visualize_f_on_boundary(f, domain, boundary_label):
+    b_points = domain.subdomains_points[boundary_label]
+    b_points = dict(sorted(b_points.items(),
+                           key=lambda dict_entry: dict_entry[1][1]))
+
+    for _, p in b_points.items():
+        flog.info('{} at ({:.2f}, {:.2f}) = {}'.format(f.name(), p[0], p[1], f(p)))
+
+
 ### SUBDOMAIN DEFINITIONS ###
 
 # When initializing (some) subdomains, pass the geometrical dimension of the domain.

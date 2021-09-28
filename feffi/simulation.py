@@ -228,6 +228,7 @@ class Simulation(object):
             flog.debug(('Solved 3 equations system:\n'
                         ' - mw: {}\n - Tzd: {}\n - Szd: {}'
                         .format(norm(mw), norm(Tzd), norm(Szd))))
+            self.mw = mw; self.Tzd = Tzd; self.Szd = Szd
 
         # Other functions will check if mw == False to determine whether melt
         # parametrization is enabled in this run
