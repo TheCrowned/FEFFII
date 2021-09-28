@@ -27,13 +27,26 @@ def main():
     })
 
     #points = [(0,0,0), (1,0,0), (1,1,0), (0,1,0)]#, (0, 0.1,0)]
-    points = [(0,0,0), (5,0,0), (5,1,0), (1,1,0), (0, 0.1,0)]
+    points = [(0,0,0), (5,0,0), (5,1,0), (1,1,0)]#, (0, 0.1,0)]
     g = pygmsh.built_in.Geometry()
-    pol = g.add_polygon(points, lcar=0.5)
+    pol = g.add_polygon(points, lcar=0.15)
     mesh = generate_mesh(g)
-    fenics_mesh = Mesh(MPI.comm_world, 'mesh-misomip.xml')
+    fenics_mesh = Mesh('mesh-misomip.xml')
     #plot(fenics_mesh)
     #plt.show()
+
+    class to_refine_subdomain(SubDomain):
+        def inside(self, x, on_boundary):
+            return (x[0]-x[1] < 0.2 or x[1]-0.8>=0)
+
+    boundary_domain = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
+    boundary_domain.set_all(False)
+    #domain_class = domain.boundaries[domain_label]
+    ref=to_refine_subdomain()
+    ref.mark(boundary_domain, True)
+
+    fenics_mesh = refine(fenics_mesh, boundary_domain)
+    #fenics_mesh = refine(fenics_mesh, boundary_domain)
 
     f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
     f = feffi.functions.define_functions(f_spaces)
@@ -41,10 +54,14 @@ def main():
 
     class Bound_Left(SubDomain):
         def inside(self, x, on_boundary):
-            return (((0 <= x[0] <= 1 and near(x[1], 0.9*x[0]+0.1))
+            return (((0 <= x[0] <= 1 and 0 < x[1] <= 1)
+                     or (near(x[0], 0) and near(x[1], 0)))
+                     and on_boundary)
+
+                 #near(x[1], 0.9*x[0]+0.1))
                 #or (10 <= x[0] <= 20 and near(x[1], 0.01*(x[0]-10)+1))
-                or (near(x[0], 0) and 0 <= x[1] <= 0.1))
-                and on_boundary)
+                #or (near(x[0], 0) and 0 <= x[1] <= 0.1))
+                #and on_boundary)
 
     domain = feffi.boundaries.Domain(
         fenics_mesh,
@@ -71,15 +88,22 @@ def main():
         })
     #domain.show_boundaries()
 
+
+
+
+    #feffi.mesh.refine_boundary_mesh(domain, to_refine_subdomain)
+    #feffi.plot.plot_single(domain.mesh,display=True)
+    #return
+
     simulation = feffi.simulation.Simulation(f, domain)
-    for i in range(200):
+    for i in range(simulation.iterations_n):
         simulation.timestep()
         feffi.boundaries.visualize_f_on_boundary(simulation.mw, domain, 'left')
         feffi.boundaries.visualize_f_on_boundary(simulation.Tzd, domain, 'left')
         feffi.boundaries.visualize_f_on_boundary(simulation.Szd, domain, 'left')
-    feffi.plot.plot_solutions(f, display=True)
+    feffi.plot.plot_solutions(f)
+    #feffi.plot.plot_solutions(f, display=True)
     #simulation.run()
-    #feffi.plot.plot_solutions(f)
 
 def generate_mesh(geom):
     geo_name = 'mesh-misomip.geo'
