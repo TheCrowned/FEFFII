@@ -143,12 +143,15 @@ class Simulation(object):
         dph_dx = TrialFunction(dph_dx_f_space)
         q = TestFunction(dph_dx_f_space)
         dph_dx_sol = Function(dph_dx_f_space)
-        a = dph_dx.dx(z_coord) * q * dx ## !!!!! use z_coord!!!
+        a = dph_dx.dx(z_coord) * q * dx
         L = -g * (-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
-        bc_domain = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
-        bc = DirichletBC(dph_dx_f_space, 0, bc_domain)
-        solve(a == L, dph_dx_sol, bcs=[bc])
+        bc_domain2 = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
+        bc_domain = ('x[0] < 1 && near(x[0], x[1])')
+        bc = DirichletBC(dph_dx_f_space, Expression('-910*3.6*3.6*g', g=parameters.config['g'], degree=2), bc_domain)
+        bc2 = DirichletBC(dph_dx_f_space, Constant(0), bc_domain2)
+        solve(a == L, dph_dx_sol, bcs=[bc,bc2])
         flog.debug('Solved for dph/dx.')
+        #plot.plot_single(dph_dx_sol, display=True)
 
         if dim == 2:
             grad_ph_tup = ('dph_dx', 0)
@@ -160,7 +163,7 @@ class Simulation(object):
         # Linear space is used for grad_ph even though dT/dx will most likely be
         # piecewise constant. Can't hurt, I guess.
 
-        flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(round(norm(grad_ph), 2)))
+        flog.debug('Interpolated dph/dx over 2D grid')
 
         # --------------------------
         # Solve GLS Navier-Stokes eq
@@ -212,6 +215,7 @@ class Simulation(object):
         bc = DirichletBC(ph_f_space, 0, bc_domain)
         solve(a == L, ph_sol, bcs=[bc])
         flog.debug('Solved for ph.')
+        #plot.plot_single(ph_sol, display=True)
 
         # Build full pressure as ph+pnh
         self.f['p_'].assign(pnh + ph_sol)
@@ -228,7 +232,7 @@ class Simulation(object):
             flog.debug(('Solved 3 equations system:\n'
                         ' - mw: {}\n - Tzd: {}\n - Szd: {}'
                         .format(norm(mw), norm(Tzd), norm(Szd))))
-            self.mw = mw; self.Tzd = Tzd; self.Szd = Szd
+            self.mw = mw; self.Tzd = Tzd; self.Szd = Szd # bit of a hack to allow values plotting
 
         # Other functions will check if mw == False to determine whether melt
         # parametrization is enabled in this run
