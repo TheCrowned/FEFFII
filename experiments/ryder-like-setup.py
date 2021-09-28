@@ -29,7 +29,7 @@ def main():
     #points = [(0,0,0), (1,0,0), (1,1,0), (0,1,0)]#, (0, 0.1,0)]
     points = [(0,0,0), (5,0,0), (5,1,0), (1,1,0), (0, 0.1,0)]
     g = pygmsh.built_in.Geometry()
-    pol = g.add_polygon(points, lcar=0.5)
+    pol = g.add_polygon(points, lcar=0.15)
     mesh = generate_mesh(g)
     fenics_mesh = Mesh(MPI.comm_world, 'mesh-misomip.xml')
     #plot(fenics_mesh)
@@ -41,10 +41,9 @@ def main():
 
     class Bound_Left(SubDomain):
         def inside(self, x, on_boundary):
-            return (((0 <= x[0] <= 1 and near(x[1], 0.9*x[0]+0.1))
-                #or (10 <= x[0] <= 20 and near(x[1], 0.01*(x[0]-10)+1))
-                or (near(x[0], 0) and 0 <= x[1] <= 0.1))
-                and on_boundary)
+            return (((0 <= x[0] <= 1 and 0 < x[1] <= 1)
+                    or (near(x[0], 0) and near(x[1], 0)))
+                    and on_boundary)
 
     domain = feffi.boundaries.Domain(
         fenics_mesh,
