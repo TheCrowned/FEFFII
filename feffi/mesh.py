@@ -65,7 +65,7 @@ def create_mesh(**kwargs):
 
         mesh = refine_mesh_at_point(mesh, Point(0.4, 0.9), domain)'''
 
-    logging.info('Initialized mesh: vertexes {}, hmax {:.2f}, hmin {:.2f}'
+    flog.info('Initialized mesh: vertexes {}, hmax {:.2f}, hmin {:.2f}'
                  .format(mesh.num_vertices(), mesh.hmax(), mesh.hmin()))
 
     return mesh
@@ -154,7 +154,7 @@ def add_sill(mesh, center, height, width):
         self.mesh = refine(self.mesh, to_refine)'''
 
     '''def refine_boundary_mesh(mesh, domain):
-        """Refines mesh on ALL boundary points"""
+        """Refines mesh on given boundary points"""
 
         boundary_domain = MeshFunction("bool", mesh, mesh.topology().dim() - 1)
         boundary_domain.set_all(False)
@@ -172,3 +172,18 @@ def add_sill(mesh, center, height, width):
         log('Refined mesh at boundaries')
 
         return mesh'''
+
+def refine_boundary_mesh(domain, domain_class):
+    """Refines mesh on given boundary points"""
+
+    boundary_domain = fenics.MeshFunction("bool", domain.mesh, domain.mesh.topology().dim() - 1)
+    boundary_domain.set_all(False)
+    #domain_class = domain.boundaries[domain_label]
+    domain_class.mark(boundary_domain, True)
+
+    domain.mesh = fenics.refine(domain.mesh, boundary_domain)
+    #domain.mesh = mesh
+
+    flog.info('Refined mesh at boundaries')
+
+    #return mesh
