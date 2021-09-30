@@ -18,6 +18,7 @@ x = f.variables['x']
 y = f.variables['y']
 bedrock = f.variables['bedrockTopography']
 
+# https://stackoverflow.com/questions/41855695/sorting-list-of-two-dimensional-coordinates-by-clockwise-angle-using-python
 def angle_counterclockwise_sort(point):
     # Center point
     vector = [point[0]-origin[0], point[1]-origin[1]]
