@@ -221,7 +221,8 @@ class Simulation(object):
         # ------------------------
 
         # Solve 3 equations system to obtain T and S forcing terms
-        if(parameters.config['melt_boundaries'] != None):
+        print(parameters.config['melt_boundaries'])
+        if( parameters.config['melt_boundaries'] != [None]):
             flog.debug('Solving 3 equations system...')
             (mw, Tzd, Szd) = solve_3eqs_system(self.f['u_'], self.f['T_'],
                                                self.f['S_'], self.f['p_'])
