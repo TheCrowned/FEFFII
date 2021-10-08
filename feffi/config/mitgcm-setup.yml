@@ -1,0 +1,33 @@
+final_time: 1
+steps_n: 360
+simulation_precision: -3
+g: 9.81
+nu: 
+- 0.25
+- 0.001
+alpha:
+- 0.25
+- 0.00002
+rho_0: 1000
+beta: 0.00004
+gamma: 0.0008
+T_0: 1
+S_0: 35
+max_iter: 0
+BCs:
+    V:
+        right: [0,0]
+        bottom: [0,0]
+        left: [0,0]
+        top: [0,0]
+    T:
+        left: -0.7
+    Q:
+        '(5,1)': 0
+    S:
+        left: 34.82
+melt_boundaries:
+    - 
+convert_from_ms_to_kmh: True
+very_verbose: True
+#stabilization: True
