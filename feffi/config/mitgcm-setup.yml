@@ -1,5 +1,5 @@
 final_time: 1
-steps_n: 360
+steps_n: 30
 simulation_precision: -3
 g: 9.81
 nu: 
@@ -21,12 +21,12 @@ BCs:
         left: [0,0]
         top: [0,0]
     T:
-        left: -0.7
+        left: -0.7 #output values from john's setup
     Q:
         '(5,1)': 0
     S:
-        left: 34.82
-melt_boundaries:
+        left: 34.82 #output values from john's setup
+melt_boundaries: #add left as list element below to turn on 3eqs
     - 
 convert_from_ms_to_kmh: True
 very_verbose: True

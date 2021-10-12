@@ -26,7 +26,9 @@ def main():
         'config_file' : 'feffi/config/mitgcm-setup.yml',
     })
 
-    #points = [(0,0,0), (1,0,0), (1,1,0), (0,1,0)]#, (0, 0.1,0)]
+    # Set up geometry + mesh.
+    # FEniCS mesher seems much faster than pyGmsh for fine meshes,
+    # and does not require meshio which has been problematic for Jonathan.
     points = [(0,0,0), (5,0,0), (5,1,0), (1,1,0),  (0, 0.05,0)]
     #g = pygmsh.built_in.Geometry()
     #pol = g.add_polygon(points, lcar=0.01)
@@ -34,16 +36,15 @@ def main():
     #fenics_mesh = Mesh(MPI.comm_world, 'mesh-misomip.xml')
     Points = [Point(p) for p in points]
     geometry = mshr.Polygon(Points)
-    fenics_mesh = mshr.generate_mesh(geometry, 300)
+    fenics_mesh = mshr.generate_mesh(geometry, 30)
     plot(fenics_mesh)
     plt.show()
-    #return
 
     f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
     f = feffi.functions.define_functions(f_spaces)
     feffi.functions.init_functions(f)
 
-    class Bound_Left(SubDomain):
+    class Bound_Ice_Side(SubDomain):
         def inside(self, x, on_boundary):
             return ((0 <= x[0] <= 1 and 0.05 <= x[1] <= 1)
                     and on_boundary)
@@ -53,25 +54,27 @@ def main():
         f_spaces,
         boundaries = {
           'bottom' : feffi.boundaries.Bound_Bottom(fenics_mesh),
-          'left' : Bound_Left(),
+          'left' : Bound_Ice_Side(),
           #'left' : feffi.boundaries.Bound_Left(fenics_mesh),
           'right' : feffi.boundaries.Bound_Right(fenics_mesh),
           'top' : feffi.boundaries.Bound_Top(fenics_mesh),
         },
         BCs = feffi.parameters.config['BCs'])
-    #domain.show_boundaries()
+    #domain.show_boundaries() # with paraview installed, will show boundary markers
 
     simulation = feffi.simulation.Simulation(f, domain)
-    for i in range(10):
-        simulation.timestep()
+    simulation.run()
+
+    # Use this instead of simulation.run() if you wanna see 3eqs system output
+    #for i in range(10):
+    #    simulation.timestep()
         #feffi.boundaries.visualize_f_on_boundary(simulation.mw, domain, 'left')
         #feffi.boundaries.visualize_f_on_boundary(simulation.Tzd, domain, 'left')
         #feffi.boundaries.visualize_f_on_boundary(simulation.Szd, domain, 'left')
-    feffi.plot.plot_solutions(f, display=True)
-    #simulation.run()
-    #feffi.plot.plot_solutions(f)
 
-def generate_mesh(geom):
+    feffi.plot.plot_solutions(f, display=True)
+
+'''def generate_mesh(geom):
     geo_name = 'mesh-misomip.geo'
     kwargs = {
         'prune_z_0': True,
@@ -135,7 +138,7 @@ def generate_mesh(geom):
     print("Removing ", geo_name)
     Path(geo_name).unlink()
     print("Removing ", msh_name)
-    Path(msh_name).unlink()
+    Path(msh_name).unlink()'''
 
 if __name__ == '__main__':
     main()
