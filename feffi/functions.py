@@ -225,9 +225,12 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
         flog.debug('Stabilized form with Rej = {}; delta = {}; tau = {}'.format(
             round(Rej, 5), round(delta, 5), round(tau, 5)))
 
+        b = build_buoyancy(T_, S_)
+        f_stab = u_n/dt + b
+
         # turn individual terms on and off by tweaking delta0, tau0 in config
         if delta > 0:
-            steady_form += delta*(dot(N(a, u, p) - f, Phi(a, v)))*dx
+            steady_form += delta*(dot(N(a, u, p) - f_stab, Phi(a, v)))*dx
         if tau > 0:
             steady_form += tau*(dot(div(u), div(v)))*dx
 
