@@ -1,13 +1,13 @@
 final_time: 1
-steps_n: 30
-simulation_precision: -3
+steps_n: 30    # dt = 1/30 h = 120 s  (kimura 200 s)
+simulation_precision: -7
 g: 9.81
 nu: 
 - 0.25
 - 0.001
 alpha:
-- 0.25
-- 0.00002
+- 2.5 #- 0.25
+- 0.0002 #- 0.00002
 rho_0: 1000
 beta: 0.00004
 gamma: 0.0008
@@ -22,12 +22,12 @@ BCs:
         top: [0,0]
     T:
         left: -0.7 #output values from john's setup
-    Q:
-        '(5,1)': 0
+    #Q:
+    #    '(5,1)': 0
     S:
         left: 34.82 #output values from john's setup
 melt_boundaries: #add left as list element below to turn on 3eqs
     - 
 convert_from_ms_to_kmh: True
 very_verbose: True
-#stabilization: True
+stabilization: True

@@ -29,7 +29,9 @@ def main():
     # Set up geometry + mesh.
     # FEniCS mesher seems much faster than pyGmsh for fine meshes,
     # and does not require meshio which has been problematic for Jonathan.
-    points = [(0,0,0), (5,0,0), (5,1,0), (1,1,0),  (0, 0.05,0)]
+    #points = [(0,0,0), (5,0,0), (5,1,0), (1,1,0),  (0, 0.05,0)]
+    points = [(0,0,0), (5,0,0), (5,1,0), (0,1,0),  (0, 0.0,0)]
+
     #g = pygmsh.built_in.Geometry()
     #pol = g.add_polygon(points, lcar=0.01)
     #mesh = generate_mesh(g)
@@ -37,8 +39,8 @@ def main():
     Points = [Point(p) for p in points]
     geometry = mshr.Polygon(Points)
     fenics_mesh = mshr.generate_mesh(geometry, 30)
-    plot(fenics_mesh)
-    plt.show()
+    #plot(fenics_mesh)
+    #plt.show()
 
     f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
     f = feffi.functions.define_functions(f_spaces)
