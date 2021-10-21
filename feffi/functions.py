@@ -3,7 +3,7 @@ from fenics import (dot, inner, elem_mult, grad, nabla_grad, div, cross,
                     TestFunction, FunctionSpace, VectorElement, split,
                     FiniteElement, Constant, interpolate, Expression,
                     FacetNormal, as_vector, assemble, norm, MixedElement,
-                    TestFunctions, TrialFunctions, solve, lhs, rhs, Measure)
+                    TestFunctions, TrialFunctions, solve, lhs, rhs, Measure,VectorFunctionSpace)
 from . import parameters, boundaries
 from .plot import plot_single
 from .meltparametrization import (build_heat_flux_forcing_term,
@@ -135,7 +135,8 @@ def N(a, u, p):
         + u/dt
         - div(elem_mult(nu, nabla_grad(u)))
         + dot(a, nabla_grad(u))
-        + grad(p)/rho_0)
+        + grad(p))
+       # + grad(p)/rho_0)
 
 
 def Phi(a, u):
@@ -161,8 +162,8 @@ def B_g(a, u, p_nh, grad_p_h, v, q):
         + dot(u, v)/dt*dx
         + (dot(dot(a, nabla_grad(u)), v))*dx
         + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx  # sym??
-        - dot(p_nh/rho_0, div(v))*dx
-        + dot(grad_p_h/rho_0, v)*dx
+        - dot(p_nh, div(v))*dx     #      - dot(p_nh/rho_0, div(v))*dx
+        + dot(grad_p_h, v)*dx    #        + dot(grad_p_h/rho_0, v)*dx
         # + inner(p_nh*n/rho_0, v)*ds
         # - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
         - dot(div(u), q)*dx)
@@ -181,7 +182,7 @@ def build_buoyancy(T_, S_):
     to the pressure function."""
 
     return Expression(
-        '-g*(1 - beta*(T_ - T_0) + gamma*(S_ - S_0))',  # g is positive
+        '(0,-g*(0 - beta*(T_ - T_0) + gamma*(S_ - S_0) )  )',  # g is positive
         beta=Constant(parameters.config['beta']),
         gamma=Constant(parameters.config['gamma']),
         T_0=Constant(parameters.config['T_0']),
@@ -218,19 +219,20 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
 
     #b = build_buoyancy(T_, S_)
     f = u_n/dt #+ b
-    steady_form = B_g(a, u, p, grad_P_h, v, q) - dot(f, v)*dx
+    steady_form = B_g(a, u, p, grad_P_h, v, q) - dot(f, v)*dx 
+
+    rho_0 = Constant(parameters.config['rho_0'])
+
 
     if parameters.config['stabilization']:
         # Build form
         flog.debug('Stabilized form with Rej = {}; delta = {}; tau = {}'.format(
             round(Rej, 5), round(delta, 5), round(tau, 5)))
 
-        b = build_buoyancy(T_, S_)
-        f_stab = u_n/dt + b
-
         # turn individual terms on and off by tweaking delta0, tau0 in config
         if delta > 0:
-            steady_form += delta*(dot(N(a, u, p) - f_stab, Phi(a, v)))*dx
+            #steady_form += delta*(dot(N(a, u, p) - f-grad_P_h/rho_0, Phi(a, v)))*dx
+            steady_form += delta*(dot(N(a, u, p) - (f-grad_P_h), Phi(a, v)))*dx
         if tau > 0:
             steady_form += tau*(dot(div(u), div(v)))*dx
 
@@ -258,8 +260,10 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
     dt = Constant(1/parameters.config['steps_n'])
 
     F = (dot((T - T_n)/dt, T_v)*dx
-         + div(u_*T)*T_v*dx
+         + dot(u_, grad(T))*T_v*dx#div(u_*T)*T_v*dx
          + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx)
+         #+ 1*dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), elem_mult(get_matrix_diagonal(alpha), grad(T_v)))*dx)
+
 
     ## (Maybe) Build heat flux forcing term ##
     if mw is not False:
@@ -295,9 +299,14 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
 
+    r_supg = elem_mult(get_matrix_diagonal(alpha), grad(S))
+    #f_supg = 
+
     F = (dot((S - S_n)/dt, S_v)*dx
-         + div(u_*S)*S_v*dx
+         + dot(u_,grad(S))*S_v*dx#div(u_*S)*S_v*dx
          + dot(elem_mult(get_matrix_diagonal(alpha), grad(S)), grad(S_v))*dx)
+         #+ 1*dot(r_supg, elem_mult(get_matrix_diagonal(alpha), grad(S_v)))*dx)
+
 
     ## (Maybe) Build salinity flux forcing term ##
     if mw is not False:

@@ -132,6 +132,30 @@ class Simulation(object):
         dim = mesh.geometric_dimension() # 2D or 3D
         z_coord = dim-1 # z-coord in mesh points changes depending on 2/3D
 
+
+        # ----------------
+        # solving for drhodx
+        # ----------------
+        flog.debug('Solving for drho/dx (just for plotting)...')
+
+        # Use P function space even if we compute gradient, which should be one degree lower
+        drho_dx_f_space = self.f['p_'].function_space()
+
+        drho_dx = TrialFunction(drho_dx_f_space)
+        q = TestFunction(drho_dx_f_space)
+        drho_dx_sol = Function(drho_dx_f_space)
+        a = drho_dx * q * dx ## !!!!! use z_coord!!!
+        L =  (-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
+        #bc_domain = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
+      
+        #bc = DirichletBC(drho_dx_f_space, 0, bc_domain)
+        solve(a == L, drho_dx_sol)
+        flog.debug('Solved for drho/dx.')
+
+
+
+
+
         # ----------------
         # Calculate dph/dx
         # ----------------
@@ -143,22 +167,48 @@ class Simulation(object):
         dph_dx = TrialFunction(dph_dx_f_space)
         q = TestFunction(dph_dx_f_space)
         dph_dx_sol = Function(dph_dx_f_space)
-        a = dph_dx.dx(z_coord) * q * dx ## !!!!! use z_coord!!!
-        L = -g * (-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
+
+        pressuresplit=False
+    
+        if pressuresplit:
+            a = dph_dx.dx(z_coord) * q * dx + 1e-15*dph_dx.dx(z_coord) * q.dx(z_coord)*dx## !!!!! use z_coord!!!
+            L = -g * (-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
+        else:
+            a = dph_dx * q * dx# + 0.1*dph_dx.dx(z_coord) * q.dx(z_coord)*dx## !!!!! use z_coord!!!
+            L = -g * (-beta*self.f['T_']+gamma*self.f['S_']) * q * dx
+
+
         bc_domain = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
+        bc_domain2 =('(0 <= x[0] <= 1 and 0.05 <= x[1] <= 1) and on_boundary')
+        bc2 = DirichletBC(dph_dx_f_space, Expression('0*1000*3.6*3.6*g', g=parameters.config['g'], degree=2), bc_domain2)
+
+
         bc = DirichletBC(dph_dx_f_space, 0, bc_domain)
-        solve(a == L, dph_dx_sol, bcs=[bc])
+
+        if pressuresplit:
+            solve(a == L, dph_dx_sol, bcs=[bc])
+        else:
+            solve(a == L, dph_dx_sol)
+
         flog.debug('Solved for dph/dx.')
 
         if dim == 2:
-            grad_ph_tup = ('dph_dx', 0)
+            if pressuresplit:
+                grad_ph_tup = ('dph_dx', 0)
+            else:
+                grad_ph_tup = (0, '-dph_dx') #switching sign since it will be added to lhs
+
         elif dim == 3:
             grad_ph_tup = ('dph_dx', 0, 0)
 
         grad_ph = interpolate(Expression(grad_ph_tup, dph_dx=dph_dx_sol, degree=2), ## degree=2 ????
                               VectorFunctionSpace(dph_dx_f_space.mesh(), 'Lagrange', 1))
+
         # Linear space is used for grad_ph even though dT/dx will most likely be
         # piecewise constant. Can't hurt, I guess.
+
+        
+
 
         flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(round(norm(grad_ph), 2)))
 
@@ -177,6 +227,8 @@ class Simulation(object):
             bcs += self.BCs['V']
         if self.BCs.get('Q'):
             bcs += self.BCs['Q']
+
+        pnh=p
 
         # Solve non-linearity iteratively
         flog.debug('Iteratively solving non-linear problem')
@@ -206,15 +258,26 @@ class Simulation(object):
         ph = TrialFunction(ph_f_space)
         q = TestFunction(ph_f_space)
         ph_sol = Function(ph_f_space)
-        a = ph.dx(z_coord)/rho_0 * q * dx
+        a = ph.dx(z_coord) * q * dx
+        #a = ph.dx(z_coord)/rho_0 * q * dx 
         L = build_buoyancy(self.f['T_'], self.f['S_']) * q * dx
         bc_domain = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
+        bc_domain2 =('(0 <= x[0] <= 1 and 0.05 <= x[1] <= 1) and on_boundary')
+        bc2 = DirichletBC(ph_f_space, Expression('3.6*3.6*g', g=parameters.config['g'], degree=2), bc_domain2)
+
+
+        #pmod= (p-pbase)/rho     (1000*3.6*3.6*g - rho*3.6*3.6*g)/rho0
+
+
+
         bc = DirichletBC(ph_f_space, 0, bc_domain)
         solve(a == L, ph_sol, bcs=[bc])
         flog.debug('Solved for ph.')
 
+        
         # Build full pressure as ph+pnh
-        self.f['p_'].assign(pnh + ph_sol)
+        #self.f['p_'].assign(pnh + ph_sol)
+        self.f['p_'].assign(pnh)
 
         # ------------------------
         # TEMPERATURE AND SALINITY
@@ -277,6 +340,19 @@ class Simulation(object):
         # Store solution for paraview
         if parameters.config['store_solutions']:
             self.save_solutions_xdmf()
+
+
+        if self.n % 100 == 0:
+            #plot.plot_single(self.f['T_'],display=True,title='temperature')
+            #plot.plot_single(self.f['S_'],display=True,title='salinity')
+            if pressuresplit:
+                plot.plot_single(dph_dx_sol,display=True,title='hydrostatic pressure gradient')
+            else:
+                plot.plot_single(dph_dx_sol,display=True,title='delta rho g')
+
+            plot.plot_single(drho_dx_sol,display=True,title='rho gradient')
+            plot.plot_solutions(self.f,display=True)
+            
 
         # Prepare next timestep
         self.n += 1
