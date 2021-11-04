@@ -258,10 +258,16 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
     dim = mesh.geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
+    delta = 0.1
+
+    l_supg = dot(T/dt - div(elem_mult(get_matrix_diagonal(alpha), (nabla_grad(T)))) + dot(u_, nabla_grad(T)), dot(u_, nabla_grad(T_v)))*dx
+    r_supg = dot(T_n/dt, dot(u_, nabla_grad(T_v)))*dx
 
     F = (dot((T - T_n)/dt, T_v)*dx
          + dot(u_, grad(T))*T_v*dx#div(u_*T)*T_v*dx
-         + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx)
+         + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx
+         + delta*l_supg
+         - delta*r_supg)
          #+ 1*dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), elem_mult(get_matrix_diagonal(alpha), grad(T_v)))*dx)
 
 
@@ -298,13 +304,20 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
     dim = mesh.geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
+    delta = 0.1#mesh.hmax()/2*norm(u_)
+    #print(delta)
 
-    r_supg = elem_mult(get_matrix_diagonal(alpha), grad(S))
-    #f_supg = 
+    #r_supg = elem_mult(get_matrix_diagonal(alpha), grad(S))
+    #f_supg =
+
+    l_supg = dot(S/dt - div(elem_mult(get_matrix_diagonal(alpha), (nabla_grad(S)))) + dot(u_, nabla_grad(S)), dot(u_, nabla_grad(S_v)))*dx
+    r_supg = dot(S_n/dt, dot(u_, nabla_grad(S_v)))*dx
 
     F = (dot((S - S_n)/dt, S_v)*dx
          + dot(u_,grad(S))*S_v*dx#div(u_*S)*S_v*dx
-         + dot(elem_mult(get_matrix_diagonal(alpha), grad(S)), grad(S_v))*dx)
+         + dot(elem_mult(get_matrix_diagonal(alpha), grad(S)), grad(S_v))*dx
+         + delta*l_supg
+         - delta*r_supg)
          #+ 1*dot(r_supg, elem_mult(get_matrix_diagonal(alpha), grad(S_v)))*dx)
 
 

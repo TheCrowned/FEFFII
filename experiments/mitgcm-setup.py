@@ -74,7 +74,7 @@ def main():
         #feffi.boundaries.visualize_f_on_boundary(simulation.Tzd, domain, 'left')
         #feffi.boundaries.visualize_f_on_boundary(simulation.Szd, domain, 'left')
 
-    feffi.plot.plot_solutions(f, display=True)
+    feffi.plot.plot_solutions(f, display=False)
 
 '''def generate_mesh(geom):
     geo_name = 'mesh-misomip.geo'

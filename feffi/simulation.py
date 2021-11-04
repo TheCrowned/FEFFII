@@ -342,7 +342,7 @@ class Simulation(object):
             self.save_solutions_xdmf()
 
 
-        if self.n % 100 == 0:
+        '''if self.n % 100 == 0:
             #plot.plot_single(self.f['T_'],display=True,title='temperature')
             #plot.plot_single(self.f['S_'],display=True,title='salinity')
             if pressuresplit:
@@ -351,7 +351,7 @@ class Simulation(object):
                 plot.plot_single(dph_dx_sol,display=True,title='delta rho g')
 
             plot.plot_single(drho_dx_sol,display=True,title='rho gradient')
-            plot.plot_solutions(self.f,display=True)
+            plot.plot_solutions(self.f,display=True)'''
             
 
         # Prepare next timestep
