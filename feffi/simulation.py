@@ -90,6 +90,7 @@ class Simulation(object):
 
         flog.info('Initialized simulation.')
         flog.info('Running parameters:\n' + str(parameters.config))
+        flog.info('Mesh hmax:\n' + str(domain.mesh.hmax()))
 
     def run(self):
         """Runs the simulation until a stopping condition is met."""
@@ -147,7 +148,7 @@ class Simulation(object):
         a = drho_dx * q * dx ## !!!!! use z_coord!!!
         L =  (-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
         #bc_domain = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
-      
+
         #bc = DirichletBC(drho_dx_f_space, 0, bc_domain)
         solve(a == L, drho_dx_sol)
         flog.debug('Solved for drho/dx.')
@@ -169,7 +170,7 @@ class Simulation(object):
         dph_dx_sol = Function(dph_dx_f_space)
 
         pressuresplit=False
-    
+
         if pressuresplit:
             a = dph_dx.dx(z_coord) * q * dx + 1e-15*dph_dx.dx(z_coord) * q.dx(z_coord)*dx## !!!!! use z_coord!!!
             L = -g * (-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
@@ -207,7 +208,7 @@ class Simulation(object):
         # Linear space is used for grad_ph even though dT/dx will most likely be
         # piecewise constant. Can't hurt, I guess.
 
-        
+
 
 
         flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(round(norm(grad_ph), 2)))
@@ -259,7 +260,7 @@ class Simulation(object):
         q = TestFunction(ph_f_space)
         ph_sol = Function(ph_f_space)
         a = ph.dx(z_coord) * q * dx
-        #a = ph.dx(z_coord)/rho_0 * q * dx 
+        #a = ph.dx(z_coord)/rho_0 * q * dx
         L = build_buoyancy(self.f['T_'], self.f['S_']) * q * dx
         bc_domain = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
         bc_domain2 =('(0 <= x[0] <= 1 and 0.05 <= x[1] <= 1) and on_boundary')
@@ -274,7 +275,7 @@ class Simulation(object):
         solve(a == L, ph_sol, bcs=[bc])
         flog.debug('Solved for ph.')
 
-        
+
         # Build full pressure as ph+pnh
         #self.f['p_'].assign(pnh + ph_sol)
         self.f['p_'].assign(pnh)
@@ -352,7 +353,7 @@ class Simulation(object):
 
             plot.plot_single(drho_dx_sol,display=True,title='rho gradient')
             plot.plot_solutions(self.f,display=True)'''
-            
+
 
         # Prepare next timestep
         self.n += 1
