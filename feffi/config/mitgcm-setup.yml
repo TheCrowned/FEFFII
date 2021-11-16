@@ -19,7 +19,7 @@ BCs:
         right: [0,0]
         bottom: [0,0]
         left: [0,0]
-        top: [0,0]
+        top: ['null',0]
     T:
         left: -0.7 #output values from john's setup
     #Q:
