@@ -29,27 +29,51 @@ def main():
     # Set up geometry + mesh.
     # FEniCS mesher seems much faster than pyGmsh for fine meshes,
     # and does not require meshio which has been problematic for Jonathan.
-    #points = [(0,0,0), (5,0,0), (5,1,0), (1,1,0),  (0, 0.05,0)]
-    points = [(0,0,0), (5,0,0), (5,1,0), (0,1,0),  (0, 0.0,0)]
+    points = [(0,0,0), (5,0,0), (5,1,0), (1,1,0),  (0, 0.05,0)]
+    #points = [(0,0,0), (5,0,0), (5,1,0), (0,1,0),  (0, 0.0,0)]
 
-    #g = pygmsh.built_in.Geometry()
-    #pol = g.add_polygon(points, lcar=0.01)
-    #mesh = generate_mesh(g)
-    #fenics_mesh = Mesh(MPI.comm_world, 'mesh-misomip.xml')
-    Points = [Point(p) for p in points]
-    geometry = mshr.Polygon(Points)
-    fenics_mesh = mshr.generate_mesh(geometry, 30)
-    #plot(fenics_mesh)
-    #plt.show()
-
-    f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
-    f = feffi.functions.define_functions(f_spaces)
-    feffi.functions.init_functions(f)
+    g = pygmsh.built_in.Geometry()
+    pol = g.add_polygon(points, lcar=0.01)
+    mesh = pygmsh.generate_mesh(g)
+    fenics_mesh = Mesh(MPI.comm_world, 'mesh-misomip.xml')
+    #Points = [Point(p) for p in points]
+    #geometry = mshr.Polygon(Points)
+    #fenics_mesh = mshr.generate_mesh(geometry, 30)
+    plot(fenics_mesh)
+    plt.show()
 
     class Bound_Ice_Side(SubDomain):
         def inside(self, x, on_boundary):
             return ((0 <= x[0] <= 1 and 0.05 <= x[1] <= 1)
                     and on_boundary)
+
+    ## Mesh refinement ##
+    refine_size = 0.2
+    tolerance = 0.05 # even if using <=, >=, some points on the lines are not taken
+    class Ice_Side_Refine(SubDomain):
+        def inside(self, x, on_boundary):
+            return 0 <= x[0] <= 1+1.5*refine_size+tolerance and x[1] <= 0.95*x[0]+(0.05+tolerance) and x[1] >= 0.95*x[0]+(0.05-1.5*refine_size-tolerance)
+    class Top_Refine(SubDomain):
+        def inside(self, x, on_boundary):
+            return x[0] >= 1+1.5*refine_size-tolerance and x[1] >= (1-refine_size-tolerance)
+
+    boundary_domain = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
+    boundary_domain.set_all(False)
+
+    Ice_Side_Refine().mark(boundary_domain, True)
+    Top_Refine().mark(boundary_domain, True)
+
+    fenics_mesh = refine(fenics_mesh, boundary_domain)
+    #fenics_mesh.bounding_box_tree().build(fenics_mesh)
+
+    feffi.flog.info('Refined mesh at boundaries')
+    plot(fenics_mesh)
+    plt.show()
+    #return
+
+    f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
+    f = feffi.functions.define_functions(f_spaces)
+    feffi.functions.init_functions(f)
 
     domain = feffi.boundaries.Domain(
         fenics_mesh,
