@@ -1,4 +1,4 @@
-final_time: 1
+final_time: 240
 steps_n: 30    # dt = 1/30 h = 120 s  (kimura 200 s)
 simulation_precision: -7
 g: 9.81
@@ -18,14 +18,19 @@ BCs:
     V:
         right: [0,0]
         bottom: [0,0]
+        left_ice: [0,0]
         left: [0,0]
         top: ['null',0]
     T:
+        left_ice: -0.7 #output values from john's setup
         left: -0.7 #output values from john's setup
+        right: 1
     #Q:
     #    '(5,1)': 0
     S:
+        left_ice: 34.82 #output values from john's setup
         left: 34.82 #output values from john's setup
+        right: 35
 melt_boundaries: #add left as list element below to turn on 3eqs
     - 
 convert_from_ms_to_kmh: True
