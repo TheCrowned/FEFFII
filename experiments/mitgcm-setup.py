@@ -32,13 +32,13 @@ def main():
     points = [(0,0,0), (5,0,0), (5,1,0), (1,1,0),  (0, 0.05,0)]
     #points = [(0,0,0), (5,0,0), (5,1,0), (0,1,0),  (0, 0.0,0)]
 
-    g = pygmsh.built_in.Geometry()
-    pol = g.add_polygon(points, lcar=0.01)
-    mesh = pygmsh.generate_mesh(g)
-    fenics_mesh = Mesh(MPI.comm_world, 'mesh-misomip.xml')
-    #Points = [Point(p) for p in points]
-    #geometry = mshr.Polygon(Points)
-    #fenics_mesh = mshr.generate_mesh(geometry, 30)
+    #g = pygmsh.built_in.Geometry()
+    #pol = g.add_polygon(points, lcar=0.5)
+    #mesh = pygmsh.generate_mesh(g)
+    #fenics_mesh = Mesh(MPI.comm_world, mesh)
+    Points = [Point(p) for p in points]
+    geometry = mshr.Polygon(Points)
+    fenics_mesh = mshr.generate_mesh(geometry, 30)
     plot(fenics_mesh)
     plt.show()
 
@@ -52,16 +52,16 @@ def main():
     tolerance = 0.05 # even if using <=, >=, some points on the lines are not taken
     class Ice_Side_Refine(SubDomain):
         def inside(self, x, on_boundary):
-            return 0 <= x[0] <= 1+1.5*refine_size+tolerance and x[1] <= 0.95*x[0]+(0.05+tolerance) and x[1] >= 0.95*x[0]+(0.05-1.5*refine_size-tolerance)
-    class Top_Refine(SubDomain):
-        def inside(self, x, on_boundary):
-            return x[0] >= 1+1.5*refine_size-tolerance and x[1] >= (1-refine_size-tolerance)
+            return 0 <= x[0] <= 1+1.5*refine_size+tolerance and x[1] <= 0.95*x[0]+(0.05+tolerance) and x[1] >= 0.95*x[0]+(0.05-refine_size-tolerance)
+    #class Top_Refine(SubDomain):
+    #    def inside(self, x, on_boundary):
+    #        return x[0] >= 1+1.5*refine_size-tolerance and x[1] >= (1-refine_size-tolerance)
 
     boundary_domain = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
     boundary_domain.set_all(False)
 
     Ice_Side_Refine().mark(boundary_domain, True)
-    Top_Refine().mark(boundary_domain, True)
+    #Top_Refine().mark(boundary_domain, True)
 
     fenics_mesh = refine(fenics_mesh, boundary_domain)
     #fenics_mesh.bounding_box_tree().build(fenics_mesh)
@@ -80,13 +80,13 @@ def main():
         f_spaces,
         boundaries = {
           'bottom' : feffi.boundaries.Bound_Bottom(fenics_mesh),
-          'left' : Bound_Ice_Side(),
-          #'left' : feffi.boundaries.Bound_Left(fenics_mesh),
+          'left_ice' : Bound_Ice_Side(),
+          'left' : feffi.boundaries.Bound_Left(fenics_mesh),
           'right' : feffi.boundaries.Bound_Right(fenics_mesh),
           'top' : feffi.boundaries.Bound_Top(fenics_mesh),
         },
         BCs = feffi.parameters.config['BCs'])
-    #domain.show_boundaries() # with paraview installed, will show boundary markers
+    domain.show_boundaries() # with paraview installed, will show boundary markers
 
     simulation = feffi.simulation.Simulation(f, domain)
     simulation.run()
