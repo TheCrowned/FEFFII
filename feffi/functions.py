@@ -219,7 +219,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
 
     #b = build_buoyancy(T_, S_)
     f = u_n/dt #+ b
-    steady_form = B_g(a, u, p, grad_P_h, v, q) - dot(f, v)*dx 
+    steady_form = B_g(a, u, p, grad_P_h, v, q) - dot(f, v)*dx
 
     rho_0 = Constant(parameters.config['rho_0'])
 
@@ -258,7 +258,7 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
     dim = mesh.geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
-    delta = 0.1
+    delta = 0.5
 
     l_supg = dot(T/dt - div(elem_mult(get_matrix_diagonal(alpha), (nabla_grad(T)))) + dot(u_, nabla_grad(T)), dot(u_, nabla_grad(T_v)))*dx
     r_supg = dot(T_n/dt, dot(u_, nabla_grad(T_v)))*dx
@@ -304,8 +304,8 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
     dim = mesh.geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
-    delta = 0.1#mesh.hmax()/2*norm(u_)
-    #print(delta)
+    delta = 0.5#mesh.hmax()/2*norm(u_)
+    print(delta)
 
     #r_supg = elem_mult(get_matrix_diagonal(alpha), grad(S))
     #f_supg =
