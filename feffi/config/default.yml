@@ -31,12 +31,13 @@ mesh_resolution_sea_y: 1
 
 very_verbose: False
 store_solutions: False
-checkpoint_interval: 0
+checkpoint_interval: 2
 
 label: ''
 max_iter: 0
 non_linear_max_iter: 30
 
+pressure_split: False
 stabilization: False
 delta0: 1
 tau0: 35

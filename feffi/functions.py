@@ -196,6 +196,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     """Build Navier-Stokes steady state weak form + GLS stabilization."""
 
     dt = Constant(1/parameters.config['steps_n'])
+    rho_0 = Constant(parameters.config['rho_0'])
 
     # ------------------------
     # Setting stab. parameters
@@ -217,12 +218,12 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     delta = delta0*hmin*min(1, Rej/3)/norm_a
     tau = tau0*max(nu_min, hmin)
 
+    # Buoyancy term is now added as hydrostatic pressure contribution computed
+    # in simulation.py. Full pressure is rescaled without div by rho_0.
+
     #b = build_buoyancy(T_, S_)
     f = u_n/dt #+ b
     steady_form = B_g(a, u, p, grad_P_h, v, q) - dot(f, v)*dx
-
-    rho_0 = Constant(parameters.config['rho_0'])
-
 
     if parameters.config['stabilization']:
         # Build form
@@ -264,12 +265,10 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
     r_supg = dot(T_n/dt, dot(u_, nabla_grad(T_v)))*dx
 
     F = (dot((T - T_n)/dt, T_v)*dx
-         + dot(u_, grad(T))*T_v*dx#div(u_*T)*T_v*dx
+         + dot(u_, grad(T))*T_v*dx #div(u_*T)*T_v*dx # div(u_) could be non-zero due to num error
          + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx
          + delta*l_supg
          - delta*r_supg)
-         #+ 1*dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), elem_mult(get_matrix_diagonal(alpha), grad(T_v)))*dx)
-
 
     ## (Maybe) Build heat flux forcing term ##
     if mw is not False:
@@ -277,7 +276,8 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
         ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
         Fh, Fh_func = build_heat_flux_forcing_term(u_, T_n, mw, Tzd)
-        boundaries.visualize_f_on_boundary(Fh_func, domain, 'left')
+        boundaries.visualize_f_on_boundary(T_n, domain, 'left_ice')
+        boundaries.visualize_f_on_boundary(Fh_func, domain, 'left_ice')
         for domain_label in parameters.config['melt_boundaries']:
             if domain_label != None:
                 F += dot(Fh, T_v)*ds(domain.subdomains_markers[domain_label])
@@ -305,10 +305,7 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
     dt = Constant(1/parameters.config['steps_n'])
     delta = 0.5#mesh.hmax()/2*norm(u_)
-    print(delta)
-
-    #r_supg = elem_mult(get_matrix_diagonal(alpha), grad(S))
-    #f_supg =
+    #print(delta)
 
     l_supg = dot(S/dt - div(elem_mult(get_matrix_diagonal(alpha), (nabla_grad(S)))) + dot(u_, nabla_grad(S)), dot(u_, nabla_grad(S_v)))*dx
     r_supg = dot(S_n/dt, dot(u_, nabla_grad(S_v)))*dx
@@ -318,8 +315,6 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
          + dot(elem_mult(get_matrix_diagonal(alpha), grad(S)), grad(S_v))*dx
          + delta*l_supg
          - delta*r_supg)
-         #+ 1*dot(r_supg, elem_mult(get_matrix_diagonal(alpha), grad(S_v)))*dx)
-
 
     ## (Maybe) Build salinity flux forcing term ##
     if mw is not False:
@@ -327,7 +322,8 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
         ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
         Fs, Fs_func = build_salinity_flux_forcing_term(u_, S_n, mw, Szd)
-        boundaries.visualize_f_on_boundary(Fs_func, domain, 'left')
+        boundaries.visualize_f_on_boundary(S_n, domain, 'left_ice')
+        boundaries.visualize_f_on_boundary(Fs_func, domain, 'left_ice')
         for domain_label in parameters.config['melt_boundaries']:
             if domain_label != None:
                 F += dot(Fs, S_v)*ds(domain.subdomains_markers[domain_label])
