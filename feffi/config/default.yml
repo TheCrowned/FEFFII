@@ -31,7 +31,7 @@ mesh_resolution_sea_y: 1
 
 very_verbose: False
 store_solutions: False
-checkpoint_interval: 2
+checkpoint_interval: 20
 
 label: ''
 max_iter: 0

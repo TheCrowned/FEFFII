@@ -22,17 +22,15 @@ BCs:
         left: [0,0]
         top: ['null',0]
     T:
-        left_ice: -0.7 #output values from john's setup
-        left: -0.7 #output values from john's setup
+        #left_ice: -0.7 #output values from john's setup
         right: 1
     #Q:
     #    '(5,1)': 0
     S:
-        left_ice: 34.82 #output values from john's setup
-        left: 34.82 #output values from john's setup
+        #left_ice: 34.82 #output values from john's setup
         right: 35
 melt_boundaries: #add left as list element below to turn on 3eqs
-    - 
+    - left_ice
 convert_from_ms_to_kmh: True
 very_verbose: True
 stabilization: True

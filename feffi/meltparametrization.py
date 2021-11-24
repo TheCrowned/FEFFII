@@ -11,15 +11,20 @@ def get_3eqs_default_constants():
     return {
         'Cd' : 2.5*10**(-3),
         'cw' : 3974,
-        'gammaT' : 1.15*10**(-4), # this depends on mesh resolution (1.15*10**(-2) for mesh-res 10)
-        'gammaS' : 1.15*10**(-4)/35,
+        'gammaT' : 1*10**(-4), # this depends on mesh resolution (1.15*10**(-2) for mesh-res 10)
+        'gammaS' : 5.05*10**(-7),
         'L' : 3.34*10**5,
         'lam1' : -0.0573,
-        'lam2' : 0.0832,
+        'lam2' : 0.0939, # 0.0832 misomip
         'lam3' : -7.53*10**(-8),
         'rhofw' : 1000,
         'rhosw' : 1028,
-        'Ut' : 1,
+        'rho_I' : 920,
+        'c_pI' : 2009,
+        'k_I' : 1.14*10**(-6),
+        'Ts' : -20,
+        'g' : 9.81,
+        'Ut' : 0.1,
     }
 
 
@@ -65,6 +70,11 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     lam3  = parameters.config['3eqs']['lam3']
     L     = parameters.config['3eqs']['L']
     Ut    = parameters.config['3eqs']['Ut']
+    rho_I    = parameters.config['3eqs']['rho_I']
+    c_pI    = parameters.config['3eqs']['c_pI']
+    k_I    = parameters.config['3eqs']['k_I']
+    g    = parameters.config['3eqs']['g']
+    Ts    = parameters.config['3eqs']['Ts']
     gammaT    = parameters.config['3eqs']['gammaT']
     gammaS    = parameters.config['3eqs']['gammaS']
 
@@ -75,9 +85,10 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     #gammaT = fenics.Expression('1/(12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
     #gammaS = gammaT
 
-    F = ( (+ rhofw*mw*L + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
+    y = fenics.interpolate(fenics.Expression('1-x[1]', degree=2), V.extract_sub_space([1]).collapse())
+    F = ( (- rhofw*mw*L + rho_I*c_pI*k_I*(Ts-Tzd)/(y) - rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
            + (Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
-           + (rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx )
+           + (rhofw*mw*Sw - rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx )
            # last equation should have lhs rhofw*mw*Szd, but this is a common
            # linear approximation (source: Johan)
 
@@ -108,7 +119,7 @@ def build_heat_flux_forcing_term(u_, Tw, mw, Tzd):
     # These are for to allow plotting of flux boundary term values
     Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
     Ustar = fenics.interpolate(Ustar, Tzd.function_space().collapse())
-    Fh_func = fenics.Expression('(Ustar*gammaT+mw)*(Tzd-Tw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaT=gammaT, rhofw=rhofw, Tzd=Tzd, Tw=Tw, mw=mw, cw=cw)
+    Fh_func = fenics.Expression('-cw*(Ustar*gammaT+mw)*(Tzd-Tw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaT=gammaT, rhofw=rhofw, Tzd=Tzd, Tw=Tw, mw=mw, cw=cw)
     Fh_func = fenics.interpolate(Fh_func, Tzd.function_space().collapse())
     Fh_func.rename('heat_flux', '')
 
@@ -133,7 +144,7 @@ def build_salinity_flux_forcing_term(u_, Sw, mw, Szd):
     # These are for to allow plotting of flux boundary term values
     Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
     Ustar = fenics.interpolate(Ustar, Szd.function_space().collapse())
-    Fs_func = fenics.Expression('(Ustar*gammaS+mw)*(Szd-Sw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaS=gammaS, rhofw=rhofw, Szd=Szd, Sw=Sw, mw=mw)
+    Fs_func = fenics.Expression('-(Ustar*gammaS+mw)*(Szd-Sw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaS=gammaS, rhofw=rhofw, Szd=Szd, Sw=Sw, mw=mw)
     Fs_func = fenics.interpolate(Fs_func, Szd.function_space().collapse())
     Fs_func.rename('salt_flux', '')
 
