@@ -39,8 +39,8 @@ def main():
     Points = [Point(p) for p in points]
     geometry = mshr.Polygon(Points)
     fenics_mesh = mshr.generate_mesh(geometry, 60)
-    plot(fenics_mesh)
-    plt.show()
+    #plot(fenics_mesh)
+    #plt.show()
 
     class Bound_Ice_Side(SubDomain):
         def inside(self, x, on_boundary):
@@ -67,8 +67,8 @@ def main():
     #fenics_mesh.bounding_box_tree().build(fenics_mesh)
 
     feffi.flog.info('Refined mesh at boundaries')
-    plot(fenics_mesh)
-    plt.show()
+    #plot(fenics_mesh)
+    #plt.show()
     #return
 
     f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
@@ -86,7 +86,7 @@ def main():
           'top' : feffi.boundaries.Bound_Top(fenics_mesh),
         },
         BCs = feffi.parameters.config['BCs'])
-    domain.show_boundaries() # with paraview installed, will show boundary markers
+    #domain.show_boundaries() # with paraview installed, will show boundary markers
 
     simulation = feffi.simulation.Simulation(f, domain)
     simulation.run()
