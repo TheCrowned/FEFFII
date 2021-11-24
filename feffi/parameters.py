@@ -415,6 +415,13 @@ def reload_status(plot_path):
     config_file_path = os.path.join(plot_path, 'config.yml')
     define_parameters({'config_file': config_file_path, 'plot_path': plot_path})
 
+    # Check if files have the last simulation step suffix
+    file_suffix = ''
+    files = os.listdir(os.path.join(plot_path, 'solutions'))
+    for filename in files:
+        if 'up' in filename and filename != 'up.xml':
+            file_suffix = filename[2:-4]
+
     # Load mesh, define function spaces and functions
     mesh = fenics.Mesh(os.path.join(plot_path, 'solutions', 'mesh.xml'))
     f_spaces = define_function_spaces(mesh)
@@ -422,15 +429,15 @@ def reload_status(plot_path):
     domain = Domain(mesh, f_spaces)
 
     # Load functions
-    fenics.File(os.path.join(plot_path, 'solutions', 'up.xml')) >> f['sol']
-    fenics.File(os.path.join(plot_path, 'solutions', 'u.xml')) >> f['u_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'u.xml')) >> f['u_n']
-    fenics.File(os.path.join(plot_path, 'solutions', 'p.xml')) >> f['p_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'p.xml')) >> f['p_n']
-    fenics.File(os.path.join(plot_path, 'solutions', 'T.xml')) >> f['T_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'T.xml')) >> f['T_n']
-    fenics.File(os.path.join(plot_path, 'solutions', 'S.xml')) >> f['S_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'S.xml')) >> f['S_n']
+    fenics.File(os.path.join(plot_path, 'solutions', 'up{}.xml'.format(file_suffix))) >> f['sol']
+    fenics.File(os.path.join(plot_path, 'solutions', 'u{}.xml'.format(file_suffix))) >> f['u_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'u{}.xml'.format(file_suffix))) >> f['u_n']
+    fenics.File(os.path.join(plot_path, 'solutions', 'p{}.xml'.format(file_suffix))) >> f['p_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'p{}.xml'.format(file_suffix))) >> f['p_n']
+    fenics.File(os.path.join(plot_path, 'solutions', 'T{}.xml'.format(file_suffix))) >> f['T_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'T{}.xml'.format(file_suffix))) >> f['T_n']
+    fenics.File(os.path.join(plot_path, 'solutions', 'S{}.xml'.format(file_suffix))) >> f['S_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'S{}.xml'.format(file_suffix))) >> f['S_n']
 
     return f, domain, mesh, f_spaces
 

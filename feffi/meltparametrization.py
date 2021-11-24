@@ -19,7 +19,7 @@ def get_3eqs_default_constants():
         'lam3' : -7.53*10**(-8),
         'rhofw' : 1000,
         'rhosw' : 1028,
-        'Ut' : 0.01,
+        'Ut' : 1,
     }
 
 
@@ -70,10 +70,10 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
 
     Ustar = (Cd*(uw.sub(0)**2+uw.sub(1)**2)+Ut**2)**(1/2) # Ut is needed, maybe in case uw is 0 at some point?
 
-    Ustar_expr = fenics.interpolate(fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=uw.sub(0), u2=uw.sub(1)), V.extract_sub_space([1]).collapse())
+    #Ustar_expr = fenics.interpolate(fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=uw.sub(0), u2=uw.sub(1)), V.extract_sub_space([1]).collapse())
 
-    gammaT = fenics.Expression('1/(12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
-    gammaS = gammaT
+    #gammaT = fenics.Expression('1/(12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
+    #gammaS = gammaT
 
     F = ( (+ rhofw*mw*L + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
            + (Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
@@ -97,13 +97,13 @@ def build_heat_flux_forcing_term(u_, Tw, mw, Tzd):
     rhofw = parameters.config['3eqs']['rhofw']
     rhosw = parameters.config['3eqs']['rhosw']
     Ut    = parameters.config['3eqs']['Ut']
-    #gammaT    = parameters.config['3eqs']['gammaT']
+    gammaT    = parameters.config['3eqs']['gammaT']
 
-    gammaT = fenics.Expression('1/(12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
-    print(gammaT(0.44, 0.55))
+    #gammaT = fenics.Expression('1/(12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
+    #print(gammaT(0.44, 0.55))
     Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
 
-    Fh = 5#(Ustar*gammaT+mw)*(Tzd-Tw)
+    Fh = -cw*(Ustar*gammaT+mw)*(Tzd-Tw)
 
     # These are for to allow plotting of flux boundary term values
     Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
@@ -122,13 +122,13 @@ def build_salinity_flux_forcing_term(u_, Sw, mw, Szd):
     rhofw = parameters.config['3eqs']['rhofw']
     rhosw = parameters.config['3eqs']['rhosw']
     Ut    = parameters.config['3eqs']['Ut']
-    #gammaS    = parameters.config['3eqs']['gammaS']
+    gammaS    = parameters.config['3eqs']['gammaS']
 
-    gammaS = fenics.Expression('1/(12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
+    #gammaS = fenics.Expression('1/(12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
 
     Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
 
-    Fs = 30#(Ustar*gammaS+mw)*(Szd-Sw)
+    Fs = -(Ustar*gammaS+mw)*(Szd-Sw)
 
     # These are for to allow plotting of flux boundary term values
     Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))

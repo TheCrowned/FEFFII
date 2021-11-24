@@ -64,6 +64,11 @@ class Simulation(object):
         self.n = 0
         self.iterations_n = parameters.config['steps_n']*int(parameters.config['final_time'])
         self.relative_errors = {}
+        self.dim = self.domain.mesh.geometric_dimension() # 2D or 3D
+        self.z_coord = self.dim-1 # z-coord in mesh points changes depending on 2/3D
+
+        # Save current run config
+        self.save_config()
 
         if parameters.config['store_solutions']:
             self.xdmffile_sol = XDMFFile(os.path.join(
@@ -90,7 +95,7 @@ class Simulation(object):
 
         flog.info('Initialized simulation.')
         flog.info('Running parameters:\n' + str(parameters.config))
-        flog.info('Mesh hmax:\n' + str(domain.mesh.hmax()))
+        flog.info('Mesh vertices {}, hmin {}, hmax {}'.format(domain.mesh.num_vertices(), domain.mesh.hmin(), domain.mesh.hmax()))
 
     def run(self):
         """Runs the simulation until a stopping condition is met."""
@@ -104,15 +109,33 @@ class Simulation(object):
 
         while self.n <= self.iterations_n:
             self.timestep()
+            self.log_progress()
 
+            # Store solution for paraview
+            if parameters.config['store_solutions']:
+                self.save_solutions_xdmf()
+
+            # Plot/Save solutions every given iterations so we can keep an eye
+            if parameters.config['checkpoint_interval'] != 0:
+                if self.n > 0 and self.n % parameters.config['checkpoint_interval'] == 0:
+                    flog.debug('--- Save Checkpoint at Timestep {} ---'.format(self.n))
+                    plot.plot_solutions(self.f)
+                    self.save_solutions_final()
+
+            # If simulation is over
             if self.maybe_stop():
-                self.log_progress()
                 flog.info('Simulation stopped at {}, after {} steps ({} seconds).'.format(
                     str(datetime.now()), self.n, round(time()-self.start_time)))
                 break
 
+        self.final_operations()
+
+    def final_operations(self):
+        """Performs ending-simulation tasks, such as plotting and solutions saving."""
+
+        self.build_full_pressure(self.f['p_'])
         self.save_solutions_final()
-        self.save_config()
+        plot.plot_solutions(self.f)
 
     def timestep(self):
         """Runs one timestep."""
@@ -129,87 +152,44 @@ class Simulation(object):
         gamma = Constant(parameters.config['gamma'])
         rho_0 = Constant(parameters.config['rho_0'])
         pnh = Function(self.f['p_'].function_space()) # non-hydrostatic pressure
-        mesh = pnh.function_space().mesh()
-        dim = mesh.geometric_dimension() # 2D or 3D
-        z_coord = dim-1 # z-coord in mesh points changes depending on 2/3D
-
-
-        # ----------------
-        # solving for drhodx
-        # ----------------
-        flog.debug('Solving for drho/dx (just for plotting)...')
-
-        # Use P function space even if we compute gradient, which should be one degree lower
-        drho_dx_f_space = self.f['p_'].function_space()
-
-        drho_dx = TrialFunction(drho_dx_f_space)
-        q = TestFunction(drho_dx_f_space)
-        drho_dx_sol = Function(drho_dx_f_space)
-        a = drho_dx * q * dx ## !!!!! use z_coord!!!
-        L =  (-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
-        #bc_domain = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
-
-        #bc = DirichletBC(drho_dx_f_space, 0, bc_domain)
-        solve(a == L, drho_dx_sol)
-        flog.debug('Solved for drho/dx.')
-
-
-
-
 
         # ----------------
         # Calculate dph/dx
         # ----------------
-        flog.debug('Solving for dph/dx...')
-
         # Use P function space even if we compute gradient, which should be one degree lower
-        dph_dx_f_space = self.f['p_'].function_space()
 
+        flog.debug('Solving for dph/dx...')
+        dph_dx_f_space = self.f['p_'].function_space()
         dph_dx = TrialFunction(dph_dx_f_space)
         q = TestFunction(dph_dx_f_space)
         dph_dx_sol = Function(dph_dx_f_space)
 
-        pressuresplit=False
-
-        if pressuresplit:
-            a = dph_dx.dx(z_coord) * q * dx + 1e-15*dph_dx.dx(z_coord) * q.dx(z_coord)*dx## !!!!! use z_coord!!!
+        if parameters.config['pressure_split']:
+            a = dph_dx.dx(self.z_coord) * q * dx
             L = -g * (-beta*self.f['T_'].dx(0)+gamma*self.f['S_'].dx(0)) * q * dx
-        else:
-            a = dph_dx * q * dx# + 0.1*dph_dx.dx(z_coord) * q.dx(z_coord)*dx## !!!!! use z_coord!!!
-            L = -g * (-beta*self.f['T_']+gamma*self.f['S_']) * q * dx
-
-
-        bc_domain = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
-        bc_domain2 =('(0 <= x[0] <= 1 and 0.05 <= x[1] <= 1) and on_boundary')
-        bc2 = DirichletBC(dph_dx_f_space, Expression('0*1000*3.6*3.6*g', g=parameters.config['g'], degree=2), bc_domain2)
-
-
-        bc = DirichletBC(dph_dx_f_space, 0, bc_domain)
-
-        if pressuresplit:
+            bc_domain = ('near(x[{}], {})'.format(self.z_coord, max(self.domain.mesh.coordinates()[:, self.z_coord])))
+            bc = DirichletBC(dph_dx_f_space, 0, bc_domain)
             solve(a == L, dph_dx_sol, bcs=[bc])
         else:
+            a = dph_dx * q * dx# + 0.1*dph_dx.dx(z_coord) * q.dx(z_coord)*dx
+            L = -g * (-beta*self.f['T_']+gamma*self.f['S_']) * q * dx
             solve(a == L, dph_dx_sol)
 
         flog.debug('Solved for dph/dx.')
 
-        if dim == 2:
-            if pressuresplit:
+        if self.dim == 2:
+            if parameters.config['pressure_split']:
                 grad_ph_tup = ('dph_dx', 0)
             else:
                 grad_ph_tup = (0, '-dph_dx') #switching sign since it will be added to lhs
 
-        elif dim == 3:
+        elif self.dim == 3:
             grad_ph_tup = ('dph_dx', 0, 0)
 
-        grad_ph = interpolate(Expression(grad_ph_tup, dph_dx=dph_dx_sol, degree=2), ## degree=2 ????
+        grad_ph = interpolate(Expression(grad_ph_tup, dph_dx=dph_dx_sol, degree=2),
                               VectorFunctionSpace(dph_dx_f_space.mesh(), 'Lagrange', 1))
-
         # Linear space is used for grad_ph even though dT/dx will most likely be
         # piecewise constant. Can't hurt, I guess.
-
-
-
 
         flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(round(norm(grad_ph), 2)))
 
@@ -228,8 +208,6 @@ class Simulation(object):
             bcs += self.BCs['V']
         if self.BCs.get('Q'):
             bcs += self.BCs['Q']
-
-        pnh=p
 
         # Solve non-linearity iteratively
         flog.debug('Iteratively solving non-linear problem')
@@ -251,33 +229,6 @@ class Simulation(object):
 
         flog.debug('Solved non-linear problem (u, p).')
 
-        # ------------
-        # Calculate ph
-        # ------------
-        flog.debug('Solving for ph...')
-        ph_f_space = pnh.function_space()  # so we can avoid projecting later
-        ph = TrialFunction(ph_f_space)
-        q = TestFunction(ph_f_space)
-        ph_sol = Function(ph_f_space)
-        a = ph.dx(z_coord) * q * dx
-        #a = ph.dx(z_coord)/rho_0 * q * dx
-        L = build_buoyancy(self.f['T_'], self.f['S_']) * q * dx
-        bc_domain = ('near(x[{}], {})'.format(z_coord, max(mesh.coordinates()[:,z_coord])))
-        bc_domain2 =('(0 <= x[0] <= 1 and 0.05 <= x[1] <= 1) and on_boundary')
-        bc2 = DirichletBC(ph_f_space, Expression('3.6*3.6*g', g=parameters.config['g'], degree=2), bc_domain2)
-
-
-        #pmod= (p-pbase)/rho     (1000*3.6*3.6*g - rho*3.6*3.6*g)/rho0
-
-
-
-        bc = DirichletBC(ph_f_space, 0, bc_domain)
-        solve(a == L, ph_sol, bcs=[bc])
-        flog.debug('Solved for ph.')
-
-
-        # Build full pressure as ph+pnh
-        #self.f['p_'].assign(pnh + ph_sol)
         self.f['p_'].assign(pnh)
 
         # ------------------------
@@ -285,7 +236,6 @@ class Simulation(object):
         # ------------------------
 
         # Solve 3 equations system to obtain T and S forcing terms
-        print(parameters.config['melt_boundaries'])
         if( parameters.config['melt_boundaries'] != [None]):
             flog.debug('Solving 3 equations system...')
             (mw, Tzd, Szd) = solve_3eqs_system(self.f['u_'], self.f['T_'],
@@ -321,8 +271,6 @@ class Simulation(object):
         self.relative_errors['T'] = norm(project(self.f['T_']-self.f['T_n'], self.f['T_'].function_space()), 'L2')/norm(self.f['T_'], 'L2') if norm(self.f['T_'], 'L2') != 0 else 0
         self.relative_errors['S'] = norm(project(self.f['S_']-self.f['S_n'], self.f['S_'].function_space()), 'L2')/norm(self.f['S_'], 'L2') if norm(self.f['S_'], 'L2') != 0 else 0
 
-        self.log_progress()
-
         '''csv_row = {'n': self.n}
         for func in ['u', 'p', 'T', 'S']:
             csv_row.update({
@@ -332,27 +280,13 @@ class Simulation(object):
             })
         self.csv_simul_data.writerow(csv_row)'''
 
-        # Safe checkpoint - python readable files
-        if parameters.config['checkpoint_interval'] != 0:
-            if self.n % parameters.config['checkpoint_interval'] == 0:
-                flog.debug('--- Save Checkpoint at Timestep {} ---'.format(self.n))
-                self.save_solutions_final()
+        #if self.n % 100 == 0:
+            #if pressuresplit:
+            #    plot.plot_single(dph_dx_sol,display=True,title='hydrostatic pressure gradient')
+            #else:
+            #    plot.plot_single(dph_dx_sol,display=True,title='delta rho g')
 
-        # Store solution for paraview
-        if parameters.config['store_solutions']:
-            self.save_solutions_xdmf()
-
-
-        '''if self.n % 100 == 0:
-            #plot.plot_single(self.f['T_'],display=True,title='temperature')
-            #plot.plot_single(self.f['S_'],display=True,title='salinity')
-            if pressuresplit:
-                plot.plot_single(dph_dx_sol,display=True,title='hydrostatic pressure gradient')
-            else:
-                plot.plot_single(dph_dx_sol,display=True,title='delta rho g')
-
-            plot.plot_single(drho_dx_sol,display=True,title='rho gradient')
-            plot.plot_solutions(self.f,display=True)'''
+            #plot.plot_single(drho_dx_sol,display=True,title='rho gradient')
 
 
         # Prepare next timestep
@@ -361,6 +295,32 @@ class Simulation(object):
         self.f['p_n'].assign(self.f['p_'])
         self.f['T_n'].assign(self.f['T_'])
         self.f['S_n'].assign(self.f['S_'])
+
+    def build_full_pressure(self, pnh):
+        """Build full pressure as sum of hydrostatic and non-hydrostatic components."""
+
+        # ------------
+        # Calculate ph
+        # ------------
+        if parameters.config['pressure_split']:
+            flog.debug('Solving for ph...')
+            ph_f_space = self.f['p_'].function_space()
+            ph = TrialFunction(ph_f_space)
+            q = TestFunction(ph_f_space)
+            ph_sol = Function(ph_f_space)
+            a = ph.dx(self.z_coord) * q * dx
+            #a = ph.dx(self.z_coord)/rho_0 * q * dx
+            L = build_buoyancy(self.f['T_'], self.f['S_']) * q * dx
+            bc_domain = ('near(x[{}], {})'.format(self.z_coord, max(self.domain.mesh.coordinates()[:, self.z_coord])))
+            bc = DirichletBC(ph_f_space, 0, bc_domain)
+            solve(a == L, ph_sol, bcs=[bc])
+            flog.debug('Solved for ph.')
+            #plot.plot_single(pnh, display=True)
+            #plot.plot_single(ph_sol, display=True)
+            self.f['p_'].assign(pnh + ph_sol)
+
+        self.f['p_'].assign(parameters.config['rho_0'] * self.f['p_'])
+
 
     def maybe_stop(self):
         """Checks whether simulation should be stopped.
@@ -404,27 +364,33 @@ class Simulation(object):
 
         self.log('Timestep {} of {}:'. format(self.n, self.iterations_n))
         self.log('  Non-linearity u-P solved in {} steps.'.format(self.nonlin_n))
-        self.log('  ||u|| = {}, ||u||_8 = {}, ||u-u_n|| = {}, ||u-u_n||/||u|| = {}, div(u) = 1e{}'.format(
-            round(norm(self.f['u_'], 'L2'), round_precision),
-            round(norm(self.f['u_'].vector(), 'linf'), round_precision),
+        self.log('  avg(u) = ({}, {}), max(u) = ({}, {})'.format(
+            round(np.average(self.f['u_'].sub(0).compute_vertex_values()), round_precision),
+            round(np.average(self.f['u_'].sub(1).compute_vertex_values()), round_precision),
+            round(max(self.f['u_'].sub(0).compute_vertex_values()), round_precision),
+            round(max(self.f['u_'].sub(1).compute_vertex_values()), round_precision)))
+        self.log('  ||u-u_n|| = {}, ||u-u_n||/||u|| = {}, div(u) = 1e{}'.format(
             round(self.relative_errors['u']*norm(self.f['u_'], 'L2'), round_precision),
             round(self.relative_errors['u'], round_precision),
             div_u))
-        self.log('  ||p|| = {}, ||p||_8 = {}, ||p-p_n|| = {}, ||p-p_n||/||p|| = {}'.format(
-            round(norm(self.f['p_'], 'L2'), round_precision),
-            round(norm(self.f['p_'].vector(), 'linf'), round_precision),
+        self.log('  avg(p) = {}, ||p||_8 = {}'.format(
+            round(np.average(self.f['p_'].compute_vertex_values()), round_precision),
+            round(norm(self.f['p_'].vector(), 'linf'), round_precision)))
+        self.log('  ||p-p_n|| = {}, ||p-p_n||/||p|| = {}'.format(
             round(self.relative_errors['p']*norm(self.f['p_'], 'L2'), round_precision),
             round(self.relative_errors['p'], round_precision)))
         if parameters.config['beta'] > 0: #avoid division by zero in relative error
-            self.log('  ||T|| = {}, ||T||_8 = {}, ||T-T_n|| = {}, ||T-T_n||/||T|| = {}'.format(
-                round(norm(self.f['T_'], 'L2'), round_precision),
-                round(norm(self.f['T_'].vector(), 'linf'), round_precision),
+            self.log('  avg(T) = {}, ||T||_8 = {}'.format(
+                round(np.average(self.f['T_'].compute_vertex_values()), round_precision),
+                round(norm(self.f['T_'].vector(), 'linf'), round_precision)))
+            self.log('  ||T-T_n|| = {}, ||T-T_n||/||T|| = {}'.format(
                 round(self.relative_errors['T']*norm(self.f['T_'], 'L2'), round_precision),
                 round(self.relative_errors['T'], round_precision)))
         if parameters.config['gamma'] > 0:
-            self.log('  ||S|| = {}, ||S||_8 = {}, ||S-S_n|| = {}, ||S-S_n||/||S|| = {}'.format(
-                round(norm(self.f['S_'], 'L2'), round_precision),
-                round(norm(self.f['S_'].vector(), 'linf'), round_precision),
+            self.log('  avg(S) = {}, ||S||_8 = {}'.format(
+                round(np.average(self.f['S_'].compute_vertex_values()), round_precision),
+                round(norm(self.f['S_'].vector(), 'linf'), round_precision)))
+            self.log('  ||S-S_n|| = {}, ||S-S_n||/||S|| = {}'.format(
                 round(self.relative_errors['S']*norm(self.f['S_'], 'L2'), round_precision),
                 round(self.relative_errors['S'], round_precision)))
 
@@ -478,9 +444,7 @@ class Simulation(object):
         flog.info('Simulation stopped at {}, after {} steps ({} seconds).\n'
                   'Jumping to plotting before exiting.'.format(
                     str(datetime.now()), self.n, round(time()-self.start_time)))
-        self.save_solutions_final()
-        self.save_config()
-        plot.plot_solutions(self.f)
+        self.final_operations()
         os.system('xdg-open "' + parameters.config['plot_path'] + '"')
         exit(0)
 
