@@ -94,6 +94,7 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
 
     solve(lhs(F) == rhs(F), sol)
     sol_splitted = sol.split()
+    #sol_splitted[0].assign(sol_splitted[0]*)
     sol_splitted[0].rename('mw', 'meltrate')
     sol_splitted[1].rename('Tzd', 'Tzd')
     sol_splitted[2].rename('Szd', 'Szd')
@@ -114,7 +115,7 @@ def build_heat_flux_forcing_term(u_, Tw, mw, Tzd):
     #print(gammaT(0.44, 0.55))
     Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
 
-    Fh = -cw*(Ustar*gammaT+mw)*(Tzd-Tw)
+    Fh = -(Ustar*3.6*gammaT+mw*3.6)*(Tzd-Tw)
 
     # These are for to allow plotting of flux boundary term values
     Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
@@ -139,7 +140,7 @@ def build_salinity_flux_forcing_term(u_, Sw, mw, Szd):
 
     Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
 
-    Fs = -(Ustar*gammaS+mw)*(Szd-Sw)
+    Fs = -(Ustar*3.6*gammaS+mw*3.6)*(Szd-Sw)
 
     # These are for to allow plotting of flux boundary term values
     Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
