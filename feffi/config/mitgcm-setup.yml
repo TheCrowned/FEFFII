@@ -11,7 +11,7 @@ alpha:
 rho_0: 1000
 beta: 0.00004
 gamma: 0.0008
-T_0: 1
+T_0: 0.4
 S_0: 35
 max_iter: 0
 BCs:
@@ -23,7 +23,7 @@ BCs:
         top: ['null',0]
     T:
         #left_ice: -0.7 #output values from john's setup
-        right: 1
+        right: 0.4
     #Q:
     #    '(5,1)': 0
     S:
@@ -34,3 +34,4 @@ melt_boundaries: #add left as list element below to turn on 3eqs
 convert_from_ms_to_kmh: True
 very_verbose: True
 stabilization: True
+checkpoint_interval: 50

@@ -38,7 +38,7 @@ def main():
     #fenics_mesh = Mesh(MPI.comm_world, mesh)
     Points = [Point(p) for p in points]
     geometry = mshr.Polygon(Points)
-    fenics_mesh = mshr.generate_mesh(geometry, 60)
+    fenics_mesh = mshr.generate_mesh(geometry, 20)
     #plot(fenics_mesh)
     #plt.show()
 

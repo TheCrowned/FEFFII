@@ -67,9 +67,6 @@ class Simulation(object):
         self.dim = self.domain.mesh.geometric_dimension() # 2D or 3D
         self.z_coord = self.dim-1 # z-coord in mesh points changes depending on 2/3D
 
-        # Save current run config
-        self.save_config()
-
         if parameters.config['store_solutions']:
             self.xdmffile_sol = XDMFFile(os.path.join(
                 parameters.config['plot_path'], 'solutions.xdmf'))
@@ -136,6 +133,7 @@ class Simulation(object):
         self.build_full_pressure(self.f['p_'])
         self.save_solutions_final()
         plot.plot_solutions(self.f)
+        self.save_config()
 
     def timestep(self):
         """Runs one timestep."""
