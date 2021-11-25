@@ -120,7 +120,7 @@ def build_heat_flux_forcing_term(u_, Tw, mw, Tzd):
     # These are for to allow plotting of flux boundary term values
     Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
     Ustar = fenics.interpolate(Ustar, Tzd.function_space().collapse())
-    Fh_func = fenics.Expression('-cw*(Ustar*gammaT+mw)*(Tzd-Tw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaT=gammaT, rhofw=rhofw, Tzd=Tzd, Tw=Tw, mw=mw, cw=cw)
+    Fh_func = fenics.Expression('-cw*(Ustar*3.6*gammaT+mw*3.6)*(Tzd-Tw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaT=gammaT, rhofw=rhofw, Tzd=Tzd, Tw=Tw, mw=mw, cw=cw)
     Fh_func = fenics.interpolate(Fh_func, Tzd.function_space().collapse())
     Fh_func.rename('heat_flux', '')
 
@@ -145,7 +145,7 @@ def build_salinity_flux_forcing_term(u_, Sw, mw, Szd):
     # These are for to allow plotting of flux boundary term values
     Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
     Ustar = fenics.interpolate(Ustar, Szd.function_space().collapse())
-    Fs_func = fenics.Expression('-(Ustar*gammaS+mw)*(Szd-Sw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaS=gammaS, rhofw=rhofw, Szd=Szd, Sw=Sw, mw=mw)
+    Fs_func = fenics.Expression('-(Ustar*3.6*gammaS+mw*3.6)*(Szd-Sw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaS=gammaS, rhofw=rhofw, Szd=Szd, Sw=Sw, mw=mw)
     Fs_func = fenics.interpolate(Fs_func, Szd.function_space().collapse())
     Fs_func.rename('salt_flux', '')
 
