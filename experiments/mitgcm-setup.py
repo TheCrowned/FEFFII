@@ -84,8 +84,8 @@ def main():
     fenics_mesh = refine(fenics_mesh, to_refine)
     feffi.flog.info('Refined mesh at ice boundary')
     feffi.plot.plot_single(fenics_mesh, display=True)
-    print(fenics_mesh.num_vertices())
-    return
+    #print(fenics_mesh.num_vertices())
+    #return
 
     # Simulation setup
     f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
