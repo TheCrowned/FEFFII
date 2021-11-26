@@ -1,5 +1,5 @@
 final_time: 240
-steps_n: 30    # dt = 1/30 h = 120 s  (kimura 200 s)
+steps_n: 10    # dt = 1/30 h = 120 s  (kimura 200 s)
 simulation_precision: -7
 g: 9.81
 nu: 
@@ -24,8 +24,8 @@ BCs:
     T:
         #left_ice: -0.7 #output values from john's setup
         right: 0.4
-    #Q:
-    #    '(5,1)': 0
+    Q:
+        '(10,1)': 0
     S:
         #left_ice: 34.82 #output values from john's setup
         right: 35
@@ -34,4 +34,5 @@ melt_boundaries: #add left as list element below to turn on 3eqs
 convert_from_ms_to_kmh: True
 very_verbose: True
 stabilization: True
-checkpoint_interval: 50
+checkpoint_interval: 20
+#plot_path: mitgcm-3eqs-10x1

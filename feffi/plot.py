@@ -43,14 +43,14 @@ def plot_single(to_plot, **kwargs):
 
     flog.info('Plotting %s...' % title)
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(15,2))
     ax = fig.add_subplot(111)
-    ax.set_aspect('auto')  # forces square plot
     pl = plot(to_plot, title=title)
+    #ax.set_aspect('auto')  # forces square plot
 
     # Add colorbar if possible (i.e. if it is a Function)
     try:
-        plt.colorbar(pl)
+        plt.colorbar(pl, cax = fig.add_axes([0.93, 0.2, 0.03, 0.55]))
     except:
         pass
 
@@ -61,7 +61,7 @@ def plot_single(to_plot, **kwargs):
         plt.show()
     if kwargs.get('file_name') != None and kwargs['file_name'] != '':
         plt.savefig(os.path.join(
-            config['plot_path'], kwargs['file_name']), dpi=1000)
+            config['plot_path'], kwargs['file_name']), dpi=150)
 
     plt.close()
 
