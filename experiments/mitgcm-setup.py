@@ -50,8 +50,7 @@ def main():
     geometry = mshr.Polygon(Points)
     fenics_mesh = mshr.generate_mesh(geometry, 40)
 
-    plot(fenics_mesh)
-    plt.show()
+    feffi.plot.plot_single(fenics_mesh, display=True)
 
     class Bound_Ice_Side(SubDomain):
         def inside(self, x, on_boundary):
@@ -60,7 +59,7 @@ def main():
                 and on_boundary)
 
     ## Mesh refinement ##
-    refine_size = 0.3
+    refine_size = 0.2
     tolerance = 0.05 # even if using <=, >=, some points on the lines are not taken, dunno why
     class Ice_Side_Refine(SubDomain):
         def inside(self, x, on_boundary):
@@ -70,20 +69,23 @@ def main():
 
     class Cavity_Refine(SubDomain):
         def inside(self, x, on_boundary):
-            return x[0] < ice_shelf_top[0]+10*tolerance # totally arbitrary tolerance
+            return x[0] < ice_shelf_top_p[0]+10*tolerance # totally arbitrary tolerance
 
     to_refine = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
     to_refine.set_all(False)
     Cavity_Refine().mark(to_refine, True)
     fenics_mesh = refine(fenics_mesh, to_refine)
     feffi.flog.info('Refined mesh at cavity')
+    feffi.plot.plot_single(fenics_mesh, display=True)
 
+    to_refine = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
     to_refine.set_all(False)
     Ice_Side_Refine().mark(to_refine, True)
     fenics_mesh = refine(fenics_mesh, to_refine)
     feffi.flog.info('Refined mesh at ice boundary')
-    plot(fenics_mesh)
-    plt.show()
+    feffi.plot.plot_single(fenics_mesh, display=True)
+    print(fenics_mesh.num_vertices())
+    return
 
     # Simulation setup
     f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
