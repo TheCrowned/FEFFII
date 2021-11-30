@@ -1,7 +1,7 @@
 from fenics import (dx, Function, FunctionSpace, FiniteElement, lhs, rhs,
                     Constant, norm, MixedElement, TestFunctions, solve,
                     TrialFunctions, ln)
-from . import parameters
+from . import parameters, plot
 import fenics
 
 
@@ -80,15 +80,41 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
 
     Ustar = (Cd*(uw.sub(0)**2+uw.sub(1)**2)+Ut**2)**(1/2) # Ut is needed, maybe in case uw is 0 at some point?
 
-    #Ustar_expr = fenics.interpolate(fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=uw.sub(0), u2=uw.sub(1)), V.extract_sub_space([1]).collapse())
+    ice_shelf_bottom_p = (0,0.05,0)
+    ice_shelf_top_p = (5,1,0)
+    ice_shelf_slope = (ice_shelf_top_p[1]-ice_shelf_bottom_p[1])/(ice_shelf_top_p[0]-ice_shelf_bottom_p[0])
+
+    #Ustar_expr = fenics.interpolate(fenics.Expression('sin(x[0])', degree=2, u=uw, Cd=Cd, Ut=Ut, u1=uw.sub(0), u2=uw.sub(1)), V.extract_sub_space([1]).collapse())
+    class Ustar_class(fenics.UserExpression):
+        def eval(self, value, x):
+                x_b = ((x[1]-ice_shelf_bottom_p[1])/ice_shelf_slope)
+                y_b = x[1]-0.01
+                if y_b <= 0:
+                    y_b = 0
+                if x_b <= 0:
+                    x_b = 0
+                if (abs(x[0]-x_b) + abs(x[1]-y_b) > .5):
+                    value[0] = 0.00001**2
+                else:
+                    value[0] = ((uw(x_b, y_b)[0]**2+uw(x_b, y_b)[1]**2)+0.00001**2)**(1/2)
+                #print('p ({}, {}) becomes ({}, {}), val {}'.format(round(x[0],2), round(x[1],2), round(x_b,2), round(y_b,2), round(value[0],5)))
+        def value_shape(self):
+            return (2,) #for some unknown reason the expression doesn't work if I return a scalar
+    UstarB = fenics.interpolate(Ustar_class(), uw.function_space()).sub(0)
+    #print(f0(8,0.5))
+    plot.plot_single(UstarB, display=False, file_name='ustar.png')
 
     #gammaT = fenics.Expression('1/(12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
+
+    gammaT = fenics.Expression('1/(2.12*std::log(UstarB*0.03/nu)+12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, UstarB=UstarB, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
+    #plot.plot_single(fenics.interpolate(gammaT,V.extract_sub_space([1]).collapse()), display=True)
+
     #gammaS = gammaT
 
     y = fenics.interpolate(fenics.Expression('1-x[1]', degree=2), V.extract_sub_space([1]).collapse())
-    F = ( (+ rhofw*mw*L - rho_I*c_pI*k_I*(Ts-Tzd)/(y) + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
+    F = ( (+ rhofw*mw*L - rho_I*c_pI*k_I*(Ts-Tzd)/(y) + rhosw*cw*UstarB*gammaT*(Tzd-Tw))*v_1*dx
            + (Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
-           + (rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx )
+           + (rhofw*mw*Sw + rhosw*UstarB*gammaS*(Szd-Sw))*v_3*dx )
            # last equation should have lhs rhofw*mw*Szd, but this is a common
            # linear approximation (source: Johan)
 
