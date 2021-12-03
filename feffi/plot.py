@@ -50,7 +50,7 @@ def plot_single(to_plot, **kwargs):
 
     # Add colorbar if possible (i.e. if it is a Function)
     try:
-        plt.colorbar(pl, cax = fig.add_axes([0.93, 0.2, 0.03, 0.55]))
+        plt.colorbar(pl, cax = fig.add_axes([0.92, 0.2, 0.03, 0.55]))
     except:
         pass
 

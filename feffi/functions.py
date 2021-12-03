@@ -276,8 +276,8 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
         ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
         Fh, Fh_func = build_heat_flux_forcing_term(u_, T_n, mw, Tzd)
-        boundaries.visualize_f_on_boundary(T_n, domain, 'left_ice')
-        boundaries.visualize_f_on_boundary(Fh_func, domain, 'left_ice')
+        #boundaries.visualize_f_on_boundary(T_n, domain, 'left_ice')
+        #boundaries.visualize_f_on_boundary(Fh_func, domain, 'left_ice')
         for domain_label in parameters.config['melt_boundaries']:
             if domain_label != None:
                 F += dot(Fh, T_v)*ds(domain.subdomains_markers[domain_label])
@@ -322,8 +322,8 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
         ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
         Fs, Fs_func = build_salinity_flux_forcing_term(u_, S_n, mw, Szd)
-        boundaries.visualize_f_on_boundary(S_n, domain, 'left_ice')
-        boundaries.visualize_f_on_boundary(Fs_func, domain, 'left_ice')
+        #boundaries.visualize_f_on_boundary(S_n, domain, 'left_ice')
+        #boundaries.visualize_f_on_boundary(Fs_func, domain, 'left_ice')
         for domain_label in parameters.config['melt_boundaries']:
             if domain_label != None:
                 F += dot(Fs, S_v)*ds(domain.subdomains_markers[domain_label])
