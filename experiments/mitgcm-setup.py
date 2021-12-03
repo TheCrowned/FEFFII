@@ -25,18 +25,22 @@ def main():
     feffi.parameters.define_parameters({
         'config_file' : 'feffi/config/mitgcm-setup.yml',
     })
+    config = feffi.parameters.config
+
+    ## Config shorthands
+    domain_size_x = config['domain_size_x']
+    mesh_resolution = config['mesh_resolution']
+    ice_shelf_bottom_p = config['ice_shelf_bottom_p']
+    ice_shelf_top_p = config['ice_shelf_top_p']
+    ice_shelf_slope = config['ice_shelf_slope']
 
     # Set up geometry + mesh.
     # FEniCS mesher seems much faster than pyGmsh for fine meshes,
     # and does not require meshio which has been problematic for Jonathan.
-
-    # These points are used as geometry markers + to compute the ice shelf slope.
-    ice_shelf_bottom_p = (0,0.05,0)
-    ice_shelf_top_p = (5,1,0)
-    ice_shelf_slope = (ice_shelf_top_p[1]-ice_shelf_bottom_p[1])/(ice_shelf_top_p[0]-ice_shelf_bottom_p[0])
-    #print(ice_shelf_slope)
-
-    points = [(0,0,0), (10,0,0), (10,1,0), (ice_shelf_top_p[0],1,0), ice_shelf_top_p, ice_shelf_bottom_p]
+    points = [(0,0,0), (domain_size_x,0,0),                     # bottom
+              (domain_size_x,1,0),                              # right
+              (ice_shelf_top_p[0],1,0), ice_shelf_top_p,        # top
+              ice_shelf_bottom_p]                               # left
     #points = [(0,0,0), (5,0,0), (5,1,0), (0,1,0),  (0, 0.0,0)]
 
     ## PyGMSH mesh generation
@@ -48,7 +52,7 @@ def main():
     ## FEniCS Mesher generator
     Points = [Point(p) for p in points]
     geometry = mshr.Polygon(Points)
-    fenics_mesh = mshr.generate_mesh(geometry, 40)
+    fenics_mesh = mshr.generate_mesh(geometry, mesh_resolution)
 
     feffi.plot.plot_single(fenics_mesh, display=True)
 
@@ -59,7 +63,7 @@ def main():
                 and on_boundary)
 
     ## Mesh refinement ##
-    refine_size = 0.2
+    refine_size = 0.15
     tolerance = 0.05 # even if using <=, >=, some points on the lines are not taken, dunno why
     class Ice_Side_Refine(SubDomain):
         def inside(self, x, on_boundary):
@@ -84,7 +88,6 @@ def main():
     fenics_mesh = refine(fenics_mesh, to_refine)
     feffi.flog.info('Refined mesh at ice boundary')
     feffi.plot.plot_single(fenics_mesh, display=True)
-    #print(fenics_mesh.num_vertices())
     #return
 
     # Simulation setup

@@ -67,6 +67,11 @@ class Simulation(object):
         self.dim = self.domain.mesh.geometric_dimension() # 2D or 3D
         self.z_coord = self.dim-1 # z-coord in mesh points changes depending on 2/3D
 
+        if parameters.config['simulation_precision'] <= 0:
+            self.round_precision = abs(parameters.config['simulation_precision'])
+        else:
+            self.round_precision = 0
+
         if parameters.config['store_solutions']:
             self.xdmffile_sol = XDMFFile(os.path.join(
                 parameters.config['plot_path'], 'solutions.xdmf'))
@@ -234,13 +239,17 @@ class Simulation(object):
         # ------------------------
 
         # Solve 3 equations system to obtain T and S forcing terms
-        if( parameters.config['melt_boundaries'] != [None]):
+        if parameters.config['melt_boundaries'] != [None]:
             flog.debug('Solving 3 equations system...')
             (mw, Tzd, Szd) = solve_3eqs_system(self.f['u_'], self.f['T_'],
                                                self.f['S_'], self.f['p_'])
-            flog.debug(('Solved 3 equations system:\n'
-                        ' - mw: {}\n - Tzd: {}\n - Szd: {}'
-                        .format(norm(mw), norm(Tzd), norm(Szd))))
+
+            # These log values are useless, we should only compute them at ice boundary
+            flog.debug('Solved 3 equations system.')
+            '''            ' - mw: {}\n - Tzd: {}\n - Szd: {}'
+                        .format(round(np.average(mw.compute_vertex_values()), self.round_precision),
+                                round(np.average(Tzd.compute_vertex_values()), self.round_precision),
+                                round(np.average(Szd.compute_vertex_values()), self.round_precision))))'''
             self.mw = mw; self.Tzd = Tzd; self.Szd = Szd
 
         # Other functions will check if mw == False to determine whether melt
@@ -352,8 +361,6 @@ class Simulation(object):
     def log_progress(self):
         """Logs simulation current timestep progress"""
 
-        round_precision = abs(parameters.config['simulation_precision']) if parameters.config['simulation_precision'] <= 0 else 0
-
         # Calculate \int_\Omega \nabla \cdot u * dx
         try:
             div_u = math.floor(math.log10(abs(assemble(div(self.f['u_']) * dx))))
@@ -363,34 +370,34 @@ class Simulation(object):
         self.log('Timestep {} of {}:'. format(self.n, self.iterations_n))
         self.log('  Non-linearity u-P solved in {} steps.'.format(self.nonlin_n))
         self.log('  avg(u) = ({}, {}), max(u) = ({}, {})'.format(
-            round(np.average(self.f['u_'].sub(0).compute_vertex_values()), round_precision),
-            round(np.average(self.f['u_'].sub(1).compute_vertex_values()), round_precision),
-            round(max(self.f['u_'].sub(0).compute_vertex_values()), round_precision),
-            round(max(self.f['u_'].sub(1).compute_vertex_values()), round_precision)))
+            round(np.average(self.f['u_'].sub(0).compute_vertex_values()), self.round_precision),
+            round(np.average(self.f['u_'].sub(1).compute_vertex_values()), self.round_precision),
+            round(max(self.f['u_'].sub(0).compute_vertex_values()), self.round_precision),
+            round(max(self.f['u_'].sub(1).compute_vertex_values()), self.round_precision)))
         self.log('  ||u-u_n|| = {}, ||u-u_n||/||u|| = {}, div(u) = 1e{}'.format(
-            round(self.relative_errors['u']*norm(self.f['u_'], 'L2'), round_precision),
-            round(self.relative_errors['u'], round_precision),
+            round(self.relative_errors['u']*norm(self.f['u_'], 'L2'), self.round_precision),
+            round(self.relative_errors['u'], self.round_precision),
             div_u))
         self.log('  avg(p) = {}, ||p||_8 = {}'.format(
-            round(np.average(self.f['p_'].compute_vertex_values()), round_precision),
-            round(norm(self.f['p_'].vector(), 'linf'), round_precision)))
+            round(np.average(self.f['p_'].compute_vertex_values()), self.round_precision),
+            round(norm(self.f['p_'].vector(), 'linf'), self.round_precision)))
         self.log('  ||p-p_n|| = {}, ||p-p_n||/||p|| = {}'.format(
-            round(self.relative_errors['p']*norm(self.f['p_'], 'L2'), round_precision),
-            round(self.relative_errors['p'], round_precision)))
+            round(self.relative_errors['p']*norm(self.f['p_'], 'L2'), self.round_precision),
+            round(self.relative_errors['p'], self.round_precision)))
         if parameters.config['beta'] > 0: #avoid division by zero in relative error
             self.log('  avg(T) = {}, ||T||_8 = {}'.format(
-                round(np.average(self.f['T_'].compute_vertex_values()), round_precision),
-                round(norm(self.f['T_'].vector(), 'linf'), round_precision)))
+                round(np.average(self.f['T_'].compute_vertex_values()), self.round_precision),
+                round(norm(self.f['T_'].vector(), 'linf'), self.round_precision)))
             self.log('  ||T-T_n|| = {}, ||T-T_n||/||T|| = {}'.format(
-                round(self.relative_errors['T']*norm(self.f['T_'], 'L2'), round_precision),
-                round(self.relative_errors['T'], round_precision)))
+                round(self.relative_errors['T']*norm(self.f['T_'], 'L2'), self.round_precision),
+                round(self.relative_errors['T'], self.round_precision)))
         if parameters.config['gamma'] > 0:
             self.log('  avg(S) = {}, ||S||_8 = {}'.format(
-                round(np.average(self.f['S_'].compute_vertex_values()), round_precision),
-                round(norm(self.f['S_'].vector(), 'linf'), round_precision)))
+                round(np.average(self.f['S_'].compute_vertex_values()), self.round_precision),
+                round(norm(self.f['S_'].vector(), 'linf'), self.round_precision)))
             self.log('  ||S-S_n|| = {}, ||S-S_n||/||S|| = {}'.format(
-                round(self.relative_errors['S']*norm(self.f['S_'], 'L2'), round_precision),
-                round(self.relative_errors['S'], round_precision)))
+                round(self.relative_errors['S']*norm(self.f['S_'], 'L2'), self.round_precision),
+                round(self.relative_errors['S'], self.round_precision)))
 
     def save_solutions_xdmf(self):
         """Saves current timestep solutions to XDMF file (Paraview)"""

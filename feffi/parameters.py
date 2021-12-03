@@ -116,6 +116,12 @@ def define_parameters(user_config={}):
     if config.get('convert_from_ms_to_kmh') and config['convert_from_ms_to_kmh']:
         config.update(convert_constants_from_ms_to_kmh(config))
 
+    # Cast ice geometry points to tuples + compute ice slope
+    config['ice_shelf_bottom_p'] = eval(config['ice_shelf_bottom_p'])
+    config['ice_shelf_top_p'] = eval(config['ice_shelf_top_p'])
+    config['ice_shelf_slope'] = ((config['ice_shelf_top_p'][1]-config['ice_shelf_bottom_p'][1])
+                                 /(config['ice_shelf_top_p'][0]-config['ice_shelf_bottom_p'][0]))
+
     init_logging()
 
 

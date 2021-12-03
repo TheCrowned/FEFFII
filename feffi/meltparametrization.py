@@ -1,6 +1,6 @@
 from fenics import (dx, Function, FunctionSpace, FiniteElement, lhs, rhs,
                     Constant, norm, MixedElement, TestFunctions, solve,
-                    TrialFunctions, ln)
+                    TrialFunctions, ln, UserExpression, interpolate)
 from . import parameters, plot
 import fenics
 
@@ -52,6 +52,7 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     Tzd : temperature field at ice-ocean interface
     Szd : salinity field at ice-ocean interface
     """
+    config = parameters.config
     mesh = uw.function_space().mesh()
     P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
     element = MixedElement([P1, P1, P1])
@@ -61,73 +62,55 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     sol = Function(V)
 
     ## Shorthand for constants
-    Cd    = parameters.config['3eqs']['Cd']
-    cw    = parameters.config['3eqs']['cw']
-    rhofw = parameters.config['3eqs']['rhofw']
-    rhosw = parameters.config['3eqs']['rhosw']
-    lam1  = parameters.config['3eqs']['lam1']
-    lam2  = parameters.config['3eqs']['lam2']
-    lam3  = parameters.config['3eqs']['lam3']
-    L     = parameters.config['3eqs']['L']
-    Ut    = parameters.config['3eqs']['Ut']
-    rho_I    = parameters.config['3eqs']['rho_I']
-    c_pI    = parameters.config['3eqs']['c_pI']
-    k_I    = parameters.config['3eqs']['k_I']
-    #g    = parameters.config['3eqs']['g']
-    Ts    = parameters.config['3eqs']['Ts']
-    gammaT    = parameters.config['3eqs']['gammaT']
-    gammaS    = parameters.config['3eqs']['gammaS']
+    #Cd    = config['3eqs']['Cd']
+    cw    = config['3eqs']['cw']
+    rhofw = config['3eqs']['rhofw']
+    rhosw = config['3eqs']['rhosw']
+    lam1  = config['3eqs']['lam1']
+    lam2  = config['3eqs']['lam2']
+    lam3  = config['3eqs']['lam3']
+    L     = config['3eqs']['L']
+    rho_I = config['3eqs']['rho_I']
+    c_pI  = config['3eqs']['c_pI']
+    k_I   = config['3eqs']['k_I']
+    Ts    = config['3eqs']['Ts']
+    #gammaT    = config['3eqs']['gammaT']
+    #gammaS    = config['3eqs']['gammaS']
 
-    Ustar = (Cd*(uw.sub(0)**2+uw.sub(1)**2)+Ut**2)**(1/2) # Ut is needed, maybe in case uw is 0 at some point?
+    Ustar = interpolate(Ustar_expr(uw), uw.function_space()).sub(0)
+    #plot.plot_single(Ustar, display=False, file_name='ustar.png')
 
-    ice_shelf_bottom_p = (0,0.05,0)
-    ice_shelf_top_p = (5,1,0)
-    ice_shelf_slope = (ice_shelf_top_p[1]-ice_shelf_bottom_p[1])/(ice_shelf_top_p[0]-ice_shelf_bottom_p[0])
-
-    #Ustar_expr = fenics.interpolate(fenics.Expression('sin(x[0])', degree=2, u=uw, Cd=Cd, Ut=Ut, u1=uw.sub(0), u2=uw.sub(1)), V.extract_sub_space([1]).collapse())
-    class Ustar_class(fenics.UserExpression):
-        def eval(self, value, x):
-                x_b = ((x[1]-ice_shelf_bottom_p[1])/ice_shelf_slope)
-                y_b = x[1]-0.01
-                if y_b <= 0:
-                    y_b = 0
-                if x_b <= 0:
-                    x_b = 0
-                if (abs(x[0]-x_b) + abs(x[1]-y_b) > .5):
-                    value[0] = 0.00001**2
-                else:
-                    value[0] = ((uw(x_b, y_b)[0]**2+uw(x_b, y_b)[1]**2)+0.00001**2)**(1/2)
-                #print('p ({}, {}) becomes ({}, {}), val {}'.format(round(x[0],2), round(x[1],2), round(x_b,2), round(y_b,2), round(value[0],5)))
-        def value_shape(self):
-            return (2,) #for some unknown reason the expression doesn't work if I return a scalar
-    UstarB = fenics.interpolate(Ustar_class(), uw.function_space()).sub(0)
-    #print(f0(8,0.5))
-    plot.plot_single(UstarB, display=False, file_name='ustar.png')
-
-    #gammaT = fenics.Expression('1/(12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
-
-    gammaT = fenics.Expression('1/(2.12*std::log(UstarB*0.03/nu)+12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, UstarB=UstarB, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
+    #gammaT = fenics.Expression('1/(2.12*std::log(Ustar*0.03/nu)+12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, Ustar=Ustar, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
     #plot.plot_single(fenics.interpolate(gammaT,V.extract_sub_space([1]).collapse()), display=True)
-
     #gammaS = gammaT
 
-    y = fenics.interpolate(fenics.Expression('1-x[1]', degree=2), V.extract_sub_space([1]).collapse())
-    F = ( (+ rhofw*mw*L - rho_I*c_pI*k_I*(Ts-Tzd)/(y) + rhosw*cw*UstarB*gammaT*(Tzd-Tw))*v_1*dx
+    ## gamma(T,S)
+    xiN = 0.052
+    etaStar = 1
+    k = 0.40
+    Pr = 13.8
+    Sc = 2432
+
+    gammaT = fenics.Constant(1/(1/(2*xiN*etaStar)-1/k  +  12.5*(Pr**(2/3)) - 6)) #', degree=2, xiN=xiN, etaStar=etaStar, )
+    gammaS = fenics.Constant(1/(1/(2*xiN*etaStar)-1/k  +  12.5*(Sc**(2/3)) - 6)) #', degree=2, xiN=xiN, etaStar=etaStar, )
+    #print('gammaT, S {} {}'.format(gammaT.values(), gammaS.values()))
+
+    y = interpolate(fenics.Expression('1-x[1]', degree=2), V.extract_sub_space([1]).collapse())
+    F = ( (+ rhofw*mw*L - rho_I*c_pI*k_I*(Ts-Tzd)/(y) + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
            + (Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
-           + (rhofw*mw*Sw + rhosw*UstarB*gammaS*(Szd-Sw))*v_3*dx )
+           + (rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx )
            # last equation should have lhs rhofw*mw*Szd, but this is a common
            # linear approximation (source: Johan)
 
     solve(lhs(F) == rhs(F), sol)
     sol_splitted = sol.split()
-    #sol_splitted[0].assign(sol_splitted[0]*)
     sol_splitted[0].rename('mw', 'meltrate')
     sol_splitted[1].rename('Tzd', 'Tzd')
     sol_splitted[2].rename('Szd', 'Szd')
     return (sol_splitted[0], sol_splitted[1], sol_splitted[2])
 
 
-def build_heat_flux_forcing_term(u_, Tw, mw, Tzd):
+def build_heat_flux_forcing_term(uw, Tw, mw, Tzd):
 
     ## Shorthand for constants
     Cd    = parameters.config['3eqs']['Cd']
@@ -139,21 +122,32 @@ def build_heat_flux_forcing_term(u_, Tw, mw, Tzd):
 
     #gammaT = fenics.Expression('1/(12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
     #print(gammaT(0.44, 0.55))
-    Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
+    Ustar = interpolate(Ustar_expr(uw), uw.function_space()).sub(0)
+
+
+    ## gamma(T,S)
+    xiN = 0.052
+    etaStar = 1
+    k = 0.40
+    Pr = 13.8
+    Sc = 2432
+
+    gammaT = fenics.Constant(1/(1/(2*xiN*etaStar)-1/k  +  12.5*(Pr**(2/3)) - 6)) #', degree=2, xiN=xiN, etaStar=etaStar, )
+    gammaS = fenics.Constant(1/(1/(2*xiN*etaStar)-1/k  +  12.5*(Sc**(2/3)) - 6)) #', degree=2, xiN=xiN, etaStar=etaStar, )
 
     Fh = -(Ustar*gammaT+mw)*(Tzd-Tw)
 
     # These are for to allow plotting of flux boundary term values
-    Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
-    Ustar = fenics.interpolate(Ustar, Tzd.function_space().collapse())
-    Fh_func = fenics.Expression('-(Ustar*gammaT+mw)*(Tzd-Tw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaT=gammaT, rhofw=rhofw, Tzd=Tzd, Tw=Tw, mw=mw, cw=cw)
-    Fh_func = fenics.interpolate(Fh_func, Tzd.function_space().collapse())
-    Fh_func.rename('heat_flux', '')
+    #Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=uw.sub(0), u2=uw.sub(1))
+    #Ustar = fenics.interpolate(Ustar, Tzd.function_space().collapse())
+    #Fh_func = fenics.Expression('-(Ustar*gammaT+mw)*(Tzd-Tw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaT=gammaT, rhofw=rhofw, Tzd=Tzd, Tw=Tw, mw=mw, cw=cw)
+    #Fh_func = fenics.interpolate(Fh_func, Tzd.function_space().collapse())
+    #Fh_func.rename('heat_flux', '')
 
-    return Fh, Fh_func
+    return Fh, False
 
 
-def build_salinity_flux_forcing_term(u_, Sw, mw, Szd):
+def build_salinity_flux_forcing_term(uw, Sw, mw, Szd):
 
     ## Shorthand for constants
     Cd    = parameters.config['3eqs']['Cd']
@@ -164,15 +158,56 @@ def build_salinity_flux_forcing_term(u_, Sw, mw, Szd):
 
     #gammaS = fenics.Expression('1/(12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
 
-    Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
+    Ustar = interpolate(Ustar_expr(uw), uw.function_space()).sub(0)
+
+
+    ## gamma(T,S)
+    xiN = 0.052
+    etaStar = 1
+    k = 0.40
+    Pr = 13.8
+    Sc = 2432
+
+    gammaT = fenics.Constant(1/(1/(2*xiN*etaStar)-1/k  +  12.5*(Pr**(2/3)) - 6)) #', degree=2, xiN=xiN, etaStar=etaStar, )
+    gammaS = fenics.Constant(1/(1/(2*xiN*etaStar)-1/k  +  12.5*(Sc**(2/3)) - 6)) #', degree=2, xiN=xiN, etaStar=etaStar, )
 
     Fs = -(Ustar*gammaS+mw)*(Szd-Sw)
 
     # These are for to allow plotting of flux boundary term values
-    Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
-    Ustar = fenics.interpolate(Ustar, Szd.function_space().collapse())
-    Fs_func = fenics.Expression('-(Ustar*gammaS+mw)*(Szd-Sw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaS=gammaS, rhofw=rhofw, Szd=Szd, Sw=Sw, mw=mw)
-    Fs_func = fenics.interpolate(Fs_func, Szd.function_space().collapse())
-    Fs_func.rename('salt_flux', '')
+    #Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=uw.sub(0), u2=uw.sub(1))
+    #Ustar = fenics.interpolate(Ustar, Szd.function_space().collapse())
+    #Fs_func = fenics.Expression('-(Ustar*gammaS+mw)*(Szd-Sw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaS=gammaS, rhofw=rhofw, Szd=Szd, Sw=Sw, mw=mw)
+    #Fs_func = fenics.interpolate(Fs_func, Szd.function_space().collapse())
+    #Fs_func.rename('salt_flux', '')
 
-    return Fs, Fs_func
+    return Fs, False
+
+
+class Ustar_expr(UserExpression):
+    def __init__(self, u):
+        self.u = u
+        super().__init__()
+
+    def eval(self, value, x):
+        ## Shorthand for constants
+        ice_shelf_bottom_p = parameters.config['ice_shelf_bottom_p']
+        ice_shelf_slope = parameters.config['ice_shelf_slope']
+        boundary_layer_thickness = parameters.config['boundary_layer_thickness']
+        Cd = parameters.config['3eqs']['Cd']
+        Ut = parameters.config['3eqs']['Ut']
+
+        x_b = (x[1]-ice_shelf_bottom_p[1])/ice_shelf_slope
+        y_b = x[1]-boundary_layer_thickness
+        if y_b <= 0:
+            y_b = 0
+        if x_b <= 0:
+            x_b = 0
+
+        if (abs(x[0]-x_b) + abs(x[1]-y_b) > 2*boundary_layer_thickness):
+            value[0] = Cd*Ut**2
+        else:
+            value[0] = Cd*((self.u(x_b, y_b)[0]**2+self.u(x_b, y_b)[1]**2) + Ut**2)**(1/2)
+        #print('p ({}, {}) becomes ({}, {}), val {}'.format(round(x[0],2), round(x[1],2), round(x_b,2), round(y_b,2), round(value[0],5)))
+
+    def value_shape(self):
+        return (2,) # cause if value is a scalar, it is not mutable and thus not working
