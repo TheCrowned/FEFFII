@@ -29,6 +29,7 @@ def main():
 
     ## Config shorthands
     domain_size_x = config['domain_size_x']
+    domain_size_y = config['domain_size_y']
     mesh_resolution = config['mesh_resolution']
     ice_shelf_bottom_p = config['ice_shelf_bottom_p']
     ice_shelf_top_p = config['ice_shelf_top_p']
@@ -37,10 +38,10 @@ def main():
     # Set up geometry + mesh.
     # FEniCS mesher seems much faster than pyGmsh for fine meshes,
     # and does not require meshio which has been problematic for Jonathan.
-    points = [(0,0,0), (domain_size_x,0,0),                     # bottom
-              (domain_size_x,1,0),                              # right
-              (ice_shelf_top_p[0],1,0), ice_shelf_top_p,        # top
-              ice_shelf_bottom_p]                               # left
+    points = [(0,0,0), (domain_size_x,0,0),                            # bottom
+              (domain_size_x,domain_size_y,0),                         # right
+              (ice_shelf_top_p[0],domain_size_y,0), ice_shelf_top_p,   # top
+              ice_shelf_bottom_p]                                      # left
     #points = [(0,0,0), (5,0,0), (5,1,0), (0,1,0),  (0, 0.0,0)]
 
     ## PyGMSH mesh generation
@@ -54,16 +55,16 @@ def main():
     geometry = mshr.Polygon(Points)
     fenics_mesh = mshr.generate_mesh(geometry, mesh_resolution)
 
-    feffi.plot.plot_single(fenics_mesh, display=True)
+    #feffi.plot.plot_single(fenics_mesh, display=True)
 
     class Bound_Ice_Side(SubDomain):
         def inside(self, x, on_boundary):
-            return ((0 <= x[0] <= ice_shelf_top_p[0]
-                and ice_shelf_bottom_p[1] <= x[1] <= 1)
+            return (((0 <= x[0] <= ice_shelf_top_p[0] and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y)
+                     or (near(x[0], ice_shelf_top_p[0]) and ice_shelf_top_p[1] <= x[1] <= domain_size_y))
                 and on_boundary)
 
     ## Mesh refinement ##
-    refine_size = 0.15
+    refine_size = 0.2
     tolerance = 0.05 # even if using <=, >=, some points on the lines are not taken, dunno why
     class Ice_Side_Refine(SubDomain):
         def inside(self, x, on_boundary):
@@ -73,22 +74,35 @@ def main():
 
     class Cavity_Refine(SubDomain):
         def inside(self, x, on_boundary):
-            return x[0] < ice_shelf_top_p[0]+10*tolerance # totally arbitrary tolerance
+            return x[0] < ice_shelf_top_p[0]+2*tolerance # totally arbitrary tolerance
+    class Cavity_Refine2(SubDomain):
+        def inside(self, x, on_boundary):
+            return x[0] < 0.3+tolerance/2 # totally arbitrary tolerance
 
     to_refine = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
     to_refine.set_all(False)
     Cavity_Refine().mark(to_refine, True)
     fenics_mesh = refine(fenics_mesh, to_refine)
     feffi.flog.info('Refined mesh at cavity')
-    feffi.plot.plot_single(fenics_mesh, display=True)
+    #feffi.plot.plot_single(fenics_mesh, display=True)
 
     to_refine = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
     to_refine.set_all(False)
     Ice_Side_Refine().mark(to_refine, True)
     fenics_mesh = refine(fenics_mesh, to_refine)
     feffi.flog.info('Refined mesh at ice boundary')
+    #feffi.plot.plot_single(fenics_mesh, display=True)
+
+    to_refine = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
+    to_refine.set_all(False)
+    Cavity_Refine2().mark(to_refine, True)
+    fenics_mesh = refine(fenics_mesh, to_refine)
+    feffi.flog.info('Refined mesh at ice boundary')
     feffi.plot.plot_single(fenics_mesh, display=True)
     #return
+
+    #fenics_mesh = feffi.mesh.refine_mesh_at_point(fenics_mesh, Point((10, 0.95, 0)))
+    #feffi.plot.plot_single(fenics_mesh, display=True)
 
     # Simulation setup
     f_spaces = feffi.functions.define_function_spaces(fenics_mesh)

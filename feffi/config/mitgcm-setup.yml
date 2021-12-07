@@ -32,11 +32,20 @@ BCs:
 melt_boundaries: #add left as list element below to turn on 3eqs
     - left_ice
 convert_from_ms_to_kmh: True
-very_verbose: True
+very_verbose: False
 stabilization: True
-checkpoint_interval: 5
-#plot_path: mitgcm-3eqs-10x1
-domain_size_x: 30
-mesh_resolution: 75
-ice_shelf_bottom_p: (0, 0.05, 0)
-ice_shelf_top_p: (10, 1, 0)
+checkpoint_interval: 100
+plot_path: mitgcm-3eqs-corner
+domain_size_x: 20
+domain_size_y: 1
+mesh_resolution: 50
+ice_shelf_bottom_p:
+- 0
+- 0.05
+- 0
+ice_shelf_top_p:
+- 10
+- 0.99
+- 0
+boundary_layer_thickness: .003
+store_solutions: true
