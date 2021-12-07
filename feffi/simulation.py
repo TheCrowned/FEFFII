@@ -97,7 +97,9 @@ class Simulation(object):
 
         flog.info('Initialized simulation.')
         flog.info('Running parameters:\n' + str(parameters.config))
-        flog.info('Mesh vertices {}, hmin {}, hmax {}'.format(domain.mesh.num_vertices(), domain.mesh.hmin(), domain.mesh.hmax()))
+        flog.info('Mesh vertices {}, hmin {}, hmax {}'.format(
+            domain.mesh.num_vertices(),
+            round(domain.mesh.hmin(), 4), round(domain.mesh.hmax(), 4)))
 
     def run(self):
         """Runs the simulation until a stopping condition is met."""
@@ -404,7 +406,8 @@ class Simulation(object):
 
         #t = self.n*self.config['final_time']/self.config['steps_n']
 
-        self.xdmffile_sol.write(self.f['u_'], self.n)
+        self.xdmffile_sol.write(self.f['u_'].sub(0), self.n)
+        self.xdmffile_sol.write(self.f['u_'].sub(1), self.n)
         self.xdmffile_sol.write(self.f['p_'], self.n)
         self.xdmffile_sol.write(self.f['T_'], self.n)
         self.xdmffile_sol.write(self.f['S_'], self.n)
@@ -440,7 +443,7 @@ class Simulation(object):
 
         with open(os.path.join(parameters.config['plot_path'],
                                'config.yml'), 'w') as save_handle:
-            yaml.dump(to_save_config, save_handle)
+            yaml.safe_dump(to_save_config, save_handle)
 
     def sigint_handler(self, sig, frame):
         """Catches CTRL-C when Simulation.run() is going,

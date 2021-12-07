@@ -1,6 +1,6 @@
 from fenics import (dx, Function, FunctionSpace, FiniteElement, lhs, rhs,
                     Constant, norm, MixedElement, TestFunctions, solve,
-                    TrialFunctions, ln, UserExpression, interpolate)
+                    TrialFunctions, ln, UserExpression, interpolate, near)
 from . import parameters, plot
 import fenics
 
@@ -78,7 +78,7 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     #gammaS    = config['3eqs']['gammaS']
 
     Ustar = interpolate(Ustar_expr(uw), uw.function_space()).sub(0)
-    #plot.plot_single(Ustar, display=False, file_name='ustar.png')
+    #plot.plot_single(Ustar, display=True, file_name='ustar.png')
 
     #gammaT = fenics.Expression('1/(2.12*std::log(Ustar*0.03/nu)+12.5*pow((nu/alpha), 2/3)-1.12)', degree=2, Ustar=Ustar, nu=parameters.config['nu'][1], alpha=parameters.config['alpha'][1])
     #plot.plot_single(fenics.interpolate(gammaT,V.extract_sub_space([1]).collapse()), display=True)
@@ -96,7 +96,7 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     #print('gammaT, S {} {}'.format(gammaT.values(), gammaS.values()))
 
     y = interpolate(fenics.Expression('1-x[1]', degree=2), V.extract_sub_space([1]).collapse())
-    F = ( (+ rhofw*mw*L - rho_I*c_pI*k_I*(Ts-Tzd)/(y) + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
+    F = ( (+ rhofw*mw*L - rho_I*c_pI*k_I*(Ts-Tzd)/y + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
            + (Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
            + (rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx )
            # last equation should have lhs rhofw*mw*Szd, but this is a common
@@ -107,6 +107,10 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     sol_splitted[0].rename('mw', 'meltrate')
     sol_splitted[1].rename('Tzd', 'Tzd')
     sol_splitted[2].rename('Szd', 'Szd')
+    #plot.plot_single(Tw, display=True)
+    #plot.plot_single(sol_splitted[0], display=True)
+    #plot.plot_single(sol_splitted[1], display=True)
+    #plot.plot_single(sol_splitted[2], display=True)
     return (sol_splitted[0], sol_splitted[1], sol_splitted[2])
 
 
@@ -140,8 +144,9 @@ def build_heat_flux_forcing_term(uw, Tw, mw, Tzd):
     # These are for to allow plotting of flux boundary term values
     #Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=uw.sub(0), u2=uw.sub(1))
     #Ustar = fenics.interpolate(Ustar, Tzd.function_space().collapse())
-    #Fh_func = fenics.Expression('-(Ustar*gammaT+mw)*(Tzd-Tw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaT=gammaT, rhofw=rhofw, Tzd=Tzd, Tw=Tw, mw=mw, cw=cw)
+    #Fh_func = fenics.Expression('-(Ustar*gammaT+mw)*(Tzd-Tw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaT=gammaT, Tzd=Tzd, Tw=Tw, mw=mw)
     #Fh_func = fenics.interpolate(Fh_func, Tzd.function_space().collapse())
+    #plot.plot_single(Fh_func, display=True)
     #Fh_func.rename('heat_flux', '')
 
     return Fh, False
@@ -191,22 +196,24 @@ class Ustar_expr(UserExpression):
     def eval(self, value, x):
         ## Shorthand for constants
         ice_shelf_bottom_p = parameters.config['ice_shelf_bottom_p']
+        ice_shelf_top_p = parameters.config['ice_shelf_top_p']
         ice_shelf_slope = parameters.config['ice_shelf_slope']
         boundary_layer_thickness = parameters.config['boundary_layer_thickness']
         Cd = parameters.config['3eqs']['Cd']
         Ut = parameters.config['3eqs']['Ut']
 
-        x_b = (x[1]-ice_shelf_bottom_p[1])/ice_shelf_slope
+        '''x_b = (x[1]-ice_shelf_bottom_p[1])/ice_shelf_slope
         y_b = x[1]-boundary_layer_thickness
         if y_b <= 0:
             y_b = 0
         if x_b <= 0:
-            x_b = 0
+            x_b = 0'''
 
-        if (abs(x[0]-x_b) + abs(x[1]-y_b) > 2*boundary_layer_thickness):
-            value[0] = Cd*Ut**2
+        #if x[0] < ice_shelf_top_p[0] and ice_shelf_slope*x[0]+ice_shelf_bottom_p[1] - x[1] <= boundary_layer_thickness:
+        if x[0] <= ice_shelf_top_p[0]+0.05 and ice_shelf_slope*x[0]+ice_shelf_bottom_p[1] - x[1] <= boundary_layer_thickness:
+            value[0] = Cd*((self.u(x[0], x[1])[0]**2+self.u(x[0], x[1])[1]**2) + Ut**2)**(1/2)
         else:
-            value[0] = Cd*((self.u(x_b, y_b)[0]**2+self.u(x_b, y_b)[1]**2) + Ut**2)**(1/2)
+            value[0] = Cd*Ut**2
         #print('p ({}, {}) becomes ({}, {}), val {}'.format(round(x[0],2), round(x[1],2), round(x_b,2), round(y_b,2), round(value[0],5)))
 
     def value_shape(self):
