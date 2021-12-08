@@ -17,8 +17,7 @@ def get_3eqs_default_constants():
         'lam1' : -0.0573,
         'lam2' : 0.0939, # 0.0832 misomip
         'lam3' : -7.53*10**(-8),
-        'rhofw' : 1000,
-        'rhosw' : 1028,
+        'rho_M' : 1025,
         'rho_I' : 920,
         'c_pI' : 2009,
         'k_I' : 1.14*10**(-6),
@@ -64,8 +63,8 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     ## Shorthand for constants
     #Cd    = config['3eqs']['Cd']
     cw    = config['3eqs']['cw']
-    rhofw = config['3eqs']['rhofw']
-    rhosw = config['3eqs']['rhosw']
+    rho_I = config['3eqs']['rho_I']
+    rho_M = config['3eqs']['rho_M']
     lam1  = config['3eqs']['lam1']
     lam2  = config['3eqs']['lam2']
     lam3  = config['3eqs']['lam3']
@@ -96,10 +95,10 @@ def solve_3eqs_system(uw, Tw, Sw, pzd):
     #print('gammaT, S {} {}'.format(gammaT.values(), gammaS.values()))
 
     y = interpolate(fenics.Expression('1-x[1]', degree=2), V.extract_sub_space([1]).collapse())
-    F = ( (+ rhofw*mw*L - rho_I*c_pI*k_I*(Ts-Tzd)/y + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
+    F = ( (+ rho_I*mw*L - rho_I*c_pI*k_I*(Ts-Tzd)/y + rho_M*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
            + (Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
-           + (rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx )
-           # last equation should have lhs rhofw*mw*Szd, but this is a common
+           + (rho_I*mw*Sw + rho_M*Ustar*gammaS*(Szd-Sw))*v_3*dx )
+           # last equation should have lhs rho_I*mw*Szd, but this is a common
            # linear approximation (source: Johan)
 
     solve(lhs(F) == rhs(F), sol)
@@ -119,8 +118,8 @@ def build_heat_flux_forcing_term(uw, Tw, mw, Tzd):
     ## Shorthand for constants
     Cd    = parameters.config['3eqs']['Cd']
     cw    = parameters.config['3eqs']['cw']
-    rhofw = parameters.config['3eqs']['rhofw']
-    rhosw = parameters.config['3eqs']['rhosw']
+    rho_I = parameters.config['3eqs']['rho_I']
+    rho_M = parameters.config['3eqs']['rho_M']
     Ut    = parameters.config['3eqs']['Ut']
     gammaT    = parameters.config['3eqs']['gammaT']
 
@@ -144,7 +143,7 @@ def build_heat_flux_forcing_term(uw, Tw, mw, Tzd):
     # These are for to allow plotting of flux boundary term values
     #Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=uw.sub(0), u2=uw.sub(1))
     #Ustar = fenics.interpolate(Ustar, Tzd.function_space().collapse())
-    #Fh_func = fenics.Expression('-(Ustar*gammaT+mw)*(Tzd-Tw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaT=gammaT, Tzd=Tzd, Tw=Tw, mw=mw)
+    #Fh_func = fenics.Expression('-(Ustar*gammaT+mw)*(Tzd-Tw)', degree=2, rho_M=rho_M, Ustar=Ustar, gammaT=gammaT, Tzd=Tzd, Tw=Tw, mw=mw)
     #Fh_func = fenics.interpolate(Fh_func, Tzd.function_space().collapse())
     #plot.plot_single(Fh_func, display=True)
     #Fh_func.rename('heat_flux', '')
@@ -156,8 +155,8 @@ def build_salinity_flux_forcing_term(uw, Sw, mw, Szd):
 
     ## Shorthand for constants
     Cd    = parameters.config['3eqs']['Cd']
-    rhofw = parameters.config['3eqs']['rhofw']
-    rhosw = parameters.config['3eqs']['rhosw']
+    rho_I = parameters.config['3eqs']['rho_I']
+    rho_M = parameters.config['3eqs']['rho_M']
     Ut    = parameters.config['3eqs']['Ut']
     gammaS    = parameters.config['3eqs']['gammaS']
 
@@ -181,7 +180,7 @@ def build_salinity_flux_forcing_term(uw, Sw, mw, Szd):
     # These are for to allow plotting of flux boundary term values
     #Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=uw.sub(0), u2=uw.sub(1))
     #Ustar = fenics.interpolate(Ustar, Szd.function_space().collapse())
-    #Fs_func = fenics.Expression('-(Ustar*gammaS+mw)*(Szd-Sw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaS=gammaS, rhofw=rhofw, Szd=Szd, Sw=Sw, mw=mw)
+    #Fs_func = fenics.Expression('-(Ustar*gammaS+mw)*(Szd-Sw)', degree=2, rho_M=rho_M, Ustar=Ustar, gammaS=gammaS, rho_I=rho_I, Szd=Szd, Sw=Sw, mw=mw)
     #Fs_func = fenics.interpolate(Fs_func, Szd.function_space().collapse())
     #Fs_func.rename('salt_flux', '')
 
