@@ -23,7 +23,7 @@ def get_3eqs_default_constants():
         'rho_I' : 920,              # density of ice
         'k_I' : 1.14*10**(-6),      # molecular thermal conductivity ice shelf
         'Ts' : -20,                 # temperature at ice shelf surface (value from mitgcm, JH has -25)
-        'Ut' : 0.001,               # tidal velocity, for us a regularization parameter
+        'Ut' : 0.1,               # tidal velocity, for us a regularization parameter
 
         ## Gamma(T,S)-related values
         'xi_N' : 0.052,              # stability constant
@@ -85,7 +85,8 @@ def solve_3eqs_system(u_M, T_M, S_M, p_B):
     Sc      = config['3eqs']['Sc']
 
     uStar = interpolate(uStar_expr(u_M), u_M.function_space()).sub(0)
-    plot.plot_single(uStar, display=True, file_name='ustar.png')
+    #plot.plot_single(uStar, display=True, file_name='ustar.png')
+    #plot.plot_single(u_M, display=True, file_name='u_M.png')
 
     gammaT = Constant(1/(1/(2*xi_N*etaStar)-1/k  +  12.5*(Pr**(2/3)) - 6))
     gammaS = Constant(1/(1/(2*xi_N*etaStar)-1/k  +  12.5*(Sc**(2/3)) - 6))
@@ -103,7 +104,6 @@ def solve_3eqs_system(u_M, T_M, S_M, p_B):
     m_B_sol.rename('m_B', 'meltrate')
     T_B_sol.rename('T_B', 'T_B')
     S_B_sol.rename('S_B', 'S_B')
-    plot.plot_single(T_B_sol, display=True, file_name='ustar.png')
     return (m_B_sol, T_B_sol, S_B_sol)
 
 
@@ -123,9 +123,9 @@ def build_heat_flux_forcing_term(u_M, T_M, m_B, T_B):
     Fh = -(uStar*gammaT+m_B)*(T_B-T_M)
 
     # These are for to allow plotting of flux boundary term values
-    Fh_func = fenics.Expression('-(uStar*gammaT+m_B)*(T_B-T_M)', degree=2, uStar=uStar, gammaT=gammaT, T_B=T_B, T_M=T_M, m_B=m_B)
-    Fh_func = fenics.interpolate(Fh_func, T_B.function_space().collapse())
-    plot.plot_single(Fh_func, display=True)
+    #Fh_func = Expression('-(uStar*gammaT+m_B)*(T_B-T_M)', degree=2, uStar=uStar, gammaT=gammaT, T_B=T_B, T_M=T_M, m_B=m_B)
+    #Fh_func = interpolate(Fh_func, T_B.function_space().collapse())
+    #plot.plot_single(Fh_func, display=True)
     #Fh_func.rename('heat_flux', '')
 
     return Fh, False
@@ -147,10 +147,8 @@ def build_salinity_flux_forcing_term(u_M, S_M, m_B, S_B):
     Fs = -(uStar*gammaS+m_B)*(S_B-S_M)
 
     # These are for to allow plotting of flux boundary term values
-    #uStar = fenics.Expression('sqrt((c_d*(u1*u1+u2*u2)+Ut*Ut))', degree=2, c_d=c_d, Ut=Ut, u1=u_M.sub(0), u2=u_M.sub(1))
-    #uStar = fenics.interpolate(uStar, S_B.function_space().collapse())
-    #Fs_func = fenics.Expression('-(uStar*gammaS+m_B)*(S_B-S_M)', degree=2, rho_M=rho_M, uStar=uStar, gammaS=gammaS, rho_I=rho_I, S_B=S_B, S_M=S_M, m_B=m_B)
-    #Fs_func = fenics.interpolate(Fs_func, S_B.function_space().collapse())
+    #Fs_func = Expression('-(uStar*gammaS+m_B)*(S_B-S_M)', degree=2, uStar=uStar, gammaS=gammaS, S_B=S_B, S_M=S_M, m_B=m_B)
+    #Fs_func = interpolate(Fs_func, S_B.function_space().collapse())
     #Fs_func.rename('salt_flux', '')
 
     return Fs, False
@@ -170,6 +168,9 @@ class uStar_expr(UserExpression):
         boundary_layer_thickness = config['boundary_layer_thickness']
         c_d = config['3eqs']['c_d']
         Ut = config['3eqs']['Ut']
+
+        x_b = x[0]
+        y_b = ice_shelf_slope*x[0]+ice_shelf_bottom_p[1] - boundary_layer_thickness
 
         # Only compute u* for points within boundary_layer_thickness distance from ice shelf
         #if x[0] < ice_shelf_top_p[0] and ice_shelf_slope*x[0]+ice_shelf_bottom_p[1] - x[1] <= boundary_layer_thickness:
