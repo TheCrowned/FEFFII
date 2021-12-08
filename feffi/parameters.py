@@ -512,15 +512,14 @@ def convert_constants_from_ms_to_kmh(config):
     config['alpha'] = [i*0.0036 for i in config['alpha']]
 
     config['3eqs']['L'] *= 3.6**2
-    config['3eqs']['cw'] *= 3.6**2
-    config['3eqs']['c_pI'] *= 3.6**2
+    config['3eqs']['c_M'] *= 3.6**2
+    config['3eqs']['c_I'] *= 3.6**2
     config['3eqs']['k_I'] *= 0.0036
-    config['3eqs']['rhofw'] /= 3.6**2
-    config['3eqs']['rhosw'] /= 3.6**2
+    config['3eqs']['rho_M'] /= 3.6**2
     config['3eqs']['rho_I'] /= 3.6**2
     config['3eqs']['Ut'] *= 3.6
-    config['3eqs']['gammaT'] *= 3.6
-    config['3eqs']['gammaS'] *= 3.6
+    #config['3eqs']['gammaT'] *= 3.6
+    #config['3eqs']['gammaS'] *= 3.6
 
     return config
 
@@ -537,15 +536,14 @@ def convert_constants_from_kmh_to_ms(config):
     config['alpha'] = [i/0.0036 for i in config['alpha']]
 
     config['3eqs']['L'] /= 3.6**2
-    config['3eqs']['cw'] /= 3.6**2
-    config['3eqs']['c_pI'] /= 3.6**2
+    config['3eqs']['c_M'] /= 3.6**2
+    config['3eqs']['c_I'] /= 3.6**2
     config['3eqs']['k_I'] /= 0.0036
-    config['3eqs']['rhofw'] *= 3.6**2
-    config['3eqs']['rhosw'] *= 3.6**2
+    config['3eqs']['rho_M'] *= 3.6**2
     config['3eqs']['rho_I'] *= 3.6**2
     config['3eqs']['Ut'] /= 3.6
-    config['3eqs']['gammaT'] /= 3.6
-    config['3eqs']['gammaS'] /= 3.6
+    #config['3eqs']['gammaT'] /= 3.6
+    #config['3eqs']['gammaS'] /= 3.6
 
     return config
 
