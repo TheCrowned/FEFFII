@@ -175,9 +175,9 @@ class uStar_expr(UserExpression):
         # Only compute u* for points within boundary_layer_thickness distance from ice shelf
         #if x[0] < ice_shelf_top_p[0] and ice_shelf_slope*x[0]+ice_shelf_bottom_p[1] - x[1] <= boundary_layer_thickness:
         if x[0] <= ice_shelf_top_p[0]+0.05 and ice_shelf_slope*x[0]+ice_shelf_bottom_p[1] - x[1] <= boundary_layer_thickness:
-            value[0] = c_d*((self.u(x[0], x[1])[0]**2+self.u(x[0], x[1])[1]**2) + Ut**2)**(1/2)
+            value[0] = max(10**(-3), c_d*((self.u(x[0], x[1])[0]**2+self.u(x[0], x[1])[1]**2))**(1/2))
         else:
-            value[0] = c_d*Ut**2
+            value[0] = 10**(-3) #c_d*Ut**2
 
     def value_shape(self):
         return (2,) # cause if value is a scalar, it is not mutable and thus not working
