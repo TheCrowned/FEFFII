@@ -266,9 +266,9 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
 
     F = (dot((T - T_n)/dt, T_v)*dx
          + dot(u_, grad(T))*T_v*dx #div(u_*T)*T_v*dx # div(u_) could be non-zero due to num error
-         + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx
-         + delta*l_supg
-         - delta*r_supg)
+         + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx)
+         #+ delta*l_supg
+         #- delta*r_supg)
 
     ## (Maybe) Build heat flux forcing term ##
     if mw is not False:
@@ -278,9 +278,9 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
         Fh, Fh_func = build_heat_flux_forcing_term(u_, T_n, mw, Tzd)
         #boundaries.visualize_f_on_boundary(T_n, domain, 'left_ice')
         #boundaries.visualize_f_on_boundary(Fh_func, domain, 'left_ice')
-        for domain_label in parameters.config['melt_boundaries']:
-            if domain_label != None:
-                F += dot(Fh, T_v)*ds(domain.subdomains_markers[domain_label])
+        #for domain_label in parameters.config['melt_boundaries']:
+        #    if domain_label != None:
+        #        F += dot(Fh, T_v)*ds(domain.subdomains_markers[domain_label])
 
     return F
 
@@ -312,9 +312,9 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
 
     F = (dot((S - S_n)/dt, S_v)*dx
          + dot(u_,grad(S))*S_v*dx#div(u_*S)*S_v*dx
-         + dot(elem_mult(get_matrix_diagonal(alpha), grad(S)), grad(S_v))*dx
-         + delta*l_supg
-         - delta*r_supg)
+         + dot(elem_mult(get_matrix_diagonal(alpha), grad(S)), grad(S_v))*dx)
+         #+ delta*l_supg
+         #- delta*r_supg)
 
     ## (Maybe) Build salinity flux forcing term ##
     if mw is not False:
