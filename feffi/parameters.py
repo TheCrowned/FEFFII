@@ -117,8 +117,11 @@ def define_parameters(user_config={}):
         config.update(convert_constants_from_ms_to_kmh(config))
 
     # Compute ice shelf slope
-    config['ice_shelf_slope'] = ((config['ice_shelf_top_p'][1]-config['ice_shelf_bottom_p'][1])
-                                 /(config['ice_shelf_top_p'][0]-config['ice_shelf_bottom_p'][0]))
+    try:
+        config['ice_shelf_slope'] = ((config['ice_shelf_top_p'][1]-config['ice_shelf_bottom_p'][1])
+                                    /(config['ice_shelf_top_p'][0]-config['ice_shelf_bottom_p'][0]))
+    except ZeroDivisionError:
+        config['ice_shelf_slope'] = None
 
     init_logging()
 
