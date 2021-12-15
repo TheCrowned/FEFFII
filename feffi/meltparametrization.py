@@ -170,11 +170,15 @@ class uStar_expr(UserExpression):
         Ut = config['3eqs']['Ut']
 
         x_b = x[0]
-        y_b = ice_shelf_slope*x[0]+ice_shelf_bottom_p[1] - boundary_layer_thickness
+        try:
+            y_b = ice_shelf_slope*x[0]+ice_shelf_bottom_p[1]
+        except TypeError: # vertical ice shelf
+            x_b = 0
+            y_b = x[1]
 
         # Only compute u* for points within boundary_layer_thickness distance from ice shelf
         #if x[0] < ice_shelf_top_p[0] and ice_shelf_slope*x[0]+ice_shelf_bottom_p[1] - x[1] <= boundary_layer_thickness:
-        if x[0] <= ice_shelf_top_p[0]+0.05 and ice_shelf_slope*x[0]+ice_shelf_bottom_p[1] - x[1] <= boundary_layer_thickness:
+        if x[0] <= ice_shelf_top_p[0]+0.05 and y_b - x[1] <= boundary_layer_thickness:
             value[0] = max(10**(-3), c_d*((self.u(x[0], x[1])[0]**2+self.u(x[0], x[1])[1]**2))**(1/2))
         else:
             value[0] = 10**(-3) #c_d*Ut**2

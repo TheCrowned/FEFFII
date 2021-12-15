@@ -1,0 +1,56 @@
+final_time: 240
+steps_n: 30    # dt = 1/30 h = 120 s  (kimura 200 s)
+simulation_precision: -6
+g: 9.81
+nu: 
+- 0.25
+- 0.001
+alpha:
+- 0.25 #- 0.25
+- 0.00002 #- 0.00002
+rho_0: 1000
+beta: 0.00004
+gamma: 0.0008
+T_0: 0.4
+S_0: 35
+max_iter: 0
+BCs:
+    V:
+        right: [0,0]
+        bottom: [0,0]
+        left_ice: [0,0]
+        left: [0,0]
+        top: ['null',0]
+    T:
+        #left_ice: 0.2 #output values from john's setup
+        right: 0.4
+        #bottom: 0.4
+    Q:
+        '(1,1)': 0
+    S:
+        #left_ice: 34.82 #output values from john's setup
+        right: 35
+        #bottom: 35
+melt_boundaries: #add left as list element below to turn on 3eqs
+    - left_ice
+convert_from_ms_to_kmh: True
+very_verbose: True
+stabilization_NS: True
+stabilization_T: True
+stabilization_S: True
+checkpoint_interval: 10
+plot_path: simple-fjord-dirichletbc-constant-with-supg-deltats0.50.8-finer-melting-smallshelf
+domain_size_x: 11
+domain_size_y: 1
+mesh_resolution: 90
+ice_shelf_bottom_p:
+- 0
+- 0.05
+- 0
+ice_shelf_top_p:
+- 10
+- 0.95
+- 0
+boundary_layer_thickness: .005
+store_solutions: true
+max_iter: 0

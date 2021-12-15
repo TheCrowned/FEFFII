@@ -258,10 +258,10 @@ class Simulation(object):
         # parametrization is enabled in this run
         else:
             mw, Tzd, Szd = False, False, False
-        plot.plot_single(Tzd, display=True)
+        #plot.plot_single(Tzd, display=True)
         flog.debug('Solving for T and S...')
 
-        BCs_T = self.BCs['T']
+        '''BCs_T = self.BCs['T']
         BCs_T.append(0)
         T_B_boundary = Expression('T_B', degree=2, T_B=Tzd)
         BCs_T[-1] = DirichletBC(self.f['T_'].function_space(), T_B_boundary, self.domain.marked_subdomains, self.domain.subdomains_markers['left_ice'])
@@ -269,13 +269,13 @@ class Simulation(object):
         BCs_S = self.BCs['S']
         BCs_S.append(0)
         S_B_boundary = Expression('S_B', degree=2, S_B=Szd)
-        BCs_S[-1] = DirichletBC(self.f['S_'].function_space(), S_B_boundary, self.domain.marked_subdomains, self.domain.subdomains_markers['left_ice'])
+        BCs_S[-1] = DirichletBC(self.f['S_'].function_space(), S_B_boundary, self.domain.marked_subdomains, self.domain.subdomains_markers['left_ice'])'''
 
         if parameters.config['beta'] != 0: #do not run if not coupled with velocity
             T_form = build_temperature_form(self.f['T'], self.f['T_n'],
                                             self.f['T_v'], self.f['u_'],
                                             mw, Tzd, self.domain)
-            solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=BCs_T)
+            solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'])
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
             S_form = build_salinity_form(self.f['S'], self.f['S_n'],
