@@ -46,15 +46,56 @@ def main():
     #points = [(0,0,0), (5,0,0), (5,1,0), (0,1,0),  (0, 0.0,0)]
 
     ## PyGMSH mesh generation
-    #g = pygmsh.built_in.Geometry()
-    #pol = g.add_polygon(points, lcar=1/mesh_resolution)
-    #mesh = generate_mesh(g)
-    #fenics_mesh = Mesh(MPI.comm_world, mesh)
+    def pygmsh2fenics_mesh(mesh):
+        points = mesh.points[:,:2]
+
+        print("Writing 2d mesh for dolfin Mesh")
+        meshio.write("mesh_2d.xdmf", meshio.Mesh(
+            points=points,
+            cells={"triangle": mesh.cells_dict["triangle"]}))
+
+        mesh_2d = fenics.Mesh()
+        with fenics.XDMFFile("mesh_2d.xdmf") as infile:
+            print("Reading 2d mesh into dolfin")
+            infile.read(mesh_2d)
+
+        return mesh_2d
+
+    fenics_mesh = False
+    with pygmsh.geo.Geometry() as geom:
+        poly = geom.add_polygon(points, mesh_size=0.05)#1/mesh_resolution)
+
+        mesh = geom.generate_mesh()
+        mesh.write('mesh.xdmf')
+        fenics_mesh = pygmsh2fenics_mesh(mesh)
+        feffi.plot.plot_single(fenics_mesh, display=True)
+
+    with pygmsh.geo.Geometry() as geom:
+        poly = geom.add_polygon(points, mesh_size=0.05)#1/mesh_resolution)
+
+        # Refine
+        field0 = geom.add_boundary_layer(
+            edges_list=[poly.curve_loop.curves[0]],
+            lcmin=0.008,
+            lcmax=0.05,
+            distmin=0.15, # distance up until which mesh size will be lcmin
+            distmax=0.35, # distance starting at which mesh size will be lcmax
+        )
+        geom.set_background_mesh([field0], operator="Min")
+
+        mesh = geom.generate_mesh()
+        mesh.write('mesh.xdmf')
+        fenics_mesh = pygmsh2fenics_mesh(mesh)
+        #feffi.plot.plot_single(fenics_mesh, display=True)
+
+
+    return
+
 
     ## FEniCS Mesher generator
-    Points = [Point(p) for p in points]
-    geometry = mshr.Polygon(Points)
-    fenics_mesh = mshr.generate_mesh(geometry, mesh_resolution)
+    #Points = [Point(p) for p in points]
+    #geometry = mshr.Polygon(Points)
+    #fenics_mesh = mshr.generate_mesh(geometry, mesh_resolution)
     #fenics_mesh = UnitSquareMesh(mesh_resolution,mesh_resolution)
 
 
@@ -82,16 +123,15 @@ def main():
     to_refine = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
     to_refine.set_all(False)
     Ice_Side_Refine().mark(to_refine, True)
-    fenics_mesh = refine(fenics_mesh, to_refine)
-    feffi.plot.plot_single(fenics_mesh,display=True)
+    #fenics_mesh = refine(fenics_mesh, to_refine)
+    #feffi.plot.plot_single(fenics_mesh,display=True)
 
     refine_size = 0.04
     to_refine = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
     to_refine.set_all(False)
     Ice_Side_Refine().mark(to_refine, True)
-    fenics_mesh = refine(fenics_mesh, to_refine)
-
-    feffi.plot.plot_single(fenics_mesh,display=True)
+    #fenics_mesh = refine(fenics_mesh, to_refine)
+    #feffi.plot.plot_single(fenics_mesh,display=True)
 
     # Simulation setup
     f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
