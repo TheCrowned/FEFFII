@@ -453,33 +453,39 @@ def visualize_f_on_boundary(f, domain, boundary_label):
 class Bound_Top(SubDomain):
     def __init__(self, mesh):
         self.mesh = mesh
+        self.dim = self.mesh.geometric_dimension()
+
+        if self.dim == 2:
+            self.top_coord = max(self.mesh.coordinates()[:,1])
+        elif self.dim == 3:
+            self.top_coord = max(self.mesh.coordinates()[:,2])
+
         super().__init__()
 
     def inside(self, x, on_boundary):
-        dim = self.mesh.geometric_dimension()
-
-        if dim == 2:
-            top_coord = max(self.mesh.coordinates()[:,1])
-            return near(x[1], top_coord) and on_boundary
-        elif dim == 3:
-            top_coord = max(self.mesh.coordinates()[:,2])
-            return near(x[2], top_coord) and on_boundary
+        if self.dim == 2:
+            return near(x[1], self.top_coord) and on_boundary
+        elif self.dim == 3:
+            return near(x[2], self.top_coord) and on_boundary
 
 
 class Bound_Bottom(SubDomain):
     def __init__(self, mesh):
         self.mesh = mesh
+        self.dim = self.mesh.geometric_dimension()
+
+        if self.dim == 2:
+            self.bottom_coord = min(self.mesh.coordinates()[:,1])
+        elif self.dim == 3:
+            self.bottom_coord = min(self.mesh.coordinates()[:,2])
+
         super().__init__()
 
     def inside(self, x, on_boundary):
-        dim = self.mesh.geometric_dimension()
-
-        if dim == 2:
-            bottom_coord = min(self.mesh.coordinates()[:,1])
-            return near(x[1], bottom_coord) and on_boundary
-        elif dim == 3:
-            bottom_coord = min(self.mesh.coordinates()[:,2])
-            return near(x[2], bottom_coord) and on_boundary
+        if self.dim == 2:
+            return near(x[1], self.bottom_coord) and on_boundary
+        elif self.dim == 3:
+            return near(x[2], self.bottom_coord) and on_boundary
 
 
 class Bound_Front(SubDomain): # 3D only
@@ -495,21 +501,22 @@ class Bound_Back(SubDomain): # 3D only
 class Bound_Left(SubDomain):
     def __init__(self, mesh):
         self.mesh = mesh
+        self.left_coord = min(self.mesh.coordinates()[:,0])
         super().__init__()
 
     def inside(self, x, on_boundary):
-        left_coord = min(self.mesh.coordinates()[:,0])
-        return near(x[0], left_coord) and on_boundary
+        return near(x[0], self.left_coord) and on_boundary
 
 
 class Bound_Right(SubDomain):
     def __init__(self, mesh):
         self.mesh = mesh
+        self.right_coord = max(self.mesh.coordinates()[:,0])
+
         super().__init__()
 
     def inside(self, x, on_boundary):
-        right_coord = max(self.mesh.coordinates()[:,0])
-        return near(x[0], right_coord) and on_boundary
+        return near(x[0], self.right_coord) and on_boundary
 
 
 class Bound_Ice_Shelf_Bottom(SubDomain):
