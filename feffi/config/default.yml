@@ -47,7 +47,9 @@ max_iter: 0
 non_linear_max_iter: 30
 
 pressure_split: False
-stabilization: False
+stabilization_NS: True
+stabilization_T: True
+stabilization_S: True
 delta0: 1
 tau0: 35
 
