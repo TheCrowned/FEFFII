@@ -34,75 +34,66 @@ def main():
     ice_shelf_bottom_p = config['ice_shelf_bottom_p']
     ice_shelf_top_p = config['ice_shelf_top_p']
     ice_shelf_slope = config['ice_shelf_slope']
+    ice_shelf_f = lambda x: ice_shelf_slope*x+ice_shelf_bottom_p[1]
 
-    # Set up geometry + mesh.
-    # FEniCS mesher seems much faster than pyGmsh for fine meshes,
-    # and does not require meshio which has been problematic for Jonathan.
-    points = [(0,0,0), (domain_size_x,0,0),                            # bottom
-              (domain_size_x,domain_size_y,0),                         # right
-              (ice_shelf_top_p[0],domain_size_y,0), ice_shelf_top_p,   # top
-              ice_shelf_bottom_p]                                      # left
-    #points = [(0,0,0), (5,0,0), (5,1,0), (0,1,0),  (0, 0.0,0)]
+    ##############################
+    ### Set up geometry + mesh ###
+    ##############################
 
-    ## PyGMSH mesh generation
-    #g = pygmsh.built_in.Geometry()
-    #pol = g.add_polygon(points, lcar=0.5)
-    #mesh = pygmsh.generate_mesh(g)
-    #fenics_mesh = Mesh(MPI.comm_world, mesh)
+    # FEniCS mesher seems much faster than pyGmsh for fine meshes, but
+    # pyGmsh allows fine grained control over mesh size at different locations.
 
-    ## FEniCS Mesher generator
-    Points = [Point(p) for p in points]
-    geometry = mshr.Polygon(Points)
-    fenics_mesh = mshr.generate_mesh(geometry, mesh_resolution)
+    # pygmsh handles long boundary refinement badly, so we need to interval the
+    # ice shelf boundary with many points, see
+    # https://github.com/nschloe/pygmsh/issues/506
+    shelf_points_x = list(np.arange(ice_shelf_bottom_p[0], ice_shelf_top_p[0], 0.1))
+    shelf_points_x.reverse()
+    shelf_points = [(x, ice_shelf_f(x), 0) for x in shelf_points_x[0:-1]] # exclude last (bottom) point to avoid duplicate
+
+    points = [(0,0,0), (domain_size_x,0,0),                           # bottom
+              (domain_size_x,domain_size_y,0),                        # right
+              (ice_shelf_top_p[0],domain_size_y,0), ice_shelf_top_p]  # sea top
+    points += shelf_points                                            # ice shelf
+    points += [ice_shelf_bottom_p]                                    # left
+
+    ##############################
+    ### PyGMSH mesh generation ###
+    ##############################
+
+    fenics_mesh = False
+    with pygmsh.geo.Geometry() as geom:
+        poly = geom.add_polygon(points, mesh_size=1/mesh_resolution)
+
+        # Refine
+        refine_lines = [poly.curve_loop.curves[i] for i in range(len(points)-len(shelf_points)-3, len(points)-1)]
+        field0 = geom.add_boundary_layer(
+            edges_list=refine_lines,
+            lcmin=0.03,
+            lcmax=0.5,
+            distmin=0.10, # distance up until which mesh size will be lcmin
+            distmax=0.20, # distance starting at which mesh size will be lcmax
+        )
+        field1 = geom.add_boundary_layer(
+            edges_list=refine_lines,
+            lcmin=0.005,
+            lcmax=0.5,
+            distmin=0.01, # distance up until which mesh size will be lcmin
+            distmax=0.10, # distance starting at which mesh size will be lcmax
+        )
+        geom.set_background_mesh([field0, field1], operator="Min")
+
+        mesh = geom.generate_mesh()
+        mesh.write('mesh.xdmf')
+        fenics_mesh = pygmsh2fenics_mesh(mesh)
+        #print(fenics_mesh.num_vertices())
 
     #feffi.plot.plot_single(fenics_mesh, display=True)
 
-    class Bound_Ice_Side(SubDomain):
+    class Bound_Ice_Shelf(SubDomain):
         def inside(self, x, on_boundary):
             return (((0 <= x[0] <= ice_shelf_top_p[0] and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y)
                      or (near(x[0], ice_shelf_top_p[0]) and ice_shelf_top_p[1] <= x[1] <= domain_size_y))
                 and on_boundary)
-
-    ## Mesh refinement ##
-    refine_size = 0.2
-    tolerance = 0.05 # even if using <=, >=, some points on the lines are not taken, dunno why
-    class Ice_Side_Refine(SubDomain):
-        def inside(self, x, on_boundary):
-            return (0 <= x[0] <= ice_shelf_top_p[0]+1.5*refine_size+tolerance
-                and x[1] <= ice_shelf_slope*x[0]+(ice_shelf_bottom_p[1]+tolerance)
-                and x[1] >= ice_shelf_slope*x[0]+(ice_shelf_bottom_p[1]-refine_size-tolerance))
-
-    class Cavity_Refine(SubDomain):
-        def inside(self, x, on_boundary):
-            return x[0] < ice_shelf_top_p[0]+2*tolerance # totally arbitrary tolerance
-    class Cavity_Refine2(SubDomain):
-        def inside(self, x, on_boundary):
-            return x[0] < 0.3+tolerance/2 # totally arbitrary tolerance
-
-    to_refine = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
-    to_refine.set_all(False)
-    Cavity_Refine().mark(to_refine, True)
-    fenics_mesh = refine(fenics_mesh, to_refine)
-    feffi.flog.info('Refined mesh at cavity')
-    #feffi.plot.plot_single(fenics_mesh, display=True)
-
-    to_refine = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
-    to_refine.set_all(False)
-    Ice_Side_Refine().mark(to_refine, True)
-    fenics_mesh = refine(fenics_mesh, to_refine)
-    feffi.flog.info('Refined mesh at ice boundary')
-    #feffi.plot.plot_single(fenics_mesh, display=True)
-
-    to_refine = MeshFunction("bool", fenics_mesh, fenics_mesh.topology().dim() - 1)
-    to_refine.set_all(False)
-    Cavity_Refine2().mark(to_refine, True)
-    fenics_mesh = refine(fenics_mesh, to_refine)
-    feffi.flog.info('Refined mesh at ice boundary')
-    feffi.plot.plot_single(fenics_mesh, display=True)
-    #return
-
-    #fenics_mesh = feffi.mesh.refine_mesh_at_point(fenics_mesh, Point((10, 0.95, 0)))
-    #feffi.plot.plot_single(fenics_mesh, display=True)
 
     # Simulation setup
     f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
@@ -114,7 +105,7 @@ def main():
         f_spaces,
         boundaries = {
           'bottom' : feffi.boundaries.Bound_Bottom(fenics_mesh),
-          'left_ice' : Bound_Ice_Side(),
+          'ice_shelf' : Bound_Ice_Shelf(),
           'left' : feffi.boundaries.Bound_Left(fenics_mesh),
           'right' : feffi.boundaries.Bound_Right(fenics_mesh),
           'top' : feffi.boundaries.Bound_Top(fenics_mesh),
@@ -134,71 +125,22 @@ def main():
 
     feffi.plot.plot_solutions(f, display=False)
 
-'''def generate_mesh(geom):
-    geo_name = 'mesh-misomip.geo'
-    kwargs = {
-        'prune_z_0': True,
-        'remove_lower_dim_cells': True,
-        'dim': 2,
-        'mesh_file_type': 'msh2',
-        'geo_filename': geo_name
-    }
-    """
-    m/s
-        mw: 2.2351835724163993e-08
-        Tzd: 0.5955628563749149
-        Szd: 11.839130634243778
 
-    km/h
-         mw: 2.5309237168319464e-08
-         Tzd: 0.8116414799643376
-         Szd: 9.005931824224719
+def pygmsh2fenics_mesh(mesh):
+        points = mesh.points[:,:2] # must strip z-coordinate for fenics
 
-        mw: 1.717010978694183e-08
-      - Tzd: 2.987174408347608
-      - Szd: 44.56741195772597
-         """
+        print("Writing 2d mesh for dolfin Mesh")
+        meshio.write("mesh_2d.xdmf", meshio.Mesh(
+            points=points,
+            cells={"triangle": mesh.cells_dict["triangle"]}))
 
+        fenics_mesh_2d = Mesh()
+        with XDMFFile("mesh_2d.xdmf") as infile:
+            print("Reading 2d mesh into dolfin")
+            infile.read(fenics_mesh_2d)
 
-    #if gmsh_kwargs.get('remove_faces'):
-        # mutually exclusive keywords between pygmsh versions
-    #    kwargs.pop('remove_lower_dim_cells')
-    #    kwargs.update(gmsh_kwargs)
+        return fenics_mesh_2d
 
-    mesh = pygmsh.generate_mesh(geom, **kwargs)
-
-    from dolfin_utils.meshconvert import meshconvert
-
-    msh_name = Path(geo_name).with_suffix('.msh')
-    args = [
-        "-{}".format(kwargs['dim']),
-        geo_name,
-        "-format",
-        kwargs['mesh_file_type'],
-        "-o",
-        msh_name,
-    ]
-    gmsh_executable = kwargs.get('gmsh_path',
-                                 pygmsh.helpers._get_gmsh_exe())
-
-    p = subprocess.Popen(
-        [gmsh_executable] + args,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-    )
-    p.communicate()
-    assert (
-        p.returncode == 0
-    ), "Gmsh exited with error (return code {}).".format(
-        p.returncode)
-
-    xml_name = Path(geo_name).with_suffix('.xml')
-    meshconvert.convert2xml(msh_name, xml_name)
-    mesh = str(xml_name.resolve())
-
-    print("Removing ", geo_name)
-    Path(geo_name).unlink()
-    print("Removing ", msh_name)
-    Path(msh_name).unlink()'''
 
 if __name__ == '__main__':
     main()

@@ -1,5 +1,5 @@
 final_time: 240
-steps_n: 10    # dt = 1/30 h = 120 s  (kimura 200 s)
+steps_n: 30    # dt = 1/30 h = 120 s  (kimura 200 s)
 simulation_precision: -7
 g: 9.81
 nu: 
@@ -18,34 +18,36 @@ BCs:
     V:
         right: [0,0]
         bottom: [0,0]
-        left_ice: [0,0]
+        ice_shelf: [0,0]
         left: [0,0]
         top: ['null',0]
     T:
-        #left_ice: -0.7 #output values from john's setup
+        #ice_shelf: -0.7 #output values from john's setup
         right: 0.4
     Q:
-        '(10,1)': 0
+        '(5,1)': 0
     S:
-        #left_ice: 34.82 #output values from john's setup
+        #ice_shelf: 34.82 #output values from john's setup
         right: 35
-melt_boundaries: #add left as list element below to turn on 3eqs
-    - left_ice
+melt_boundaries:
+    - ice_shelf
 convert_from_ms_to_kmh: True
-very_verbose: False
-stabilization: True
-checkpoint_interval: 100
-plot_path: mitgcm-3eqs-corner
-domain_size_x: 20
+very_verbose: True
+stabilization_NS: True
+stabilization_T: True
+stabilization_S: True
+checkpoint_interval: 50
+plot_path: mitgcm-pygmsh-nice-mesh
+domain_size_x: 7
 domain_size_y: 1
-mesh_resolution: 50
+mesh_resolution: 10
 ice_shelf_bottom_p:
 - 0
 - 0.05
 - 0
 ice_shelf_top_p:
-- 10
-- 0.99
+- 5
+- 0.95
 - 0
-boundary_layer_thickness: .003
+boundary_layer_thickness: .01
 store_solutions: true
