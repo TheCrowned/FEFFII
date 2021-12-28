@@ -17,7 +17,7 @@ from . import parameters, plot
 from .parameters import convert_constants_from_kmh_to_ms
 from .functions import (build_NS_GLS_steady_form, build_temperature_form,
                         build_salinity_form, build_buoyancy, energy_norm)
-from .meltparametrization import solve_3eqs_system
+from .meltparametrization import solve_3eqs_system, uStar_expr
 flog = logging.getLogger('feffi')
 
 
@@ -242,23 +242,29 @@ class Simulation(object):
 
         # Solve 3 equations system to obtain T and S forcing terms
         if parameters.config['melt_boundaries'] != [None]:
-            flog.debug('Solving 3 equations system...')
-            (mw, Tzd, Szd) = solve_3eqs_system(self.f['u_'], self.f['T_'],
-                                               self.f['S_'], self.f['p_'])
+            if self.n % 1 == 0:
+                flog.debug('Solving 3 equations system...')
 
-            # These log values are useless, we should only compute them at ice boundary
-            flog.debug('Solved 3 equations system.')
-            '''            ' - mw: {}\n - Tzd: {}\n - Szd: {}'
-                        .format(round(np.average(mw.compute_vertex_values()), self.round_precision),
-                                round(np.average(Tzd.compute_vertex_values()), self.round_precision),
-                                round(np.average(Szd.compute_vertex_values()), self.round_precision))))'''
-            self.mw = mw; self.Tzd = Tzd; self.Szd = Szd
+                # Compute uStar
+                self.f['3eqs']['uStar'] = interpolate(
+                    uStar_expr(self.f['u_']),
+                    self.f['u_'].function_space()
+                ).sub(0)
 
-        # Other functions will check if mw == False to determine whether melt
+                (mw, Tzd, Szd) = solve_3eqs_system(self.f)
+
+                # These log values are useless, we should only compute them at ice boundary
+                flog.debug('Solved 3 equations system.')
+                '''            ' - mw: {}\n - Tzd: {}\n - Szd: {}'
+                            .format(round(np.average(mw.compute_vertex_values()), self.round_precision),
+                                    round(np.average(Tzd.compute_vertex_values()), self.round_precision),
+                                    round(np.average(Szd.compute_vertex_values()), self.round_precision))))'''
+
+        # Other functions will check if m_B == False to determine whether melt
         # parametrization is enabled in this run
         else:
-            mw, Tzd, Szd = False, False, False
-        #plot.plot_single(Tzd, display=True)
+            self.f['3eqs']['m_B'], self.f['3eqs']['T_B'], self.f['3eqs']['S_B'] = False, False, False
+
         flog.debug('Solving for T and S...')
 
         '''BCs_T = self.BCs['T']
@@ -272,15 +278,11 @@ class Simulation(object):
         BCs_S[-1] = DirichletBC(self.f['S_'].function_space(), S_B_boundary, self.domain.marked_subdomains, self.domain.subdomains_markers['left_ice'])'''
 
         if parameters.config['beta'] != 0: #do not run if not coupled with velocity
-            T_form = build_temperature_form(self.f['T'], self.f['T_n'],
-                                            self.f['T_v'], self.f['u_'],
-                                            mw, Tzd, self.domain)
+            T_form = build_temperature_form(self.f, self.domain)
             solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'])
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
-            S_form = build_salinity_form(self.f['S'], self.f['S_n'],
-                                         self.f['S_v'], self.f['u_'],
-                                         mw, Szd, self.domain)
+            S_form = build_salinity_form(self.f, self.domain)
             solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'])
 
         flog.debug('Solved for T and S.')

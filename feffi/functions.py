@@ -28,20 +28,36 @@ def define_function_spaces(mesh, **kwargs):
     # Allow function arguments to overwrite wide config (but keep it local)
     config = dict(parameters.config); config.update(kwargs)
 
-    V = VectorElement("Lagrange", mesh.ufl_cell(),
-                      parameters.config['degree_V'])
-    P = FiniteElement("Lagrange", mesh.ufl_cell(),
-                      parameters.config['degree_P'])
+    # Elements for spaces: velocity, pressure, melrate, temperature, salinity
+    V_e = VectorElement("Lagrange", mesh.ufl_cell(),
+                        parameters.config['degree_V'])
+    P_e = FiniteElement("Lagrange", mesh.ufl_cell(),
+                        parameters.config['degree_P'])
+    m_e = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
+    T_e = FiniteElement("Lagrange", mesh.ufl_cell(),
+                        parameters.config['degree_T'])
+    S_e = FiniteElement("Lagrange", mesh.ufl_cell(),
+                        parameters.config['degree_S'])
 
+    # W = NS mixed solution space
+    # M = 3eqs system solution space
     f_spaces = {
-        'W': FunctionSpace(mesh, V * P),
-        'T': FunctionSpace(mesh, 'CG', parameters.config['degree_T']),
-        'S': FunctionSpace(mesh, 'CG', parameters.config['degree_S'])
+        'W': FunctionSpace(mesh, V_e * P_e),
+        'T': FunctionSpace(mesh, T_e),
+        'S': FunctionSpace(mesh, S_e),
+        'M': FunctionSpace(mesh, MixedElement([m_e, T_e, S_e])), # use T degree for meltrate
+        '3eqs': {}
     }
 
-    # Store V and P separately for convenience (mostly for BCs setting)
+    # Store V and P separately for convenience (mostly for BCs setting),
+    # as well as 3eqs system solution (meltrate, temperature, salinity)
     f_spaces['V'] = f_spaces['W'].sub(0)
     f_spaces['Q'] = f_spaces['W'].sub(1)
+
+    # needed?
+    f_spaces['3eqs']['m'] = f_spaces['M'].sub(0)
+    f_spaces['3eqs']['T'] = f_spaces['M'].sub(1)
+    f_spaces['3eqs']['S'] = f_spaces['M'].sub(2)
 
     return f_spaces
 
@@ -66,11 +82,21 @@ def define_functions(f_spaces):
         'T_': Function(f_spaces['T']),
         'T': TrialFunction(f_spaces['T']),
         'T_v': TestFunction(f_spaces['T']),
+
         'S_n': Function(f_spaces['S']),
         'S_': Function(f_spaces['S']),
         'S': TrialFunction(f_spaces['S']),
-        'S_v': TestFunction(f_spaces['S'])
+        'S_v': TestFunction(f_spaces['S']),
+
+        '3eqs': {
+            'sol': Function(f_spaces['M']),
+            'uStar': Function(f_spaces['V'].collapse()),
+        },
     }
+
+    f['3eqs']['v_m'], f['3eqs']['v_T'], f['3eqs']['v_S'] = TestFunctions(f_spaces['M'])
+    f['3eqs']['m_B'], f['3eqs']['T_B'], f['3eqs']['S_B'] = TrialFunctions(f_spaces['M'])
+
 
     (f['u'], f['p']) = split(TrialFunction(f_spaces['W']))
     (f['v'], f['q']) = split(TestFunction(f_spaces['W']))
@@ -240,21 +266,21 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     return steady_form
 
 
-def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
+def build_temperature_form(f, domain):
     """Define temperature variational problem.
 
     Parameters
     ----------
-    T : FEniCS TrialFunction
-    T_n : FEniCS Function with previously computed temperature
-    T_v : FEniCS TestFunction
-    u_ : FEniCS Function with previously computed velocity field
+    f : FEFFI functions dict
+    domain : FEFFI domain object
 
     Return
     ------
     FEniCS Form
     """
 
+    # Shorthand for function and constants
+    T, T_n, T_v, u_ = f['T'], f['T_n'], f['T_v'], f['u_']
     mesh = T.function_space().mesh()
     dim = mesh.geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
@@ -275,11 +301,11 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
         F += + delta*l_supg - delta*r_supg
 
     ## (Maybe) Build heat flux forcing term ##
-    if mw is not False:
+    if f['3eqs']['m_B'] is not False:
         n = FacetNormal(mesh)
         ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
-        Fh, Fh_func = build_heat_flux_forcing_term(u_, T_n, mw, Tzd)
+        Fh, Fh_func = build_heat_flux_forcing_term(f)
         #boundaries.visualize_f_on_boundary(T_n, domain, 'left_ice')
         #boundaries.visualize_f_on_boundary(Fh_func, domain, 'left_ice')
         for domain_label in parameters.config['melt_boundaries']:
@@ -289,21 +315,21 @@ def build_temperature_form(T, T_n, T_v, u_, mw, Tzd, domain):
     return F
 
 
-def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
+def build_salinity_form(f, domain):
     """Define salinity variational problem.
 
     Parameters
     ----------
-    S : FEniCS TrialFunction
-    S_n : FEniCS Function with previously computed salinity
-    S_v : FEniCS TestFunction
-    u_ : FEniCS Function with previously computed velocity field
+    f : FEFFI functions dict
+    domain : FEFFI domain object
 
     Return
     ------
     FEniCS Form
     """
 
+    # Shorthand for function and constants
+    S, S_n, S_v, u_ = f['S'], f['S_n'], f['S_v'], f['u_']
     mesh = S.function_space().mesh()
     dim = mesh.geometric_dimension()
     alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
@@ -324,11 +350,11 @@ def build_salinity_form(S, S_n, S_v, u_, mw, Szd, domain):
         F += + delta*l_supg - delta*r_supg
 
     ## (Maybe) Build salinity flux forcing term ##
-    if mw is not False:
+    if f['3eqs']['m_B'] is not False:
         n = FacetNormal(mesh)
         ds = Measure('ds', domain=mesh, subdomain_data=domain.marked_subdomains)
 
-        Fs, Fs_func = build_salinity_flux_forcing_term(u_, S_n, mw, Szd)
+        Fs, Fs_func = build_salinity_flux_forcing_term(f)
         #boundaries.visualize_f_on_boundary(S_n, domain, 'left_ice')
         #boundaries.visualize_f_on_boundary(Fs_func, domain, 'left_ice')
         for domain_label in parameters.config['melt_boundaries']:
