@@ -34,7 +34,7 @@ def get_3eqs_default_constants():
     }
 
 
-def solve_3eqs_system(u_M, T_M, S_M, p_B):
+def solve_3eqs_system(f):
     """
     Solves the 3 equations system for melt-rate formulation.
 
@@ -43,14 +43,7 @@ def solve_3eqs_system(u_M, T_M, S_M, p_B):
 
     Parameters
     ----------
-    u_M : FEniCS Function
-        Ocean velocity
-    T_M : FEniCS Function
-        Ocean temperature
-    S_M : FEniCS Function
-        Ocean salinity
-    p_B : FEniCS Function
-        Ocean pressure
+    f : FEFFI functions dict
 
     Return
     ------
@@ -58,13 +51,12 @@ def solve_3eqs_system(u_M, T_M, S_M, p_B):
     T_B : temperature field at ice-ocean boundary
     S_B : salinity field at ice-ocean boundary
     """
-    mesh = u_M.function_space().mesh()
-    P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
-    element = MixedElement([P1, P1, P1])
-    V = FunctionSpace(mesh, element)
-    v_1, v_2, v_3 = TestFunctions(V)
-    m_B, T_B, S_B = TrialFunctions(V)
-    sol = Function(V)
+
+    # Shorthand for functions
+    u_M, T_M, S_M, p_B = f['u_'], f['T_'], f['S_'], f['p_']
+    v_1, v_2, v_3 = f['3eqs']['v_m'], f['3eqs']['v_T'], f['3eqs']['v_S']
+    m_B, T_B, S_B = f['3eqs']['m_B'], f['3eqs']['T_B'], f['3eqs']['S_B']
+    uStar = f['3eqs']['uStar']
 
     ## Shorthand for constants
     config  = parameters.config
@@ -84,30 +76,31 @@ def solve_3eqs_system(u_M, T_M, S_M, p_B):
     Pr      = config['3eqs']['Pr']
     Sc      = config['3eqs']['Sc']
 
-    uStar = interpolate(uStar_expr(u_M), u_M.function_space()).sub(0)
-    #plot.plot_single(uStar, display=True, file_name='ustar.png')
-    #plot.plot_single(u_M, display=True, file_name='u_M.png')
-
     gammaT = Constant(1/(1/(2*xi_N*etaStar)-1/k  +  12.5*(Pr**(2/3)) - 6))
     gammaS = Constant(1/(1/(2*xi_N*etaStar)-1/k  +  12.5*(Sc**(2/3)) - 6))
     #print('gammaT, S {} {}'.format(gammaT.values(), gammaS.values()))
 
-    y = interpolate(Expression('1-x[1]', degree=2), V.extract_sub_space([1]).collapse()) #questionable choice, to divide by this
-    F = ( (+ rho_I*m_B*L - rho_I*c_I*k_I*(Ts-T_B)/y + rho_M*c_M*uStar*gammaT*(T_B-T_M))*v_1*dx
+    y = interpolate(Expression('1-x[1]', degree=2), T_M.function_space()) #questionable choice, to divide by this
+    F = ( (+ rho_I*m_B*L - rho_I*c_I*k_I*(Ts-T_B) + rho_M*c_M*uStar*gammaT*(T_B-T_M))*v_1*dx
            + (T_B - a*S_B - b - c*p_B)*v_2*dx
            + (rho_I*m_B*S_M + rho_M*uStar*gammaS*(S_B-S_M))*v_3*dx )
            # last equation should have lhs rho_I*m_B*S_B, but this is a common
            # linear approximation (source: Johan)
 
-    solve(lhs(F) == rhs(F), sol)
-    (m_B_sol, T_B_sol, S_B_sol) = sol.split()
+    solve(lhs(F) == rhs(F), f['3eqs']['sol'])
+    (m_B_sol, T_B_sol, S_B_sol) = f['3eqs']['sol'].split()
     m_B_sol.rename('m_B', 'meltrate')
     T_B_sol.rename('T_B', 'T_B')
     S_B_sol.rename('S_B', 'S_B')
     return (m_B_sol, T_B_sol, S_B_sol)
 
 
-def build_heat_flux_forcing_term(u_M, T_M, m_B, T_B):
+def build_heat_flux_forcing_term(f):
+
+    # Shorthand for functions
+    T_M = f['T_']
+    uStar = f['3eqs']['uStar']
+    (m_B, T_B, _) = f['3eqs']['sol'].split()
 
     ## Shorthand for constants
     config  = parameters.config
@@ -117,7 +110,6 @@ def build_heat_flux_forcing_term(u_M, T_M, m_B, T_B):
     Pr      = config['3eqs']['Pr']
     Sc      = config['3eqs']['Sc']
 
-    uStar = interpolate(uStar_expr(u_M), u_M.function_space()).sub(0)
     gammaT = Constant(1/(1/(2*xi_N*etaStar)-1/k  +  12.5*(Pr**(2/3)) - 6))
 
     Fh = -(uStar*gammaT+m_B)*(T_B-T_M)
@@ -131,7 +123,12 @@ def build_heat_flux_forcing_term(u_M, T_M, m_B, T_B):
     return Fh, False
 
 
-def build_salinity_flux_forcing_term(u_M, S_M, m_B, S_B):
+def build_salinity_flux_forcing_term(f):
+
+    # Shorthand for functions
+    S_M = f['S_']
+    uStar = f['3eqs']['uStar']
+    (m_B, _, S_B) = f['3eqs']['sol'].split()
 
     ## Shorthand for constants
     config  = parameters.config
@@ -141,7 +138,6 @@ def build_salinity_flux_forcing_term(u_M, S_M, m_B, S_B):
     Pr      = config['3eqs']['Pr']
     Sc      = config['3eqs']['Sc']
 
-    uStar = interpolate(uStar_expr(u_M), u_M.function_space()).sub(0)
     gammaS = Constant(1/(1/(2*xi_N*etaStar)-1/k  +  12.5*(Sc**(2/3)) - 6))
 
     Fs = -(uStar*gammaS+m_B)*(S_B-S_M)
