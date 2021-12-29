@@ -115,16 +115,16 @@ class Simulation(object):
             self.timestep()
             self.log_progress()
 
-            # Store solution for paraview
-            if parameters.config['store_solutions']:
-                self.save_solutions_xdmf()
-
             # Plot/Save solutions every given iterations so we can keep an eye
             if parameters.config['checkpoint_interval'] != 0:
                 if self.n > 0 and self.n % parameters.config['checkpoint_interval'] == 0:
                     flog.debug('--- Save Checkpoint at Timestep {} ---'.format(self.n))
                     plot.plot_solutions(self.f)
                     self.save_solutions_final()
+
+                    # Store solution for paraview
+                    if parameters.config['store_solutions']:
+                        self.save_solutions_xdmf()
 
             # If simulation is over
             if self.maybe_stop():
@@ -158,6 +158,7 @@ class Simulation(object):
         rho_0 = Constant(parameters.config['rho_0'])
         pnh = Function(self.f['p_'].function_space()) # non-hydrostatic pressure
 
+        '''
         # ----------------
         # Calculate dph/dx
         # ----------------
@@ -197,6 +198,7 @@ class Simulation(object):
         # piecewise constant. Can't hurt, I guess.
 
         flog.debug('Interpolated dph/dx over 2D grid (norm = {}).'.format(round(norm(grad_ph), 2)))
+        '''
 
         # --------------------------
         # Solve GLS Navier-Stokes eq
@@ -221,7 +223,7 @@ class Simulation(object):
 
             # Define and solve NS problem
             flog.debug('Solving for u, p...')
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, grad_ph, v,
+            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, 0, v,
                                                    q, T_n, S_n)
             solve(lhs(steady_form) == rhs(steady_form), self.f['sol'], bcs=bcs)
                   #solver_parameters={'linear_solver':'mumps'})
@@ -254,7 +256,7 @@ class Simulation(object):
                     self.f['u_'].function_space()
                 ).sub(0)
 
-                (mw, Tzd, Szd) = solve_3eqs_system(self.f)
+                solve_3eqs_system(self.f) # result goes into self.f['3eqs']
 
                 # These log values are useless, we should only compute them at ice boundary
                 flog.debug('Solved 3 equations system.')
@@ -290,10 +292,10 @@ class Simulation(object):
 
         flog.debug('Solved for T and S.')
 
-        self.relative_errors['u'] = (np.linalg.norm(self.f['u_'].compute_vertex_values() - self.f['u_n'].compute_vertex_values()))/np.linalg.norm(self.f['u_n'].compute_vertex_values()) if norm(self.f['u_'], 'L2') != 0 else 0
-        self.relative_errors['p'] = (np.linalg.norm(self.f['p_'].compute_vertex_values() - self.f['p_n'].compute_vertex_values()))/np.linalg.norm(self.f['p_n'].compute_vertex_values()) if norm(self.f['p_'], 'L2') != 0 else 0
-        self.relative_errors['T'] = (np.linalg.norm(self.f['T_'].compute_vertex_values() - self.f['T_n'].compute_vertex_values()))/np.linalg.norm(self.f['T_n'].compute_vertex_values()) if norm(self.f['T_'], 'L2') != 0 else 0
-        self.relative_errors['S'] = (np.linalg.norm(self.f['S_'].compute_vertex_values() - self.f['S_n'].compute_vertex_values()))/np.linalg.norm(self.f['S_n'].compute_vertex_values()) if norm(self.f['S_'], 'L2') != 0 else 0
+        self.relative_errors['u'] = (np.linalg.norm(self.f['u_'].compute_vertex_values() - self.f['u_n'].compute_vertex_values()))/np.linalg.norm(self.f['u_'].compute_vertex_values()) if norm(self.f['u_'], 'L2') != 0 else 0
+        self.relative_errors['p'] = (np.linalg.norm(self.f['p_'].compute_vertex_values() - self.f['p_n'].compute_vertex_values()))/np.linalg.norm(self.f['p_'].compute_vertex_values()) if norm(self.f['p_'], 'L2') != 0 else 0
+        self.relative_errors['T'] = (np.linalg.norm(self.f['T_'].compute_vertex_values() - self.f['T_n'].compute_vertex_values()))/np.linalg.norm(self.f['T_'].compute_vertex_values()) if norm(self.f['T_'], 'L2') != 0 else 0
+        self.relative_errors['S'] = (np.linalg.norm(self.f['S_'].compute_vertex_values() - self.f['S_n'].compute_vertex_values()))/np.linalg.norm(self.f['S_'].compute_vertex_values()) if norm(self.f['S_'], 'L2') != 0 else 0
 
         '''csv_row = {'n': self.n}
         for func in ['u', 'p', 'T', 'S']:

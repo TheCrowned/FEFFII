@@ -189,7 +189,7 @@ def B_g(a, u, p_nh, grad_p_h, v, q):
         + (dot(dot(a, nabla_grad(u)), v))*dx
         + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx  # sym??
         - dot(p_nh, div(v))*dx     #      - dot(p_nh/rho_0, div(v))*dx
-        + dot(grad_p_h, v)*dx    #        + dot(grad_p_h/rho_0, v)*dx
+        # + dot(grad_p_h, v)*dx    #        + dot(grad_p_h/rho_0, v)*dx
         # + inner(p_nh*n/rho_0, v)*ds
         # - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
         - dot(div(u), q)*dx)
@@ -208,7 +208,7 @@ def build_buoyancy(T_, S_):
     to the pressure function."""
 
     return Expression(
-        '(0,-g*(0 - beta*(T_ - T_0) + gamma*(S_ - S_0) )  )',  # g is positive
+        (0,'-g*(1 - beta*(T_ - T_0) + gamma*(S_ - S_0) )'  ),  # g is positive
         beta=Constant(parameters.config['beta']),
         gamma=Constant(parameters.config['gamma']),
         T_0=Constant(parameters.config['T_0']),
@@ -247,8 +247,8 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     # Buoyancy term is now added as hydrostatic pressure contribution computed
     # in simulation.py. Full pressure is rescaled without div by rho_0.
 
-    #b = build_buoyancy(T_, S_)
-    f = u_n/dt #+ b
+    b = build_buoyancy(T_, S_)
+    f = u_n/dt + b
     steady_form = B_g(a, u, p, grad_P_h, v, q) - dot(f, v)*dx
 
     if parameters.config['stabilization_NS']:
@@ -259,7 +259,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
         # turn individual terms on and off by tweaking delta0, tau0 in config
         if delta > 0:
             #steady_form += delta*(dot(N(a, u, p) - f-grad_P_h/rho_0, Phi(a, v)))*dx
-            steady_form += delta*(dot(N(a, u, p) - (f-grad_P_h), Phi(a, v)))*dx
+            steady_form += delta*(dot(N(a, u, p) - f, Phi(a, v)))*dx
         if tau > 0:
             steady_form += tau*(dot(div(u), div(v)))*dx
 

@@ -88,11 +88,11 @@ def solve_3eqs_system(f):
            # linear approximation (source: Johan)
 
     solve(lhs(F) == rhs(F), f['3eqs']['sol'])
-    (m_B_sol, T_B_sol, S_B_sol) = f['3eqs']['sol'].split()
-    m_B_sol.rename('m_B', 'meltrate')
-    T_B_sol.rename('T_B', 'T_B')
-    S_B_sol.rename('S_B', 'S_B')
-    return (m_B_sol, T_B_sol, S_B_sol)
+    #(m_B_sol, T_B_sol, S_B_sol) = f['3eqs']['sol'].split()
+    #m_B_sol.rename('m_B', 'meltrate')
+    #T_B_sol.rename('T_B', 'T_B')
+    #S_B_sol.rename('S_B', 'S_B')
+    #return (m_B_sol, T_B_sol, S_B_sol)
 
 
 def build_heat_flux_forcing_term(f):

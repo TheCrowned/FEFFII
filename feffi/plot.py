@@ -80,6 +80,8 @@ def plot_solutions(f, **kwargs):
     All of `plot_single`.
     """
 
+    plot_single(f['u_'].function_space().mesh(), file_name='mesh.png',
+                title='Mesh', **kwargs)
     plot_single(f['u_'], file_name='velxy.png',
                 title='Velocity', **kwargs)
     # Velocity components
@@ -92,8 +94,11 @@ def plot_solutions(f, **kwargs):
                 title='Temperature', **kwargs)
     plot_single(f['S_'], file_name='salinity.png',
                 title='Salinity', **kwargs)
-    plot_single(f['u_'].function_space().mesh(), file_name='mesh.png',
-                title='Mesh', **kwargs)
+
+    melt_sol = f['3eqs']['sol'].split()
+    plot_single(melt_sol[0], file_name='m_B.png', title='m_B', **kwargs)
+    plot_single(melt_sol[1], file_name='T_B.png', title='T_B', **kwargs)
+    plot_single(melt_sol[2], file_name='S_B.png', title='S_B', **kwargs)
 
     '''bmesh = BoundaryMesh(mesh, "exterior", True)
     boundary = bmesh.coordinates()
