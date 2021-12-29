@@ -228,7 +228,10 @@ class Simulation(object):
             flog.debug('Solved for u, p.')
 
             (self.f['u_'], pnh) = self.f['sol'].split(True) # only used to calculate residual
-            residual_u = norm(project(self.f['u_']-a, a.function_space()), 'L2')
+            #residual_u = norm(project(self.f['u_']-a, a.function_space()), 'L2')
+            #print(residual_u)
+            residual_u = np.linalg.norm(self.f['u_'].compute_vertex_values() - a.compute_vertex_values(), ord=2)
+
             flog.debug('>>> residual u: {} <<<'.format(residual_u))
             self.nonlin_n += 1
 
@@ -287,10 +290,10 @@ class Simulation(object):
 
         flog.debug('Solved for T and S.')
 
-        self.relative_errors['u'] = norm(project(self.f['u_']-self.f['u_n'], self.f['u_'].function_space()), 'L2')/norm(self.f['u_'], 'L2') if norm(self.f['u_'], 'L2') != 0 else 0
-        self.relative_errors['p'] = norm(project(self.f['p_']-self.f['p_n'], self.f['p_'].function_space()), 'L2')/norm(self.f['p_'], 'L2') if norm(self.f['p_'], 'L2') != 0 else 0
-        self.relative_errors['T'] = norm(project(self.f['T_']-self.f['T_n'], self.f['T_'].function_space()), 'L2')/norm(self.f['T_'], 'L2') if norm(self.f['T_'], 'L2') != 0 else 0
-        self.relative_errors['S'] = norm(project(self.f['S_']-self.f['S_n'], self.f['S_'].function_space()), 'L2')/norm(self.f['S_'], 'L2') if norm(self.f['S_'], 'L2') != 0 else 0
+        self.relative_errors['u'] = (np.linalg.norm(self.f['u_'].compute_vertex_values() - self.f['u_n'].compute_vertex_values()))/np.linalg.norm(self.f['u_n'].compute_vertex_values()) if norm(self.f['u_'], 'L2') != 0 else 0
+        self.relative_errors['p'] = (np.linalg.norm(self.f['p_'].compute_vertex_values() - self.f['p_n'].compute_vertex_values()))/np.linalg.norm(self.f['p_n'].compute_vertex_values()) if norm(self.f['p_'], 'L2') != 0 else 0
+        self.relative_errors['T'] = (np.linalg.norm(self.f['T_'].compute_vertex_values() - self.f['T_n'].compute_vertex_values()))/np.linalg.norm(self.f['T_n'].compute_vertex_values()) if norm(self.f['T_'], 'L2') != 0 else 0
+        self.relative_errors['S'] = (np.linalg.norm(self.f['S_'].compute_vertex_values() - self.f['S_n'].compute_vertex_values()))/np.linalg.norm(self.f['S_n'].compute_vertex_values()) if norm(self.f['S_'], 'L2') != 0 else 0
 
         '''csv_row = {'n': self.n}
         for func in ['u', 'p', 'T', 'S']:
