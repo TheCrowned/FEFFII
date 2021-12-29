@@ -96,6 +96,7 @@ def plot_solutions(f, **kwargs):
                 title='Salinity', **kwargs)
 
     melt_sol = f['3eqs']['sol'].split()
+    plot_single(f['3eqs']['uStar'], file_name='uStar.png', title='uStar', **kwargs)
     plot_single(melt_sol[0], file_name='m_B.png', title='m_B', **kwargs)
     plot_single(melt_sol[1], file_name='T_B.png', title='T_B', **kwargs)
     plot_single(melt_sol[2], file_name='S_B.png', title='S_B', **kwargs)
