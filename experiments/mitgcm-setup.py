@@ -49,7 +49,8 @@ def main():
     shelf_points_x = list(np.arange(ice_shelf_bottom_p[0], ice_shelf_top_p[0], 0.1))
     shelf_points_x.reverse()
     shelf_points = [(x, ice_shelf_f(x), 0) for x in shelf_points_x[0:-1]] # exclude last (bottom) point to avoid duplicate
-
+    print(shelf_points)
+    
     points = [(0,0,0), (domain_size_x,0,0),                           # bottom
               (domain_size_x,domain_size_y,0),                        # right
               (ice_shelf_top_p[0],domain_size_y,0), ice_shelf_top_p]  # sea top
@@ -62,32 +63,51 @@ def main():
 
     fenics_mesh = False
     with pygmsh.geo.Geometry() as geom:
-        poly = geom.add_polygon(points, mesh_size=1/mesh_resolution)
+        poly = geom.add_polygon(points, mesh_size=0.1)
 
         # Refine
-        refine_lines = [poly.curve_loop.curves[i] for i in range(len(points)-len(shelf_points)-3, len(points)-1)]
-        field0 = geom.add_boundary_layer(
-            edges_list=refine_lines,
-            lcmin=0.03,
-            lcmax=0.5,
-            distmin=0.10, # distance up until which mesh size will be lcmin
-            distmax=0.20, # distance starting at which mesh size will be lcmax
+        ice_shelf_lines = [poly.curve_loop.curves[i] for i in range(len(points)-len(shelf_points)-3, len(points)-1)]
+        left_lines = [poly.curve_loop.curves[i] for i in range(len(points)-1, len(points))]
+        
+        '''field0 = geom.add_boundary_layer(
+            edges_list=ice_shelf_lines,
+            lcmin=0.02,
+            lcmax=0.04,
+            distmin=0.08, # distance up until which mesh size will be lcmin
+            distmax=0.15, # distance starting at which mesh size will be lcmax
         )
         field1 = geom.add_boundary_layer(
-            edges_list=refine_lines,
+            edges_list=ice_shelf_lines,
+            lcmin=0.005,
+            lcmax=0.02,
+            distmin=0.01, # distance up until which mesh size will be lcmin
+            distmax=0.08, # distance starting at which mesh size will be lcmax
+        )
+        field2 = geom.add_boundary_layer(
+            edges_list=left_lines,
             lcmin=0.005,
             lcmax=0.5,
             distmin=0.01, # distance up until which mesh size will be lcmin
             distmax=0.10, # distance starting at which mesh size will be lcmax
+        )'''
+        
+        field = geom.add_boundary_layer(
+            edges_list=ice_shelf_lines,
+            lcmin=0.005,
+            lcmax=0.1,
+            distmin=0.01, # distance up until which mesh size will be lcmin
+            distmax=0.9, # distance starting at which mesh size will be lcmax
         )
-        geom.set_background_mesh([field0, field1], operator="Min")
+        geom.set_background_mesh([field], operator="Min")
+
+        #geom.set_background_mesh([field0, field1, field2], operator="Min")
 
         mesh = geom.generate_mesh()
         mesh.write('mesh.xdmf')
         fenics_mesh = pygmsh2fenics_mesh(mesh)
-        #print(fenics_mesh.num_vertices())
+        print(fenics_mesh.num_vertices())
 
-    #feffi.plot.plot_single(fenics_mesh, display=True)
+    feffi.plot.plot_single(fenics_mesh, display=True)
 
     class Bound_Ice_Shelf(SubDomain):
         def inside(self, x, on_boundary):
