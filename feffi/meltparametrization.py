@@ -81,7 +81,7 @@ def solve_3eqs_system(f):
     #print('gammaT, S {} {}'.format(gammaT.values(), gammaS.values()))
 
     y = interpolate(Expression('1-x[1]', degree=2), T_M.function_space()) #questionable choice, to divide by this
-    F = ( (+ rho_I*m_B*L - rho_I*c_I*k_I*(Ts-T_B) + rho_M*c_M*uStar*gammaT*(T_B-T_M))*v_1*dx
+    F = ( (+ rho_I*m_B*L - rho_I*c_I*k_I*(Ts-T_B)/y + rho_M*c_M*uStar*gammaT*(T_B-T_M))*v_1*dx
            + (T_B - a*S_B - b - c*p_B)*v_2*dx
            + (rho_I*m_B*S_M + rho_M*uStar*gammaS*(S_B-S_M))*v_3*dx )
            # last equation should have lhs rho_I*m_B*S_B, but this is a common
