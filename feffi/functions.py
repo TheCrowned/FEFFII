@@ -253,7 +253,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
 
     if parameters.config['stabilization_NS']:
         # Build form
-        flog.debug('Stabilized form with Rej = {}; delta = {}; tau = {}'.format(
+        flog.debug('Stabilized NS form with Rej = {}; delta = {}; tau = {}'.format(
             round(Rej, 5), round(delta, 5), round(tau, 5)))
 
         # turn individual terms on and off by tweaking delta0, tau0 in config
@@ -292,8 +292,12 @@ def build_temperature_form(f, domain):
 
     # Maybe add SUPG stabilization
     if parameters.config['stabilization_T']:
-        delta = 0.1#mesh.hmax()/2*norm(u_)
-        #print(delta)
+        if parameters.config.get('stabilization_T_coeff') != None:
+            delta = parameters.config.get('stabilization_T_coeff')
+        else:
+            delta = mesh.hmax()/2*norm(u_)
+
+        flog.debug('Stabilized T eq with delta = {}'.format(round(delta, 5)))
 
         l_supg = dot(T/dt - div(elem_mult(get_matrix_diagonal(alpha), (nabla_grad(T)))) + dot(u_, nabla_grad(T)), dot(u_, nabla_grad(T_v)))*dx
         r_supg = dot(T_n/dt, dot(u_, nabla_grad(T_v)))*dx
@@ -341,8 +345,12 @@ def build_salinity_form(f, domain):
 
     # Maybe add SUPG stabilization
     if parameters.config['stabilization_S']:
-        delta = 0.1#mesh.hmax()/2*norm(u_)
-        #print(delta)
+        if parameters.config.get('stabilization_S_coeff') != None:
+            delta = parameters.config.get('stabilization_S_coeff')
+        else:
+            delta = mesh.hmax()/2*norm(u_)
+
+        flog.debug('Stabilized S eq with delta = {}'.format(delta))
 
         l_supg = dot(S/dt - div(elem_mult(get_matrix_diagonal(alpha), (nabla_grad(S)))) + dot(u_, nabla_grad(S)), dot(u_, nabla_grad(S_v)))*dx
         r_supg = dot(S_n/dt, dot(u_, nabla_grad(S_v)))*dx
