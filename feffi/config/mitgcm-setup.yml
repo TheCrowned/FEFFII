@@ -32,7 +32,7 @@ melt_boundaries:
     - ice_shelf
     #- left
 convert_from_ms_to_kmh: True
-very_verbose: true
+very_verbose: false
 stabilization_NS: True
 stabilization_T: true
 #stabilization_T_coeff: 0.1
