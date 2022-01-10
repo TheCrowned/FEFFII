@@ -142,6 +142,10 @@ class Simulation(object):
         plot.plot_solutions(self.f)
         self.save_config()
 
+        # Store solution for paraview
+        if parameters.config['store_solutions']:
+            self.save_solutions_xdmf()
+
     def timestep(self):
         """Runs one timestep."""
 

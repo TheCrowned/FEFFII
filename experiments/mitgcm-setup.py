@@ -8,18 +8,11 @@ sys.path.insert(0, parentdir)
 
 import feffi
 from fenics import *
-import mshr
-import matplotlib.pyplot as plt
 import numpy as np
-import shutil
-import subprocess
 import pygmsh
 from fenics import Mesh, XDMFFile, MPI, plot
 import meshio
-from pathlib import Path
 import matplotlib.pyplot as plt
-import tempfile
-
 
 def main():
     feffi.parameters.define_parameters({
@@ -46,10 +39,11 @@ def main():
     # pygmsh handles long boundary refinement badly, so we need to interval the
     # ice shelf boundary with many points, see
     # https://github.com/nschloe/pygmsh/issues/506
-    shelf_points_x = list(np.arange(ice_shelf_bottom_p[0], ice_shelf_top_p[0], 0.1))
+    # It is not clear whether the step size has an influence on the mesh quality
+    shelf_points_x = list(np.arange(ice_shelf_bottom_p[0], ice_shelf_top_p[0], 0.4))
     shelf_points_x.reverse()
     shelf_points = [(x, ice_shelf_f(x), 0) for x in shelf_points_x[0:-1]] # exclude last (bottom) point to avoid duplicate
-    print(shelf_points)
+    #print(shelf_points)
     
     points = [(0,0,0), (domain_size_x,0,0),                           # bottom
               (domain_size_x,domain_size_y,0),                        # right
@@ -63,12 +57,13 @@ def main():
 
     fenics_mesh = False
     with pygmsh.geo.Geometry() as geom:
-        poly = geom.add_polygon(points, mesh_size=0.1)
+        poly = geom.add_polygon(points, mesh_size=mesh_resolution)
 
-        # Refine
+        # Mesh refinement
         ice_shelf_lines = [poly.curve_loop.curves[i] for i in range(len(points)-len(shelf_points)-3, len(points)-1)]
         left_lines = [poly.curve_loop.curves[i] for i in range(len(points)-1, len(points))]
-        
+
+        # Progressive mesh refinement
         '''field0 = geom.add_boundary_layer(
             edges_list=ice_shelf_lines,
             lcmin=0.02,
@@ -89,19 +84,22 @@ def main():
             lcmax=0.5,
             distmin=0.01, # distance up until which mesh size will be lcmin
             distmax=0.10, # distance starting at which mesh size will be lcmax
-        )'''
-        
+        )
+
+        geom.set_background_mesh([field0, field1, field2], operator="Min")
+        '''
+
+        # One single refinement, bit less controlled but maybe less error-prone?
         field = geom.add_boundary_layer(
             edges_list=ice_shelf_lines,
-            lcmin=0.005,
-            lcmax=0.1,
-            distmin=0.01, # distance up until which mesh size will be lcmin
-            distmax=0.9, # distance starting at which mesh size will be lcmax
+            lcmin=0.012,
+            lcmax=0.15,
+            distmin=0.009, # distance up until which mesh size will be lcmin
+            distmax=0.8, # distance starting at which mesh size will be lcmax
         )
-        geom.set_background_mesh([field], operator="Min")
+        #geom.set_background_mesh([field], operator="Min")
 
-        #geom.set_background_mesh([field0, field1, field2], operator="Min")
-
+        # Generate mesh
         mesh = geom.generate_mesh()
         mesh.write('mesh.xdmf')
         fenics_mesh = pygmsh2fenics_mesh(mesh)
@@ -136,30 +134,25 @@ def main():
     simulation = feffi.simulation.Simulation(f, domain)
     simulation.run()
 
-    # Use this instead of simulation.run() if you wanna see 3eqs system output
-    #for i in range(10):
-    #    simulation.timestep()
-        #feffi.boundaries.visualize_f_on_boundary(simulation.mw, domain, 'left')
-        #feffi.boundaries.visualize_f_on_boundary(simulation.Tzd, domain, 'left')
-        #feffi.boundaries.visualize_f_on_boundary(simulation.Szd, domain, 'left')
-
     feffi.plot.plot_solutions(f, display=False)
 
 
 def pygmsh2fenics_mesh(mesh):
-        points = mesh.points[:,:2] # must strip z-coordinate for fenics
+    """Convert mesh from PyGMSH output to FEniCS."""
+    
+    points = mesh.points[:,:2] # must strip z-coordinate for fenics
 
-        print("Writing 2d mesh for dolfin Mesh")
-        meshio.write("mesh_2d.xdmf", meshio.Mesh(
-            points=points,
-            cells={"triangle": mesh.cells_dict["triangle"]}))
+    print("Writing 2d mesh for dolfin Mesh")
+    meshio.write("mesh_2d.xdmf", meshio.Mesh(
+        points=points,
+        cells={"triangle": mesh.cells_dict["triangle"]}))
 
-        fenics_mesh_2d = Mesh()
-        with XDMFFile("mesh_2d.xdmf") as infile:
-            print("Reading 2d mesh into dolfin")
-            infile.read(fenics_mesh_2d)
+    fenics_mesh_2d = Mesh()
+    with XDMFFile("mesh_2d.xdmf") as infile:
+        print("Reading 2d mesh into dolfin")
+        infile.read(fenics_mesh_2d)
 
-        return fenics_mesh_2d
+    return fenics_mesh_2d
 
 
 if __name__ == '__main__':
