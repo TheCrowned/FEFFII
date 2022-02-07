@@ -154,12 +154,13 @@ def N(a, u, p):
 
     dim = a.function_space().mesh().geometric_dimension()
     dt = 1/parameters.config['steps_n']
-    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'], dim)
-    rho_0 = parameters.config['rho_0']
+    nu = parameters.config['nu']
+    #rho_0 = parameters.config['rho_0']
 
     return (
         + u/dt
-        - div(elem_mult(nu, nabla_grad(u)))
+        - as_vector([nu[0]*(u[0].dx(0).dx(0)+u[0].dx(1).dx(1)),
+                     nu[1]*(u[1].dx(0).dx(0)+u[1].dx(1).dx(1))])
         + dot(a, nabla_grad(u))
         + grad(p))
        # + grad(p)/rho_0)
@@ -177,9 +178,8 @@ def B_g(a, u, p_nh, grad_p_h, v, q):
 
     dim = a.function_space().mesh().geometric_dimension()
     dt = Constant(1/parameters.config['steps_n'])
-    nu = parameters.assemble_viscosity_tensor(parameters.config['nu'], dim)
-    rho_0 = Constant(parameters.config['rho_0'])
-    Omega = Constant((0, 0, parameters.config['Omega_0']))
+    nu = as_vector([Constant(i) for i in parameters.config['nu']])
+    #rho_0 = Constant(parameters.config['rho_0'])
     n = FacetNormal(a.function_space().mesh())
 
     # Boundary terms are commented out since we have no Neumann conditions,
@@ -187,7 +187,8 @@ def B_g(a, u, p_nh, grad_p_h, v, q):
     F = (
         + dot(u, v)/dt*dx
         + (dot(dot(a, nabla_grad(u)), v))*dx
-        + inner(elem_mult(nu, nabla_grad(u)), nabla_grad(v))*dx  # sym??
+        + nu[0]*inner(u.dx(0), v.dx(0))*dx
+        + nu[1]*inner(u.dx(1), v.dx(1))*dx
         - dot(p_nh, div(v))*dx     #      - dot(p_nh/rho_0, div(v))*dx
         # + dot(grad_p_h, v)*dx    #        + dot(grad_p_h/rho_0, v)*dx
         # + inner(p_nh*n/rho_0, v)*ds
@@ -196,6 +197,7 @@ def B_g(a, u, p_nh, grad_p_h, v, q):
 
     # Add Coriolis acceleration in 3D
     if dim == 3:
+        Omega = Constant((0, 0, parameters.config['Omega_0']))
         F += dot(cross(2*Omega, u), v)*dx
 
     return F
@@ -231,7 +233,13 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     # Init some stuff
     mesh = u.ufl_domain().ufl_cargo()
     (l, k) = (parameters.config['degree_V'], parameters.config['degree_P']) # f spaces degrees
-    nu_min = min(parameters.config['nu']) # smallest nu yields biggest Re number -> most unstable
+
+    # vertical/smallest nu yields biggest Re number -> most unstable
+    if mesh.geometric_dimension() == 2:
+        nu_min = parameters.config['nu'][1]
+    elif mesh.geometric_dimension() == 3:
+        nu_min = parameters.config['nu'][2]
+
     hmin = mesh.hmin(); hmax = mesh.hmax()
     delta0 = parameters.config['delta0'] #1 # "tuning parameter" > 0
     tau0 = parameters.config['tau0'] # if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
@@ -283,12 +291,12 @@ def build_temperature_form(f, domain):
     T, T_n, T_v, u_ = f['T'], f['T_n'], f['T_v'], f['u_']
     mesh = T.function_space().mesh()
     dim = mesh.geometric_dimension()
-    alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
+    alpha = as_vector([Constant(i) for i in parameters.config['alpha']])
     dt = Constant(1/parameters.config['steps_n'])
 
     F = (dot((T - T_n)/dt, T_v)*dx
          + dot(u_, grad(T))*T_v*dx #div(u_*T)*T_v*dx # div(u_) could be non-zero due to num error
-         + dot(elem_mult(get_matrix_diagonal(alpha), grad(T)), grad(T_v))*dx)
+         + dot(elem_mult(alpha, grad(T)), grad(T_v))*dx)
 
     # Maybe add SUPG stabilization
     if parameters.config['stabilization_T']:
@@ -299,8 +307,8 @@ def build_temperature_form(f, domain):
 
         flog.debug('Stabilized T eq with delta = {}'.format(round(delta, 5)))
 
-        l_supg = dot(T/dt - div(elem_mult(get_matrix_diagonal(alpha), (nabla_grad(T)))) + dot(u_, nabla_grad(T)), dot(u_, nabla_grad(T_v)))*dx
-        r_supg = dot(T_n/dt, dot(u_, nabla_grad(T_v)))*dx
+        l_supg = dot(T/dt - div(elem_mult(alpha, (grad(T)))) + dot(u_, grad(T)), dot(u_, grad(T_v)))*dx
+        r_supg = dot(T_n/dt, dot(u_, grad(T_v)))*dx
 
         F += + delta*l_supg - delta*r_supg
 
@@ -336,12 +344,12 @@ def build_salinity_form(f, domain):
     S, S_n, S_v, u_ = f['S'], f['S_n'], f['S_v'], f['u_']
     mesh = S.function_space().mesh()
     dim = mesh.geometric_dimension()
-    alpha = parameters.assemble_viscosity_tensor(parameters.config['alpha'], dim)
+    alpha = as_vector([Constant(i) for i in parameters.config['alpha']])
     dt = Constant(1/parameters.config['steps_n'])
 
     F = (dot((S - S_n)/dt, S_v)*dx
          + dot(u_,grad(S))*S_v*dx#div(u_*S)*S_v*dx
-         + dot(elem_mult(get_matrix_diagonal(alpha), grad(S)), grad(S_v))*dx)
+         + dot(elem_mult(alpha, grad(S)), grad(S_v))*dx)
 
     # Maybe add SUPG stabilization
     if parameters.config['stabilization_S']:
@@ -352,8 +360,8 @@ def build_salinity_form(f, domain):
 
         flog.debug('Stabilized S eq with delta = {}'.format(delta))
 
-        l_supg = dot(S/dt - div(elem_mult(get_matrix_diagonal(alpha), (nabla_grad(S)))) + dot(u_, nabla_grad(S)), dot(u_, nabla_grad(S_v)))*dx
-        r_supg = dot(S_n/dt, dot(u_, nabla_grad(S_v)))*dx
+        l_supg = dot(S/dt - div(elem_mult(alpha, (grad(S)))) + dot(u_, grad(S)), dot(u_, grad(S_v)))*dx
+        r_supg = dot(S_n/dt, dot(u_, grad(S_v)))*dx
 
         F += + delta*l_supg - delta*r_supg
 
@@ -370,11 +378,6 @@ def build_salinity_form(f, domain):
                 F += dot(Fs, S_v)*ds(domain.subdomains_markers[domain_label])
 
     return F
-
-
-def get_matrix_diagonal(mat):
-    diag = [mat[i][i] for i in range(mat.ufl_shape[0])]
-    return as_vector(diag)
 
 
 def energy_norm(u):

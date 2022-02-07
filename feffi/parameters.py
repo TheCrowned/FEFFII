@@ -116,6 +116,21 @@ def define_parameters(user_config={}):
     if config.get('convert_from_ms_to_kmh') and config['convert_from_ms_to_kmh']:
         config.update(convert_constants_from_ms_to_kmh(config))
 
+    # Parse viscosity and diffusivity
+    if len(config['nu']) == 1:
+        config['nu'] = [config['nu'][0], config['nu'][0]]
+    elif len(config['nu']) == 2:
+        config['nu'] = [config['nu'][0], config['nu'][1]]
+    elif len(config['nu']) == 3:
+        config['nu'] = [config['nu'][0], config['nu'][1], config['nu'][2]]
+
+    if len(config['alpha']) == 1:
+        config['alpha'] = [config['alpha'][0], config['alpha'][0]]
+    elif len(config['alpha']) == 2:
+        config['alpha'] = [config['alpha'][0], config['alpha'][1]]
+    elif len(config['alpha']) == 3:
+        config['alpha'] = [config['alpha'][0], config['alpha'][1], config['alpha'][2]]
+
     # Compute ice shelf slope
     try:
         config['ice_shelf_slope'] = ((config['ice_shelf_top_p'][1]-config['ice_shelf_bottom_p'][1])
@@ -447,60 +462,6 @@ def reload_status(plot_path):
     fenics.File(os.path.join(plot_path, 'solutions', 'S{}.xml'.format(file_suffix))) >> f['S_n']
 
     return f, domain, mesh, f_spaces
-
-
-def assemble_viscosity_tensor(visc, dim):
-    """Creates a proper viscosity tensor given relevant values.
-    Notice that input must always be a list, even if it has only one element.
-
-    Parameters
-    ----------
-    visc : list (of int)
-            If 1 entry is given, value will be used for all matrix entries.
-            If 2 or 3 entries are given, they will be repeated column-wise.
-            If 4 or 9 entries are given, they will compose the full tensor.
-    dim : int Domain dimension.
-
-    Examples
-    ----------
-    1) Obtain a tensor of the form
-       (a  a
-        a  a)
-
-       assemble_viscosity_tensor([a], 2)
-
-    2) Obtain a tensor of the form
-       (a  b
-        a  b)
-
-       assemble_viscosity_tensor([a, b], 2)
-
-    3) Obtain a tensor of the form
-       (a  b
-        c  d)
-
-       assemble_viscosity_tensor([a, b, c, d], 2)
-    """
-
-    if dim not in [2,3]:
-        raise ValueError('dim should be either 2 or 3')
-    if len(visc) not in [1, dim, dim**2]:
-        raise ValueError('Viscosity needs 1, {} or {} entries input, {} given'
-                         .format(dim, dim**2, len(visc)))
-
-    # Base case
-    output = np.full((dim, dim), fenics.Constant(visc[0]))
-
-    # If 2 values given for 2D, or 3 for 2D, use them as column-wise constant
-    if dim == len(visc):
-        for i in range(dim):
-            output[:,i] = fenics.Constant(visc[i])
-
-    # If 4 values given for 2D, or 9 for 2D, use them as single entries
-    if len(visc) == dim**2:
-        output = np.array(visc).reshape(dim, dim)
-
-    return fenics.as_tensor(output)
 
 
 def convert_constants_from_ms_to_kmh(config):
