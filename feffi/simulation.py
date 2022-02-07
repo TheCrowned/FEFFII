@@ -66,6 +66,8 @@ class Simulation(object):
         self.relative_errors = {}
         self.dim = self.domain.mesh.geometric_dimension() # 2D or 3D
         self.z_coord = self.dim-1 # z-coord in mesh points changes depending on 2/3D
+        self.ramp_interval = 3
+        self.ramp_time = int(parameters.config['steps_n']*self.ramp_interval)
 
         if parameters.config['simulation_precision'] <= 0:
             self.round_precision = abs(parameters.config['simulation_precision'])
@@ -114,6 +116,25 @@ class Simulation(object):
         while self.n <= self.iterations_n:
             self.timestep()
             self.log_progress()
+
+            # Viscosity ramping
+            if self.n == self.ramp_time: # gradually lower nu and alpha
+                parameters.config = parameters.convert_constants_from_kmh_to_ms(parameters.config)
+                if parameters.config['nu'][0] > 0.25:
+                    parameters.config['nu'][0] *= 0.8
+                if parameters.config['nu'][1] > 0.001:
+                    parameters.config['nu'][1] *= 0.5
+                if parameters.config['alpha'][0] > 0.25:
+                    parameters.config['alpha'][0] *= 0.8
+                if parameters.config['alpha'][1] > 0.00002:
+                    parameters.config['alpha'][1] *= 0.3
+
+                self.ramp_interval *= 1.2 # make ramping more and more gradual
+                self.ramp_time += int(parameters.config['steps_n']*self.ramp_interval)
+                flog.info('Ramped viscosity: nu = {}, alpha = {}'.format(parameters.config['nu'], parameters.config['alpha']))
+                flog.info('Next ramping at n = {}'.format(self.ramp_time))
+                parameters.config = parameters.convert_constants_from_ms_to_kmh(parameters.config)
+                #flog.info(parameters.config)
 
             # Plot/Save solutions every given iterations so we can keep an eye
             if parameters.config['checkpoint_interval'] != 0:
