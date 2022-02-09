@@ -1,12 +1,12 @@
 final_time: 240
 steps_n: 30    # dt = 1/30 h = 120 s  (kimura 200 s)
-simulation_precision: -7
+simulation_precision: -4
 nu: 
 - 0.25
 - 0.001
 alpha:
 - 0.25 #- 0.25
-- 0.00002 #- 0.00002
+- 0.00001 #- 0.00002
 rho_0: 1000
 beta: 0.00004
 gamma: 0.0008
@@ -17,32 +17,35 @@ BCs:
     V:
         right: [0,0]
         bottom: [0,0]
-        ice_shelf: [0,0]
+        ice_shelf_top: [0,0]
+        ice_shelf_bottom: [0,0]
         left: [0,0]
         top: ['null',0]
     T:
-        #ice_shelf: 0.2
+        #ice_shelf_top: 0.2
         right: 0.4
+#        left: 0.3999
     Q:
-        '(20,1)': 0
+        '(22,1)': 0
     S:
-        #ice_shelf: 34.85
+        #ice_shelf_top: 34.85
+#        left: 34.999
         right: 35
 melt_boundaries:
-    - ice_shelf
+    - ice_shelf_top
     #- left
 convert_from_ms_to_kmh: True
-very_verbose: false
-stabilization_NS: True
-stabilization_T: true
-#stabilization_T_coeff: 0.1
-stabilization_S: true
+very_verbose: true
+stabilization_NS: false
+stabilization_T: false
+#stabilization_T_coeff: 0.001
+stabilization_S: false
 #stabilization_S_coeff: 0.1
-checkpoint_interval: 30
-plot_path: mitgcm-melting-iceshelf
+checkpoint_interval: 15
+plot_path: melting-split-boundary-large
 domain_size_x: 30
 domain_size_y: 1
-mesh_resolution: 0.5
+mesh_resolution: 0.09
 ice_shelf_bottom_p:
 - 0
 - 0.05

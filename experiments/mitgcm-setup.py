@@ -28,6 +28,9 @@ def main():
     ice_shelf_top_p = config['ice_shelf_top_p']
     ice_shelf_slope = config['ice_shelf_slope']
     ice_shelf_f = lambda x: ice_shelf_slope*x+ice_shelf_bottom_p[1]
+    lcar = mesh_resolution
+    step_x = 0.1
+    step_y = 0.05
 
     ##############################
     ### Set up geometry + mesh ###
@@ -58,10 +61,29 @@ def main():
     fenics_mesh = False
     with pygmsh.geo.Geometry() as geom:
         poly = geom.add_polygon(points, mesh_size=mesh_resolution)
+        '''origin = geom.add_point([0, 0, 0], lcar)
+        br = geom.add_point([domain_size_x, 0, 0], lcar)
+        tr = geom.add_point([domain_size_x, 1, 0], lcar)
+        ice_top = geom.add_point([ice_shelf_top_p[0], domain_size_y, 0], lcar)
+        ice_top2 = geom.add_point([ice_shelf_top_p[0], ice_shelf_top_p[1], 0], lcar)
+        ice_bottom = geom.add_point([ice_shelf_bottom_p[0]+2*step_x, ice_shelf_bottom_p[1]+step_y, 0], lcar)
+        ice_bottom2 = geom.add_point([ice_shelf_bottom_p[0]+step_x, ice_shelf_bottom_p[1]+step_y/5, 0], lcar)
+        ice_bottom3 = geom.add_point([ice_shelf_bottom_p[0], ice_shelf_bottom_p[1], 0], lcar)
+
+        l1 = geom.add_line(origin, br)
+        l2 = geom.add_line(br, tr)
+        l3 = geom.add_line(tr, ice_top)
+        l4 = geom.add_line(ice_top, ice_top2)
+        l5 = geom.add_line(ice_top2, ice_bottom)
+        l6 = geom.add_spline([ice_bottom, ice_bottom2, ice_bottom3])
+        l7 = geom.add_line(ice_bottom3, origin)
+
+        ll = geom.add_curve_loop([l1,l2,l3,l4, l5, l6, l7])
+        pl = geom. add_plane_surface(ll)'''
 
         # Mesh refinement
         ice_shelf_lines = [poly.curve_loop.curves[i] for i in range(len(points)-len(shelf_points)-3, len(points)-1)]
-        left_lines = [poly.curve_loop.curves[i] for i in range(len(points)-1, len(points))]
+        #left_lines = [poly.curve_loop.curves[i] for i in range(len(points)-1, len(points))]
 
         # Progressive mesh refinement
         '''field0 = geom.add_boundary_layer(
@@ -92,26 +114,31 @@ def main():
         # One single refinement, bit less controlled but maybe less error-prone?
         field = geom.add_boundary_layer(
             edges_list=ice_shelf_lines,
-            lcmin=0.012,
-            lcmax=0.15,
+            lcmin=0.006,
+            lcmax=mesh_resolution, #0.15,
             distmin=0.009, # distance up until which mesh size will be lcmin
-            distmax=0.8, # distance starting at which mesh size will be lcmax
+            distmax=0.3, # distance starting at which mesh size will be lcmax
         )
-        #geom.set_background_mesh([field], operator="Min")
+        geom.set_background_mesh([field], operator="Min")
 
         # Generate mesh
         mesh = geom.generate_mesh()
         mesh.write('mesh.xdmf')
         fenics_mesh = pygmsh2fenics_mesh(mesh)
+        #fenics_mesh = UnitSquareMesh(50,50)
         print(fenics_mesh.num_vertices())
 
     feffi.plot.plot_single(fenics_mesh, display=True)
 
-    class Bound_Ice_Shelf(SubDomain):
+    class Bound_Ice_Shelf_Top(SubDomain):
         def inside(self, x, on_boundary):
-            return (((0 <= x[0] <= ice_shelf_top_p[0] and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y)
+            return (((0.05 < x[0] <= ice_shelf_top_p[0] and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y)
                      or (near(x[0], ice_shelf_top_p[0]) and ice_shelf_top_p[1] <= x[1] <= domain_size_y))
                 and on_boundary)
+    class Bound_Ice_Shelf_Bottom(SubDomain):
+        def inside(self, x, on_boundary):
+            return (((0 <= x[0] <= 0.05 and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y))
+                    and on_boundary)
 
     # Simulation setup
     f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
@@ -123,7 +150,8 @@ def main():
         f_spaces,
         boundaries = {
           'bottom' : feffi.boundaries.Bound_Bottom(fenics_mesh),
-          'ice_shelf' : Bound_Ice_Shelf(),
+          'ice_shelf_bottom' : Bound_Ice_Shelf_Bottom(),
+          'ice_shelf_top' : Bound_Ice_Shelf_Top(),
           'left' : feffi.boundaries.Bound_Left(fenics_mesh),
           'right' : feffi.boundaries.Bound_Right(fenics_mesh),
           'top' : feffi.boundaries.Bound_Top(fenics_mesh),

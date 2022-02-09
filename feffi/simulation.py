@@ -66,7 +66,7 @@ class Simulation(object):
         self.relative_errors = {}
         self.dim = self.domain.mesh.geometric_dimension() # 2D or 3D
         self.z_coord = self.dim-1 # z-coord in mesh points changes depending on 2/3D
-        self.ramp_interval = 3
+        self.ramp_interval = 300000
         self.ramp_time = int(parameters.config['steps_n']*self.ramp_interval)
 
         if parameters.config['simulation_precision'] <= 0:
@@ -141,7 +141,7 @@ class Simulation(object):
                 if self.n > 0 and self.n % parameters.config['checkpoint_interval'] == 0:
                     flog.debug('--- Save Checkpoint at Timestep {} ---'.format(self.n))
                     plot.plot_solutions(self.f)
-                    self.save_solutions_final()
+                    #self.save_solutions_final()
 
                     # Store solution for paraview
                     if parameters.config['store_solutions']:
