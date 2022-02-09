@@ -244,7 +244,7 @@ class Simulation(object):
         # Solve non-linearity iteratively
         flog.debug('Iteratively solving non-linear problem')
         while residual_u > tol and self.nonlin_n <= parameters.config['non_linear_max_iter']:
-            a = self.f['sol'].split(True)[0] # this is the "u_n" of this non-linear loop
+            a = self.f['u_'] #self.f['sol'].split(True)[0] # this is the "u_n" of this non-linear loop
 
             # Define and solve NS problem
             flog.debug('Solving for u, p...')
@@ -254,7 +254,7 @@ class Simulation(object):
                   #solver_parameters={'linear_solver':'mumps'})
             flog.debug('Solved for u, p.')
 
-            (self.f['u_'], pnh) = self.f['sol'].split(True) # only used to calculate residual
+            (self.f['u_'], self.f['p_']) = self.f['sol'].split(True) # only used to calculate residual
             #residual_u = norm(project(self.f['u_']-a, a.function_space()), 'L2')
             #print(residual_u)
             residual_u = np.linalg.norm(self.f['u_'].compute_vertex_values() - a.compute_vertex_values(), ord=2)
@@ -264,7 +264,7 @@ class Simulation(object):
 
         flog.debug('Solved non-linear problem (u, p).')
 
-        self.f['p_'].assign(pnh)
+        #self.f['p_'].assign(pnh)
 
         # ------------------------
         # TEMPERATURE AND SALINITY
@@ -272,14 +272,15 @@ class Simulation(object):
 
         # Solve 3 equations system to obtain T and S forcing terms
         if parameters.config['melt_boundaries'] != [None]:
-            if self.n % 1 == 0:
+            if self.n % 3 == 0:
                 flog.debug('Solving 3 equations system...')
 
                 # Compute uStar
-                self.f['3eqs']['uStar'] = interpolate(
-                    uStar_expr(self.f['u_']),
-                    self.f['u_'].function_space()
-                ).sub(0)
+                if self.n % 6 == 0:
+                    self.f['3eqs']['uStar'] = interpolate(
+                        uStar_expr(self.f['u_']),
+                        self.f['u_'].function_space()
+                    ).sub(0)
 
                 solve_3eqs_system(self.f) # result goes into self.f['3eqs']
 
