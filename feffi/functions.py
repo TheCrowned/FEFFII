@@ -319,7 +319,7 @@ def build_temperature_form(f, domain):
 
         Fh, Fh_func = build_heat_flux_forcing_term(f)
         #boundaries.visualize_f_on_boundary(T_n, domain, 'left_ice')
-        #boundaries.visualize_f_on_boundary(Fh_func, domain, 'left_ice')
+        boundaries.visualize_f_on_boundary(Fh_func, domain, 'ice_shelf_top')
         for domain_label in parameters.config['melt_boundaries']:
             if domain_label != None:
                 F += dot(Fh, T_v)*ds(domain.subdomains_markers[domain_label])
