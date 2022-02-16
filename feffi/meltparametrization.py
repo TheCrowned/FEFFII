@@ -115,12 +115,12 @@ def build_heat_flux_forcing_term(f):
     Fh = -(uStar*gammaT+m_B)*(T_B-T_M)
 
     # These are for to allow plotting of flux boundary term values
-    #Fh_func = Expression('-(uStar*gammaT+m_B)*(T_B-T_M)', degree=2, uStar=uStar, gammaT=gammaT, T_B=T_B, T_M=T_M, m_B=m_B)
-    #Fh_func = interpolate(Fh_func, T_B.function_space().collapse())
-    #plot.plot_single(Fh_func, display=True)
-    #Fh_func.rename('heat_flux', '')
+    Fh_func = Expression('-(uStar*gammaT+m_B)*(T_B-T_M)', degree=2, uStar=uStar, gammaT=gammaT, T_B=T_B, T_M=T_M, m_B=m_B)
+    Fh_func = interpolate(Fh_func, T_B.function_space().collapse())
+    plot.plot_single(Fh_func, display=True)
+    Fh_func.rename('heat_flux', '')
 
-    return Fh, False
+    return Fh, Fh_func
 
 
 def build_salinity_flux_forcing_term(f):

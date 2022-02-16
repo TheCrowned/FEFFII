@@ -12,21 +12,21 @@ beta: 0.00004
 gamma: 0.0008
 T_0: 0.4
 S_0: 35
-max_iter: 0
+max_iter: 190
 BCs:
     V:
         right: [0,0]
         bottom: [0,0]
         ice_shelf_top: [0,0]
-        ice_shelf_bottom: [0,0]
+        #ice_shelf_bottom: [0,0]
         left: [0,0]
         top: ['null',0]
     T:
-        #ice_shelf_top: 0.2
+        ice_shelf_top: 0.00536870912*pow(x[0]-1,10) + 0.35
         right: 0.4
 #        left: 0.3999
     Q:
-        '(22,1)': 0
+        '(2.2,1)': 0
     S:
         #ice_shelf_top: 34.85
 #        left: 34.999
@@ -35,15 +35,15 @@ melt_boundaries:
     - ice_shelf_top
     #- left
 convert_from_ms_to_kmh: True
-very_verbose: true
+very_verbose: false
 stabilization_NS: false
 stabilization_T: false
 #stabilization_T_coeff: 0.001
 stabilization_S: false
 #stabilization_S_coeff: 0.1
-checkpoint_interval: 15
-plot_path: melting-split-boundary-large
-domain_size_x: 30
+checkpoint_interval: 5
+plot_path: dirichlet-continuous
+domain_size_x: 3
 domain_size_y: 1
 mesh_resolution: 0.09
 ice_shelf_bottom_p:
@@ -51,7 +51,7 @@ ice_shelf_bottom_p:
 - 0.05
 - 0
 ice_shelf_top_p:
-- 20
+- 2
 - 0.95
 - 0
 boundary_layer_thickness: .01
