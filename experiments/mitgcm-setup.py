@@ -47,7 +47,7 @@ def main():
     shelf_points_x.reverse()
     shelf_points = [(x, ice_shelf_f(x), 0) for x in shelf_points_x[0:-1]] # exclude last (bottom) point to avoid duplicate
     #print(shelf_points)
-    
+
     points = [(0,0,0), (domain_size_x,0,0),                           # bottom
               (domain_size_x,domain_size_y,0),                        # right
               (ice_shelf_top_p[0],domain_size_y,0), ice_shelf_top_p]  # sea top
@@ -83,35 +83,6 @@ def main():
 
         # Mesh refinement
         ice_shelf_lines = [poly.curve_loop.curves[i] for i in range(len(points)-len(shelf_points)-3, len(points)-1)]
-        #left_lines = [poly.curve_loop.curves[i] for i in range(len(points)-1, len(points))]
-
-        # Progressive mesh refinement
-        '''field0 = geom.add_boundary_layer(
-            edges_list=ice_shelf_lines,
-            lcmin=0.02,
-            lcmax=0.04,
-            distmin=0.08, # distance up until which mesh size will be lcmin
-            distmax=0.15, # distance starting at which mesh size will be lcmax
-        )
-        field1 = geom.add_boundary_layer(
-            edges_list=ice_shelf_lines,
-            lcmin=0.005,
-            lcmax=0.02,
-            distmin=0.01, # distance up until which mesh size will be lcmin
-            distmax=0.08, # distance starting at which mesh size will be lcmax
-        )
-        field2 = geom.add_boundary_layer(
-            edges_list=left_lines,
-            lcmin=0.005,
-            lcmax=0.5,
-            distmin=0.01, # distance up until which mesh size will be lcmin
-            distmax=0.10, # distance starting at which mesh size will be lcmax
-        )
-
-        geom.set_background_mesh([field0, field1, field2], operator="Min")
-        '''
-
-        # One single refinement, bit less controlled but maybe less error-prone?
         field = geom.add_boundary_layer(
             edges_list=ice_shelf_lines,
             lcmin=0.006,
@@ -132,7 +103,7 @@ def main():
 
     class Bound_Ice_Shelf_Top(SubDomain):
         def inside(self, x, on_boundary):
-            return (((0.05 < x[0] <= ice_shelf_top_p[0] and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y)
+            return (((0.0 < x[0] <= ice_shelf_top_p[0] and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y)
                      or (near(x[0], ice_shelf_top_p[0]) and ice_shelf_top_p[1] <= x[1] <= domain_size_y))
                 and on_boundary)
     class Bound_Ice_Shelf_Bottom(SubDomain):
@@ -144,6 +115,21 @@ def main():
     f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
     f = feffi.functions.define_functions(f_spaces)
     feffi.functions.init_functions(f)
+
+    tcd = -0.8; # Thermocline depth
+    Tmin = -1.6; # minimum Temperature
+    Tmax = 0.4; # maximum Temperature
+    Tc = (Tmax + Tmin) / 2; # middle temperature
+    Trange = Tmax - Tmin; # temperature range
+    T_init = Expression('Tc - Trange / 2 * -tanh(pi * 1000*(-x[1] - tcd) / 200)', degree=1, Tc=Tc, Trange=Trange, tcd=tcd); # calculate profile
+    f['T_n'].assign(interpolate(T_init, f['T_n'].ufl_function_space()))
+    feffi.plot.plot_single(f['T_n'], display=True)
+
+    Sc = 34.5;
+    Srange = -1;
+    S_init = Expression('Sc + Srange / 2 * -tanh(pi * 1000*(-x[1] - tcd) / 200)', degree=1, Sc=Sc, Srange=Srange, tcd=tcd); # calculate profile
+    f['S_n'].assign(interpolate(S_init, f['S_n'].ufl_function_space()))
+    feffi.plot.plot_single(f['S_n'], display=True)
 
     domain = feffi.boundaries.Domain(
         fenics_mesh,
@@ -167,7 +153,7 @@ def main():
 
 def pygmsh2fenics_mesh(mesh):
     """Convert mesh from PyGMSH output to FEniCS."""
-    
+
     points = mesh.points[:,:2] # must strip z-coordinate for fenics
 
     print("Writing 2d mesh for dolfin Mesh")

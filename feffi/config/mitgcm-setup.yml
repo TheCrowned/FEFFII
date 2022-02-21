@@ -23,10 +23,10 @@ BCs:
         top: ['null',0]
     T:
         #ice_shelf_top: 0.2
-        right: 0.4
+        right: 0.6+tanh(pi * 1000*(-x[1] +0.8) / 200)
 #        left: 0.3999
     Q:
-        '(22,1)': 0
+        '(3,1)': 0
     S:
         #ice_shelf_top: 34.85
 #        left: 34.999
@@ -42,8 +42,8 @@ stabilization_T: false
 stabilization_S: false
 #stabilization_S_coeff: 0.1
 checkpoint_interval: 15
-plot_path: melting-split-boundary-large
-domain_size_x: 30
+plot_path: melting-initial-conditions
+domain_size_x: 5
 domain_size_y: 1
 mesh_resolution: 0.09
 ice_shelf_bottom_p:
@@ -51,7 +51,7 @@ ice_shelf_bottom_p:
 - 0.05
 - 0
 ice_shelf_top_p:
-- 20
+- 2
 - 0.95
 - 0
 boundary_layer_thickness: .01
