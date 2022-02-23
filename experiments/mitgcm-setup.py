@@ -46,11 +46,15 @@ def main():
     shelf_points_x = list(np.arange(ice_shelf_bottom_p[0], ice_shelf_top_p[0], 0.4))
     shelf_points_x.reverse()
     shelf_points = [(x, ice_shelf_f(x), 0) for x in shelf_points_x[0:-1]] # exclude last (bottom) point to avoid duplicate
-    #print(shelf_points)
 
-    points = [(0,0,0), (domain_size_x,0,0),                           # bottom
-              (domain_size_x,domain_size_y,0),                        # right
-              (ice_shelf_top_p[0],domain_size_y,0), ice_shelf_top_p]  # sea top
+    sea_top_points_x = list(np.arange(ice_shelf_top_p[0], domain_size_x, 0.4))
+    sea_top_points_x.reverse()
+    sea_top_points = [(x, domain_size_y, 0) for x in sea_top_points_x[0:-1]] # exclude last (bottom) point to avoid duplicate
+    print(sea_top_points)
+    points =  [(0,0,0), (domain_size_x,0,0)]                           # bottom
+    points += [(domain_size_x,domain_size_y,0)]
+    points += sea_top_points                      # right
+    points += [(ice_shelf_top_p[0],domain_size_y,0), ice_shelf_top_p]  # sea top
     points += shelf_points                                            # ice shelf
     points += [ice_shelf_bottom_p]                                    # left
 
@@ -88,9 +92,16 @@ def main():
             lcmin=0.006,
             lcmax=mesh_resolution, #0.15,
             distmin=0.009, # distance up until which mesh size will be lcmin
-            distmax=0.3, # distance starting at which mesh size will be lcmax
+            distmax=0.15, # distance starting at which mesh size will be lcmax
         )
-        geom.set_background_mesh([field], operator="Min")
+        field2 = geom.add_boundary_layer(
+            edges_list=[poly.curve_loop.curves[i] for i in range(2, 2+len(sea_top_points)+1)],
+            lcmin=0.009,
+            lcmax=mesh_resolution, #0.15,
+            distmin=0.009, # distance up until which mesh size will be lcmin
+            distmax=0.2, # distance starting at which mesh size will be lcmax
+        )
+        geom.set_background_mesh([field, field2], operator="Min")
 
         # Generate mesh
         mesh = geom.generate_mesh()
@@ -122,14 +133,16 @@ def main():
     Tc = (Tmax + Tmin) / 2; # middle temperature
     Trange = Tmax - Tmin; # temperature range
     T_init = Expression('Tc - Trange / 2 * -tanh(pi * 1000*(-x[1] - tcd) / 200)', degree=1, Tc=Tc, Trange=Trange, tcd=tcd); # calculate profile
+    #T_init = Expression('-0.6+tanh(pi * 1000*(-x[1] +0.8) / 200)', degree=1, Tc=Tc, Trange=Trange, tcd=tcd); # calculate profile
     f['T_n'].assign(interpolate(T_init, f['T_n'].ufl_function_space()))
-    feffi.plot.plot_single(f['T_n'], display=True)
+    #feffi.plot.plot_single(f['T_n'], display=True)
 
     Sc = 34.5;
     Srange = -1;
     S_init = Expression('Sc + Srange / 2 * -tanh(pi * 1000*(-x[1] - tcd) / 200)', degree=1, Sc=Sc, Srange=Srange, tcd=tcd); # calculate profile
+    #S_init = Expression('34.5+tanh(pi * 1000*(-x[1] +0.8) / 200)/2', degree=1, Sc=Sc, Srange=Srange, tcd=tcd); # calculate profile
     f['S_n'].assign(interpolate(S_init, f['S_n'].ufl_function_space()))
-    feffi.plot.plot_single(f['S_n'], display=True)
+    #feffi.plot.plot_single(f['S_n'], display=True)
 
     domain = feffi.boundaries.Domain(
         fenics_mesh,

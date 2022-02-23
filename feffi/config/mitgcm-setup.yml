@@ -1,5 +1,5 @@
 final_time: 240
-steps_n: 30    # dt = 1/30 h = 120 s  (kimura 200 s)
+steps_n: 40    # dt = 1/30 h = 120 s  (kimura 200 s)
 simulation_precision: -4
 nu: 
 - 0.25
@@ -7,10 +7,10 @@ nu:
 alpha:
 - 0.25 #- 0.25
 - 0.00001 #- 0.00002
-rho_0: 1000
-beta: 0.00004
+rho_0: 1028
+beta: 0.0004
 gamma: 0.0008
-T_0: 0.4
+T_0: 1
 S_0: 35
 max_iter: 0
 BCs:
@@ -22,36 +22,32 @@ BCs:
         left: [0,0]
         top: ['null',0]
     T:
-        #ice_shelf_top: 0.2
-        right: 0.6+tanh(pi * 1000*(-x[1] +0.8) / 200)
-#        left: 0.3999
+        right: -0.6+tanh(pi * 1000*(-x[1] +0.8) / 200)
     Q:
-        '(3,1)': 0
+        '(25,1)': 0
     S:
-        #ice_shelf_top: 34.85
-#        left: 34.999
-        right: 35
+        right: 34.5+tanh(pi * 1000*(-x[1] +0.8) / 200)/2
 melt_boundaries:
     - ice_shelf_top
     #- left
 convert_from_ms_to_kmh: True
 very_verbose: true
-stabilization_NS: false
-stabilization_T: false
+stabilization_NS: true
+stabilization_T: true
 #stabilization_T_coeff: 0.001
-stabilization_S: false
+stabilization_S: true
 #stabilization_S_coeff: 0.1
 checkpoint_interval: 15
-plot_path: melting-initial-conditions
-domain_size_x: 5
+#plot_path: melting-higher-beta-slip
+domain_size_x: 30
 domain_size_y: 1
-mesh_resolution: 0.09
+mesh_resolution: 0.08
 ice_shelf_bottom_p:
 - 0
 - 0.05
 - 0
 ice_shelf_top_p:
-- 2
+- 20
 - 0.95
 - 0
 boundary_layer_thickness: .01
