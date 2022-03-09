@@ -193,7 +193,7 @@ def B_g(a, u, p_nh, grad_p_h, v, q):
         # + dot(grad_p_h, v)*dx    #        + dot(grad_p_h/rho_0, v)*dx
         # + inner(p_nh*n/rho_0, v)*ds
         # - dot(dot(elem_mult(nu, nabla_grad(u)), n), v)*ds
-        - dot(div(u), q)*dx)
+        + dot(div(u), q)*dx)
 
     # Add Coriolis acceleration in 3D
     if dim == 3:
