@@ -353,6 +353,12 @@ class Domain(object):
                 # Vector valued function spaces (i.e. velocity) should have
                 # BCs applied on both components, if given.
                 if self.f_spaces[f_space_name].num_sub_spaces() != 0:
+
+                    if self.subdomains_markers.get(subdomain_name) is None:
+                        flog.warning('Subdomain {} not defined - skipping BC.'
+                                     .format(subdomain_name))
+                        continue
+
                     for i in range(self.f_spaces[f_space_name].num_sub_spaces()):
                         if BC_value[i] != 'null':
                             self.BCs[f_space_name].append(

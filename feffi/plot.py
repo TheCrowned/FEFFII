@@ -43,7 +43,19 @@ def plot_single(to_plot, **kwargs):
 
     flog.info('Plotting %s...' % title)
 
-    fig = plt.figure()#figsize=(15,2))
+    # Plot size is aspect-ratio * 2 (+2 on x to fit colorbar)
+    try: # if to_plot is a Function
+        mesh = to_plot.function_space().mesh()
+        figsize = (max(mesh.coordinates()[:,0])*10 + 2,
+                   max(mesh.coordinates()[:,1])*10)
+    except AttributeError: # to_plot is then probably a mesh
+        try:
+            figsize = (max(to_plot.coordinates()[:,0])*10 + 2,
+                       max(to_plot.coordinates()[:,1])*10)
+        except: # plotting rocks
+            figsize = (12, 10)
+    
+    fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111)
     pl = plot(to_plot, title=title)
     ax.set_aspect('auto')  # forces square plot
@@ -61,7 +73,7 @@ def plot_single(to_plot, **kwargs):
         plt.show()
     if kwargs.get('file_name') != None and kwargs['file_name'] != '':
         plt.savefig(os.path.join(
-            config['plot_path'], kwargs['file_name']), dpi=300)
+            config['plot_path'], kwargs['file_name']), bbox_inches='tight', pad_inches=0.1, dpi=400)
 
     plt.close()
 
@@ -84,6 +96,8 @@ def plot_solutions(f, **kwargs):
                 title='Mesh', **kwargs)
     plot_single(f['u_'], file_name='velxy.png',
                 title='Velocity', **kwargs)
+    plot_single(fenics.div(f['u_']), file_name='div_velxy.png',
+                title='div(Velocity)', **kwargs)
     # Velocity components
     for i in range(f['u_'].geometric_dimension()):
         plot_single(f['u_'][i], file_name='velx{}.png'.format(i),

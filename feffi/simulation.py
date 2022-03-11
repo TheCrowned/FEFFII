@@ -84,6 +84,14 @@ class Simulation(object):
             #self.xdmffile_sol.write(self.f['u_'].function_space().mesh())
             self.save_solutions_xdmf()
 
+        if parameters.config['store_daily_avg']:
+            self.daily_avg = {
+                'u' : [],
+                'T' : [],
+                'S' : [],
+                'm_B' : [],
+            }
+
         '''csv_simul_data_file = open(
             os.path.join(parameters.config['plot_path'], 'simul_data.csv'),
                          'w')
@@ -107,7 +115,7 @@ class Simulation(object):
         """Runs the simulation until a stopping condition is met."""
 
         # Register SIGINT handler so we plot before exiting if CTRL-C is hit
-        signal.signal(signal.SIGINT, self.sigint_handler)
+        self.original_sigint_handler = signal.signal(signal.SIGINT, self.sigint_handler)
 
         self.start_time = time()
         flog.info('Running full simulation; started at {}'
@@ -118,7 +126,7 @@ class Simulation(object):
             self.log_progress()
 
             # Viscosity ramping
-            if self.n == self.ramp_time: # gradually lower nu and alpha
+            '''if self.n == self.ramp_time: # gradually lower nu and alpha
                 parameters.config = parameters.convert_constants_from_kmh_to_ms(parameters.config)
                 if parameters.config['nu'][0] > 0.25:
                     parameters.config['nu'][0] *= 0.8
@@ -134,23 +142,57 @@ class Simulation(object):
                 flog.info('Ramped viscosity: nu = {}, alpha = {}'.format(parameters.config['nu'], parameters.config['alpha']))
                 flog.info('Next ramping at n = {}'.format(self.ramp_time))
                 parameters.config = parameters.convert_constants_from_ms_to_kmh(parameters.config)
-                #flog.info(parameters.config)
+                #flog.info(parameters.config)'''
 
             # Plot/Save solutions every given iterations so we can keep an eye
             if parameters.config['checkpoint_interval'] != 0:
                 if self.n > 0 and self.n % parameters.config['checkpoint_interval'] == 0:
                     flog.debug('--- Save Checkpoint at Timestep {} ---'.format(self.n))
                     plot.plot_solutions(self.f)
-                    #self.save_solutions_final()
 
-                    # Store solution for paraview
-                    if parameters.config['store_solutions']:
-                        self.save_solutions_xdmf()
+                # Store solution for paraview
+                if parameters.config['store_solutions']:
+                    self.save_solutions_xdmf()
+
+            # Store daily averages
+            if parameters.config['store_daily_avg']:
+                day_n = str(round(self.n/parameters.config['steps_n']))
+
+                self.daily_avg['u'].append(self.f['sol'].split()[0]) #f['u_'] comes from sol.split(True) which basically spins up a new function space for every split, so it would not be possible to sum them up afterwards
+                self.daily_avg['T'].append(self.f['T_'])
+                self.daily_avg['S'].append(self.f['S_'])
+                self.daily_avg['m_B'].append(self.f['3eqs']['sol'].split()[0])
+
+                if self.n % parameters.config['steps_n'] == 0:
+                    avg_u = project(sum(self.daily_avg['u'])/parameters.config['steps_n'], self.f['u_'].function_space())
+                    avg_T = project(sum(self.daily_avg['T'])/parameters.config['steps_n'], self.f['T_'].function_space())
+                    avg_S = project(sum(self.daily_avg['S'])/parameters.config['steps_n'], self.f['S_'].function_space())
+
+                    sol_path = os.path.join(parameters.config['plot_path'], 'daily-avg', day_n)
+                    daily_avg_dict = {
+                        'u' : avg_u,
+                        'T' : avg_T,
+                        'S' : avg_S,
+                    }
+
+                    if self.f['3eqs']['m_B'] is not False:
+                        avg_m_B = project(sum(self.daily_avg['m_B'])/parameters.config['steps_n'], self.f['3eqs']['sol'].split()[0])
+                        daily_avg_dict['m_B'] = avg_m_B
+                    
+                    self.save_solutions_xml(sol_path, daily_avg_dict)
+                    flog.info('Stored daily averages for day {}.'.format(day_n))
+
+                    # Reset averages lists
+                    self.daily_avg['u'] = []
+                    self.daily_avg['T'] = []
+                    self.daily_avg['S'] = []
+                    self.daily_avg['m_B'] = []
 
             # If simulation is over
             if self.maybe_stop():
                 flog.info('Simulation stopped at {}, after {} steps ({} seconds).'.format(
                     str(datetime.now()), self.n, round(time()-self.start_time)))
+                self.final_operations()
                 break
 
         self.final_operations()
@@ -159,13 +201,28 @@ class Simulation(object):
         """Performs ending-simulation tasks, such as plotting and solutions saving."""
 
         self.build_full_pressure(self.f['p_'])
-        self.save_solutions_final()
         plot.plot_solutions(self.f)
         self.save_config()
+
+        # Store final solutions
+        sol_path = os.path.join(parameters.config['plot_path'], 'solutions')
+        solutions = {
+            'up' : self.f['sol'],
+            'u' : self.f['u_'],
+            'T' : self.f['T_'],
+            'S' : self.f['S_'],
+        }
+        if self.f['3eqs']['m_B'] is not False:
+            solutions['m_B'] = self.f['3eqs']['sol'].split(True)[0]
+
+        self.save_solutions_xml(sol_path, solutions)
 
         # Store solution for paraview
         if parameters.config['store_solutions']:
             self.save_solutions_xdmf()
+
+        # Restore original sigint handler
+        signal.signal(signal.SIGINT, self.original_sigint_handler)
 
     def timestep(self):
         """Runs one timestep."""
@@ -373,7 +430,6 @@ class Simulation(object):
 
         self.f['p_'].assign(parameters.config['rho_0'] * self.f['p_'])
 
-
     def maybe_stop(self):
         """Checks whether simulation should be stopped.
 
@@ -455,24 +511,21 @@ class Simulation(object):
         self.xdmffile_sol.write(self.f['T_'], self.n)
         self.xdmffile_sol.write(self.f['S_'], self.n)
 
-    def save_solutions_final(self):
-        """Saves last timestep solutions to XML files for later reusage in FEniCS"""
+    def save_solutions_xml(self, path, f):
+        """Saves last timestep solutions to XML files for later reusage in FEniCS
 
-        (Path(os.path.join(parameters.config['plot_path'], 'solutions'))
-            .mkdir(parents=True, exist_ok=True))
+        Parameters
+        ----------
+        path: string
+            dir path where to store files
+        f: dict
+            functions to store
+        """
 
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'mesh.xml'))
-            << self.f['u_'].function_space().mesh())
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'up_{}.xml'.format(self.n)))
-            << self.f['sol'])
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'u_{}.xml'.format(self.n)))
-            << self.f['u_'])
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'p_{}.xml'.format(self.n)))
-            << self.f['p_'])
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'T_{}.xml'.format(self.n)))
-            << self.f['T_'])
-        (File(os.path.join(parameters.config['plot_path'], 'solutions', 'S_{}.xml'.format(self.n)))
-            << self.f['S_'])
+        (Path(path).mkdir(parents=True, exist_ok=True))
+
+        for (label, func) in f.items():
+            (File(os.path.join(path, '{}.xml'.format(label)))) << func
 
     def save_config(self):
         """Stores config used for simulation to file."""

@@ -6,10 +6,10 @@ dependencies:
   - fenics
   - mshr
   - matplotlib
-  - ipython
   - meshio
+  - numpy
   - pyyaml
   - pip
   - pip:
-    - pygmsh==6.1.1
+    - pygmsh
     - gmsh

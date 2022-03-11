@@ -41,6 +41,7 @@ boundary_layer_thickness: 0.003
 very_verbose: False
 store_solutions: False
 checkpoint_interval: 20
+store_daily_avg: True
 
 label: ''
 max_iter: 0
