@@ -156,14 +156,18 @@ class Simulation(object):
 
             # Store daily averages
             if parameters.config['store_daily_avg']:
-                day_n = str(round(self.n/parameters.config['steps_n']))
 
-                self.daily_avg['u'].append(self.f['sol'].split()[0]) #f['u_'] comes from sol.split(True) which basically spins up a new function space for every split, so it would not be possible to sum them up afterwards
-                self.daily_avg['T'].append(self.f['T_'])
-                self.daily_avg['S'].append(self.f['S_'])
-                self.daily_avg['m_B'].append(self.f['3eqs']['sol'].split()[0])
-
+                # Every hour, store solutions
                 if self.n % parameters.config['steps_n'] == 0:
+                    self.daily_avg['u'].append(self.f['sol'].split()[0]) #f['u_'] comes from sol.split(True) which basically spins up a new function space for every split, so it would not be possible to sum them up afterwards
+                    self.daily_avg['T'].append(self.f['T_'])
+                    self.daily_avg['S'].append(self.f['S_'])
+                    self.daily_avg['m_B'].append(self.f['3eqs']['sol'].split()[0])
+
+                # Every day, export solutions averages
+                if self.n % parameters.config['steps_n']*24 == 0:
+                    day_n = str(round(self.n/parameters.config['steps_n']))
+                    
                     avg_u = project(sum(self.daily_avg['u'])/parameters.config['steps_n'], self.f['u_'].function_space())
                     avg_T = project(sum(self.daily_avg['T'])/parameters.config['steps_n'], self.f['T_'].function_space())
                     avg_S = project(sum(self.daily_avg['S'])/parameters.config['steps_n'], self.f['S_'].function_space())
@@ -175,7 +179,7 @@ class Simulation(object):
                         'S' : avg_S,
                     }
 
-                    if self.f['3eqs']['m_B'] is not False:
+                    if self.f['3eqs']['m_B'] is not False: #3eqs could be disabled
                         avg_m_B = project(sum(self.daily_avg['m_B'])/parameters.config['steps_n'], self.f['3eqs']['sol'].split()[0].function_space().collapse())
                         daily_avg_dict['m_B'] = avg_m_B
                     
