@@ -176,7 +176,7 @@ class Simulation(object):
                     }
 
                     if self.f['3eqs']['m_B'] is not False:
-                        avg_m_B = project(sum(self.daily_avg['m_B'])/parameters.config['steps_n'], self.f['3eqs']['sol'].split()[0])
+                        avg_m_B = project(sum(self.daily_avg['m_B'])/parameters.config['steps_n'], self.f['3eqs']['sol'].split()[0].function_space().collapse())
                         daily_avg_dict['m_B'] = avg_m_B
                     
                     self.save_solutions_xml(sol_path, daily_avg_dict)
@@ -505,6 +505,8 @@ class Simulation(object):
 
         #t = self.n*self.config['final_time']/self.config['steps_n']
 
+        flog.info('Paraview checkpoint save.')
+
         self.xdmffile_sol.write(self.f['u_'].sub(0), self.n)
         self.xdmffile_sol.write(self.f['u_'].sub(1), self.n)
         self.xdmffile_sol.write(self.f['p_'], self.n)
@@ -522,6 +524,7 @@ class Simulation(object):
             functions to store
         """
 
+        flog.info('Store solutions in {}.'.format(path))
         (Path(path).mkdir(parents=True, exist_ok=True))
 
         for (label, func) in f.items():
