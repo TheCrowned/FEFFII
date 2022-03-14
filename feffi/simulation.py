@@ -145,12 +145,10 @@ class Simulation(object):
                 #flog.info(parameters.config)'''
 
             # Plot/Save solutions every given iterations so we can keep an eye
-            if parameters.config['checkpoint_interval'] != 0:
-                if self.n > 0 and self.n % parameters.config['checkpoint_interval'] == 0:
-                    flog.debug('--- Save Checkpoint at Timestep {} ---'.format(self.n))
-                    plot.plot_solutions(self.f)
-
-                # Store solution for paraview
+            if (parameters.config['checkpoint_interval'] != 0 and self.n > 0
+            and self.n % parameters.config['checkpoint_interval'] == 0):
+                flog.debug('--- Save Checkpoint at Timestep {} ---'.format(self.n))
+                plot.plot_solutions(self.f)
                 if parameters.config['store_solutions']:
                     self.save_solutions_xdmf()
 
