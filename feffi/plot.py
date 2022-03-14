@@ -43,14 +43,26 @@ def plot_single(to_plot, **kwargs):
 
     flog.info('Plotting %s...' % title)
 
-    fig = plt.figure()
+    # Plot size is aspect-ratio * 2 (+2 on x to fit colorbar)
+    try: # if to_plot is a Function
+        mesh = to_plot.function_space().mesh()
+        figsize = (max(mesh.coordinates()[:,0])*10 + 2,
+                   max(mesh.coordinates()[:,1])*10)
+    except AttributeError: # to_plot is then probably a mesh
+        try:
+            figsize = (max(to_plot.coordinates()[:,0])*10 + 2,
+                       max(to_plot.coordinates()[:,1])*10)
+        except: # plotting rocks
+            figsize = (12, 10)
+    
+    fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111)
-    ax.set_aspect('auto')  # forces square plot
     pl = plot(to_plot, title=title)
+    ax.set_aspect('auto')  # forces square plot
 
     # Add colorbar if possible (i.e. if it is a Function)
     try:
-        plt.colorbar(pl)
+        plt.colorbar(pl)#, cax = fig.add_axes([0.92, 0.2, 0.03, 0.55]))
     except:
         pass
 
@@ -61,7 +73,7 @@ def plot_single(to_plot, **kwargs):
         plt.show()
     if kwargs.get('file_name') != None and kwargs['file_name'] != '':
         plt.savefig(os.path.join(
-            config['plot_path'], kwargs['file_name']), dpi=1000)
+            config['plot_path'], kwargs['file_name']), bbox_inches='tight', pad_inches=0.1, dpi=400)
 
     plt.close()
 
@@ -80,8 +92,12 @@ def plot_solutions(f, **kwargs):
     All of `plot_single`.
     """
 
+    plot_single(f['u_'].function_space().mesh(), file_name='mesh.png',
+                title='Mesh', **kwargs)
     plot_single(f['u_'], file_name='velxy.png',
                 title='Velocity', **kwargs)
+    plot_single(fenics.div(f['u_']), file_name='div_velxy.png',
+                title='div(Velocity)', **kwargs)
     # Velocity components
     for i in range(f['u_'].geometric_dimension()):
         plot_single(f['u_'][i], file_name='velx{}.png'.format(i),
@@ -92,8 +108,12 @@ def plot_solutions(f, **kwargs):
                 title='Temperature', **kwargs)
     plot_single(f['S_'], file_name='salinity.png',
                 title='Salinity', **kwargs)
-    plot_single(f['u_'].function_space().mesh(), file_name='mesh.png',
-                title='Mesh', **kwargs)
+
+    melt_sol = f['3eqs']['sol'].split()
+    #plot_single(f['3eqs']['uStar'], file_name='uStar.png', title='uStar', **kwargs)
+    #plot_single(melt_sol[0], file_name='m_B.png', title='m_B', **kwargs)
+    #plot_single(melt_sol[1], file_name='T_B.png', title='T_B', **kwargs)
+    #plot_single(melt_sol[2], file_name='S_B.png', title='S_B', **kwargs)
 
     '''bmesh = BoundaryMesh(mesh, "exterior", True)
     boundary = bmesh.coordinates()

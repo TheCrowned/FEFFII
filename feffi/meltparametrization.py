@@ -1,131 +1,183 @@
 from fenics import (dx, Function, FunctionSpace, FiniteElement, lhs, rhs,
                     Constant, norm, MixedElement, TestFunctions, solve,
-                    TrialFunctions, ln)
-from . import parameters
+                    TrialFunctions, ln, UserExpression, interpolate, near,
+                    Expression)
+from . import parameters, plot
 import fenics
 
 
 def get_3eqs_default_constants():
-    """Values from Asai Davies 2016 ISOMIP Paper."""
+    """Values from Jenkins-Holland 1999 paper."""
 
     return {
-        'Cd' : 2.5*10**(-3),
-        'cw' : 3974,
-        'gammaT' : 1.15*10**(-4), # this depends on mesh resolution (1.15*10**(-2) for mesh-res 10)
-        'gammaS' : 1.15*10**(-4)/35,
-        'L' : 3.34*10**5,
-        'lam1' : -0.0573,
-        'lam2' : 0.0832,
-        'lam3' : -7.53*10**(-8),
-        'rhofw' : 1000,
-        'rhosw' : 1028,
-        'Ut' : 0.01,
+        'c_d' : 1.5*10**(-3),       # momentum exchange coeff
+        'c_M' : 3974,               # specific heat capacity of mixed layer
+        'c_I' : 2009,               # specific heat capacity of ice
+        #'gammaT' : 1*10**(-4),     # these are values at stability, already including u*
+        #'gammaS' : 5.05*10**(-7),
+        'L' : 3.34*10**5,           # latent heat of fusion
+        'a' : -0.0573,              # salinity coeff of freezing eq
+        'b' : 0.0939, # 0.0832 misomip # constant coeff of freezing eq
+        'c' : -7.53*10**(-8),       # pressure coeff of freezing eq
+        'rho_M' : 1025,             # density of mixed layer
+        'rho_I' : 920,              # density of ice
+        'k_I' : 1.14*10**(-6),      # molecular thermal conductivity ice shelf
+        'Ts' : -20,                 # temperature at ice shelf surface (value from mitgcm, JH has -25)
+        'Ut' : 0.1,               # tidal velocity, for us a regularization parameter
+
+        ## Gamma(T,S)-related values
+        'xi_N' : 0.052,              # stability constant
+        'etaStar' : 1,              # stability constant
+        'k' : 0.40,                 # Von Kàrmàn's constant
+        'Pr' : 13.8,                # Prandtl number
+        'Sc' : 2432                 # Schmidt number
     }
 
 
-def solve_3eqs_system(uw, Tw, Sw, pzd):
+def solve_3eqs_system(f):
     """
     Solves the 3 equations system for melt-rate formulation.
 
-    (Notation and equations found in ISOMIP paper:
-    https://gmd.copernicus.org/articles/9/2471/2016/ )
+    (Notation and equations found in Jenkins-Holland 99 paper:
+    https://journals.ametsoc.org/view/journals/phoc/29/8/1520-0485_1999_029_1787_mtioia_2.0.co_2.xml)
 
     Parameters
     ----------
-    uw : FEniCS Function
-        Ocean velocity
-    Tw : FEniCS Function
-        Ocean temperature
-    Sw : FEniCS Function
-        Ocean salinity
-    pzd : FEniCS Function
-        Ocean pressure
+    f : FEFFI functions dict
 
     Return
     ------
-    mw : meltrate
-    Tzd : temperature field at ice-ocean interface
-    Szd : salinity field at ice-ocean interface
+    m_B : meltrate at ice-ocean boundary
+    T_B : temperature field at ice-ocean boundary
+    S_B : salinity field at ice-ocean boundary
     """
-    mesh = uw.function_space().mesh()
-    P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
-    element = MixedElement([P1, P1, P1])
-    V = FunctionSpace(mesh, element)
-    v_1, v_2, v_3 = TestFunctions(V)
-    mw, Tzd, Szd = TrialFunctions(V)
-    sol = Function(V)
+
+    # Shorthand for functions
+    u_M, T_M, S_M, p_B = f['u_'], f['T_'], f['S_'], f['p_']
+    v_1, v_2, v_3 = f['3eqs']['v_m'], f['3eqs']['v_T'], f['3eqs']['v_S']
+    m_B, T_B, S_B = f['3eqs']['m_B'], f['3eqs']['T_B'], f['3eqs']['S_B']
+    uStar = f['3eqs']['uStar']
 
     ## Shorthand for constants
-    Cd    = parameters.config['3eqs']['Cd']
-    cw    = parameters.config['3eqs']['cw']
-    rhofw = parameters.config['3eqs']['rhofw']
-    rhosw = parameters.config['3eqs']['rhosw']
-    lam1  = parameters.config['3eqs']['lam1']
-    lam2  = parameters.config['3eqs']['lam2']
-    lam3  = parameters.config['3eqs']['lam3']
-    L     = parameters.config['3eqs']['L']
-    Ut    = parameters.config['3eqs']['Ut']
-    gammaT    = parameters.config['3eqs']['gammaT']
-    gammaS    = parameters.config['3eqs']['gammaS']
+    config  = parameters.config
+    c_I     = config['3eqs']['c_I']
+    c_M     = config['3eqs']['c_M']
+    rho_I   = config['3eqs']['rho_I']
+    rho_M   = config['3eqs']['rho_M']
+    a       = config['3eqs']['a']
+    b       = config['3eqs']['b']
+    c       = config['3eqs']['c']
+    L       = config['3eqs']['L']
+    k_I     = config['3eqs']['k_I']
+    Ts      = config['3eqs']['Ts']
+    xi_N    = config['3eqs']['xi_N']
+    etaStar = config['3eqs']['etaStar']
+    k       = config['3eqs']['k']
+    Pr      = config['3eqs']['Pr']
+    Sc      = config['3eqs']['Sc']
 
-    Ustar = (Cd*(uw.sub(0)**2+uw.sub(1)**2)+Ut**2)**(1/2) # Ut is needed, maybe in case uw is 0 at some point?
+    gammaT = Constant(1/(1/(2*xi_N*etaStar)-1/k  +  12.5*(Pr**(2/3)) - 6))
+    gammaS = Constant(1/(1/(2*xi_N*etaStar)-1/k  +  12.5*(Sc**(2/3)) - 6))
+    #print('gammaT, S {} {}'.format(gammaT.values(), gammaS.values()))
 
-    F = ( (+ rhofw*mw*L + rhosw*cw*Ustar*gammaT*(Tzd-Tw))*v_1*dx
-           + (Tzd - lam1*Szd - lam2 - lam3*pzd)*v_2*dx
-           + (rhofw*mw*Sw + rhosw*Ustar*gammaS*(Szd-Sw))*v_3*dx )
-           # last equation should have lhs rhofw*mw*Szd, but this is a common
+    y = interpolate(Expression('1-x[1]', degree=2), T_M.function_space()) #questionable choice, to divide by this
+    F = ( (+ rho_I*m_B*L - rho_I*c_I*k_I*(Ts-T_B)/y + rho_M*c_M*uStar*gammaT*(T_B-T_M))*v_1*dx
+           + (T_B - a*S_B - b - c*p_B)*v_2*dx
+           + (rho_I*m_B*S_M + rho_M*uStar*gammaS*(S_B-S_M))*v_3*dx )
+           # last equation should have lhs rho_I*m_B*S_B, but this is a common
            # linear approximation (source: Johan)
 
-    solve(lhs(F) == rhs(F), sol)
-    sol_splitted = sol.split()
-    sol_splitted[0].rename('mw', 'meltrate')
-    sol_splitted[1].rename('Tzd', 'Tzd')
-    sol_splitted[2].rename('Szd', 'Szd')
-    return (sol_splitted[0], sol_splitted[1], sol_splitted[2])
+    solve(lhs(F) == rhs(F), f['3eqs']['sol'])
+    #(m_B_sol, T_B_sol, S_B_sol) = f['3eqs']['sol'].split()
+    #m_B_sol.rename('m_B', 'meltrate')
+    #T_B_sol.rename('T_B', 'T_B')
+    #S_B_sol.rename('S_B', 'S_B')
+    #return (m_B_sol, T_B_sol, S_B_sol)
 
 
-def build_heat_flux_forcing_term(u_, Tw, mw, Tzd):
+def build_heat_flux_forcing_term(f):
 
-    ## Shorthand for constants
-    Cd    = parameters.config['3eqs']['Cd']
-    cw    = parameters.config['3eqs']['cw']
-    rhofw = parameters.config['3eqs']['rhofw']
-    rhosw = parameters.config['3eqs']['rhosw']
-    Ut    = parameters.config['3eqs']['Ut']
-    gammaT    = parameters.config['3eqs']['gammaT']
-
-    Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
-
-    Fh = -cw*(rhosw*Ustar*gammaT+rhofw*mw)*(Tzd-Tw)
-
-    # These are for to allow plotting of flux boundary term values
-    Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
-    Ustar = fenics.interpolate(Ustar, Tzd.function_space().collapse())
-    Fh_func = fenics.Expression('-cw*(rhosw*Ustar*gammaT+rhofw*mw)*(Tzd-Tw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaT=gammaT, rhofw=rhofw, Tzd=Tzd, Tw=Tw, mw=mw, cw=cw)
-    Fh_func = fenics.interpolate(Fh_func, Tzd.function_space().collapse())
-    Fh_func.rename('heat_flux', '')
-
-    return Fh, Fh_func
-
-
-def build_salinity_flux_forcing_term(u_, Sw, mw, Szd):
+    # Shorthand for functions
+    T_M = f['T_']
+    uStar = f['3eqs']['uStar']
+    (m_B, T_B, _) = f['3eqs']['sol'].split()
 
     ## Shorthand for constants
-    Cd    = parameters.config['3eqs']['Cd']
-    rhofw = parameters.config['3eqs']['rhofw']
-    rhosw = parameters.config['3eqs']['rhosw']
-    Ut    = parameters.config['3eqs']['Ut']
-    gammaS    = parameters.config['3eqs']['gammaS']
+    config  = parameters.config
+    xi_N    = config['3eqs']['xi_N']
+    etaStar = config['3eqs']['etaStar']
+    k       = config['3eqs']['k']
+    Pr      = config['3eqs']['Pr']
+    Sc      = config['3eqs']['Sc']
 
-    Ustar = (Cd*(u_.sub(0)**2+u_.sub(1)**2)+Ut**2)**(1/2)
+    gammaT = Constant(1/(1/(2*xi_N*etaStar)-1/k  +  12.5*(Pr**(2/3)) - 6))
 
-    Fs = -(rhosw*Ustar*gammaS+rhofw*mw)*(Szd-Sw)
+    Fh = -(uStar*gammaT+m_B)*(T_B-T_M)
 
     # These are for to allow plotting of flux boundary term values
-    Ustar = fenics.Expression('sqrt((Cd*(u1*u1+u2*u2)+Ut*Ut))', degree=2, Cd=Cd, Ut=Ut, u1=u_.sub(0), u2=u_.sub(1))
-    Ustar = fenics.interpolate(Ustar, Szd.function_space().collapse())
-    Fs_func = fenics.Expression('-(rhosw*Ustar*gammaS+rhofw*mw)*(Szd-Sw)', degree=2, rhosw=rhosw, Ustar=Ustar, gammaS=gammaS, rhofw=rhofw, Szd=Szd, Sw=Sw, mw=mw)
-    Fs_func = fenics.interpolate(Fs_func, Szd.function_space().collapse())
-    Fs_func.rename('salt_flux', '')
+    #Fh_func = Expression('-(uStar*gammaT+m_B)*(T_B-T_M)', degree=2, uStar=uStar, gammaT=gammaT, T_B=T_B, T_M=T_M, m_B=m_B)
+    #Fh_func = interpolate(Fh_func, T_B.function_space().collapse())
+    #plot.plot_single(Fh_func, display=True)
+    #Fh_func.rename('heat_flux', '')
 
-    return Fs, Fs_func
+    return Fh, False
+
+
+def build_salinity_flux_forcing_term(f):
+
+    # Shorthand for functions
+    S_M = f['S_']
+    uStar = f['3eqs']['uStar']
+    (m_B, _, S_B) = f['3eqs']['sol'].split()
+
+    ## Shorthand for constants
+    config  = parameters.config
+    xi_N    = config['3eqs']['xi_N']
+    etaStar = config['3eqs']['etaStar']
+    k       = config['3eqs']['k']
+    Pr      = config['3eqs']['Pr']
+    Sc      = config['3eqs']['Sc']
+
+    gammaS = Constant(1/(1/(2*xi_N*etaStar)-1/k  +  12.5*(Sc**(2/3)) - 6))
+
+    Fs = -(uStar*gammaS+m_B)*(S_B-S_M)
+
+    # These are for to allow plotting of flux boundary term values
+    #Fs_func = Expression('-(uStar*gammaS+m_B)*(S_B-S_M)', degree=2, uStar=uStar, gammaS=gammaS, S_B=S_B, S_M=S_M, m_B=m_B)
+    #Fs_func = interpolate(Fs_func, S_B.function_space().collapse())
+    #Fs_func.rename('salt_flux', '')
+
+    return Fs, False
+
+
+class uStar_expr(UserExpression):
+    def __init__(self, u):
+        self.u = u
+        super().__init__()
+
+    def eval(self, value, x):
+        ## Shorthand for constants
+        config = parameters.config
+        ice_shelf_bottom_p = config['ice_shelf_bottom_p']
+        ice_shelf_top_p = config['ice_shelf_top_p']
+        ice_shelf_slope = config['ice_shelf_slope']
+        boundary_layer_thickness = config['boundary_layer_thickness']
+        c_d = config['3eqs']['c_d']
+        Ut = config['3eqs']['Ut']
+
+        x_b = x[0]
+        try:
+            y_b = ice_shelf_slope*x[0]+ice_shelf_bottom_p[1]
+        except TypeError: # vertical ice shelf
+            x_b = 0
+            y_b = x[1]
+
+        # Only compute u* for points within boundary_layer_thickness distance from ice shelf
+        #if x[0] < ice_shelf_top_p[0] and ice_shelf_slope*x[0]+ice_shelf_bottom_p[1] - x[1] <= boundary_layer_thickness:
+        if x[0] <= ice_shelf_top_p[0]+0.05 and y_b - x[1] <= boundary_layer_thickness:
+            value[0] = max(10**(-3), c_d*((self.u(x[0], x[1])[0]**2+self.u(x[0], x[1])[1]**2))**(1/2))
+        else:
+            value[0] = 10**(-3) #c_d*Ut**2
+
+    def value_shape(self):
+        return (2,) # cause if value is a scalar, it is not mutable and thus not working
