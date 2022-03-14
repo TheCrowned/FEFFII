@@ -1,5 +1,6 @@
 import fenics
 import logging
+import meshio
 from feffi.shelfgeometry import ShelfGeometry
 import numpy as np
 from math import sqrt
@@ -187,3 +188,20 @@ def refine_boundary_mesh(domain, domain_class):
     flog.info('Refined mesh at boundaries')
 
     #return mesh
+
+def pygmsh2fenics_mesh(mesh):
+    """Convert mesh from PyGMSH output to FEniCS."""
+
+    points = mesh.points[:,:2] # must strip z-coordinate for fenics
+
+    print("Writing 2d mesh for dolfin Mesh")
+    meshio.write("mesh_2d.xdmf", meshio.Mesh(
+        points=points,
+        cells={"triangle": mesh.cells_dict["triangle"]}))
+
+    fenics_mesh_2d = fenics.Mesh()
+    with fenics.XDMFFile("mesh_2d.xdmf") as infile:
+        print("Reading 2d mesh into dolfin")
+        infile.read(fenics_mesh_2d)
+
+    return fenics_mesh_2d

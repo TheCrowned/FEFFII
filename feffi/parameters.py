@@ -116,6 +116,28 @@ def define_parameters(user_config={}):
     if config.get('convert_from_ms_to_kmh') and config['convert_from_ms_to_kmh']:
         config.update(convert_constants_from_ms_to_kmh(config))
 
+    # Parse viscosity and diffusivity
+    if len(config['nu']) == 1:
+        config['nu'] = [config['nu'][0], config['nu'][0]]
+    elif len(config['nu']) == 2:
+        config['nu'] = [config['nu'][0], config['nu'][1]]
+    elif len(config['nu']) == 3:
+        config['nu'] = [config['nu'][0], config['nu'][1], config['nu'][2]]
+
+    if len(config['alpha']) == 1:
+        config['alpha'] = [config['alpha'][0], config['alpha'][0]]
+    elif len(config['alpha']) == 2:
+        config['alpha'] = [config['alpha'][0], config['alpha'][1]]
+    elif len(config['alpha']) == 3:
+        config['alpha'] = [config['alpha'][0], config['alpha'][1], config['alpha'][2]]
+
+    # Compute ice shelf slope
+    try:
+        config['ice_shelf_slope'] = ((config['ice_shelf_top_p'][1]-config['ice_shelf_bottom_p'][1])
+                                    /(config['ice_shelf_top_p'][0]-config['ice_shelf_bottom_p'][0]))
+    except ZeroDivisionError:
+        config['ice_shelf_slope'] = None
+
     init_logging()
 
 
@@ -415,6 +437,13 @@ def reload_status(plot_path):
     config_file_path = os.path.join(plot_path, 'config.yml')
     define_parameters({'config_file': config_file_path, 'plot_path': plot_path})
 
+    # Check if files have the last simulation step suffix
+    file_suffix = ''
+    files = os.listdir(os.path.join(plot_path, 'solutions'))
+    for filename in files:
+        if 'up' in filename and filename != 'up.xml':
+            file_suffix = filename[2:-4]
+
     # Load mesh, define function spaces and functions
     mesh = fenics.Mesh(os.path.join(plot_path, 'solutions', 'mesh.xml'))
     f_spaces = define_function_spaces(mesh)
@@ -422,71 +451,17 @@ def reload_status(plot_path):
     domain = Domain(mesh, f_spaces)
 
     # Load functions
-    fenics.File(os.path.join(plot_path, 'solutions', 'up.xml')) >> f['sol']
-    fenics.File(os.path.join(plot_path, 'solutions', 'u.xml')) >> f['u_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'u.xml')) >> f['u_n']
-    fenics.File(os.path.join(plot_path, 'solutions', 'p.xml')) >> f['p_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'p.xml')) >> f['p_n']
-    fenics.File(os.path.join(plot_path, 'solutions', 'T.xml')) >> f['T_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'T.xml')) >> f['T_n']
-    fenics.File(os.path.join(plot_path, 'solutions', 'S.xml')) >> f['S_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'S.xml')) >> f['S_n']
+    fenics.File(os.path.join(plot_path, 'solutions', 'up{}.xml'.format(file_suffix))) >> f['sol']
+    fenics.File(os.path.join(plot_path, 'solutions', 'u{}.xml'.format(file_suffix))) >> f['u_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'u{}.xml'.format(file_suffix))) >> f['u_n']
+    fenics.File(os.path.join(plot_path, 'solutions', 'p{}.xml'.format(file_suffix))) >> f['p_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'p{}.xml'.format(file_suffix))) >> f['p_n']
+    fenics.File(os.path.join(plot_path, 'solutions', 'T{}.xml'.format(file_suffix))) >> f['T_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'T{}.xml'.format(file_suffix))) >> f['T_n']
+    fenics.File(os.path.join(plot_path, 'solutions', 'S{}.xml'.format(file_suffix))) >> f['S_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'S{}.xml'.format(file_suffix))) >> f['S_n']
 
     return f, domain, mesh, f_spaces
-
-
-def assemble_viscosity_tensor(visc, dim):
-    """Creates a proper viscosity tensor given relevant values.
-    Notice that input must always be a list, even if it has only one element.
-
-    Parameters
-    ----------
-    visc : list (of int)
-            If 1 entry is given, value will be used for all matrix entries.
-            If 2 or 3 entries are given, they will be repeated column-wise.
-            If 4 or 9 entries are given, they will compose the full tensor.
-    dim : int Domain dimension.
-
-    Examples
-    ----------
-    1) Obtain a tensor of the form
-       (a  a
-        a  a)
-
-       assemble_viscosity_tensor([a], 2)
-
-    2) Obtain a tensor of the form
-       (a  b
-        a  b)
-
-       assemble_viscosity_tensor([a, b], 2)
-
-    3) Obtain a tensor of the form
-       (a  b
-        c  d)
-
-       assemble_viscosity_tensor([a, b, c, d], 2)
-    """
-
-    if dim not in [2,3]:
-        raise ValueError('dim should be either 2 or 3')
-    if len(visc) not in [1, dim, dim**2]:
-        raise ValueError('Viscosity needs 1, {} or {} entries input, {} given'
-                         .format(dim, dim**2, len(visc)))
-
-    # Base case
-    output = np.full((dim, dim), fenics.Constant(visc[0]))
-
-    # If 2 values given for 2D, or 3 for 2D, use them as column-wise constant
-    if dim == len(visc):
-        for i in range(dim):
-            output[:,i] = fenics.Constant(visc[i])
-
-    # If 4 values given for 2D, or 9 for 2D, use them as single entries
-    if len(visc) == dim**2:
-        output = np.array(visc).reshape(dim, dim)
-
-    return fenics.as_tensor(output)
 
 
 def convert_constants_from_ms_to_kmh(config):
@@ -501,9 +476,14 @@ def convert_constants_from_ms_to_kmh(config):
     config['alpha'] = [i*0.0036 for i in config['alpha']]
 
     config['3eqs']['L'] *= 3.6**2
-    config['3eqs']['rhofw'] /= 3.6**2
-    config['3eqs']['rhosw'] /= 3.6**2
+    config['3eqs']['c_M'] *= 3.6**2
+    config['3eqs']['c_I'] *= 3.6**2
+    config['3eqs']['k_I'] *= 0.0036
+    config['3eqs']['rho_M'] /= 3.6**2
+    config['3eqs']['rho_I'] /= 3.6**2
     config['3eqs']['Ut'] *= 3.6
+    #config['3eqs']['gammaT'] *= 3.6
+    #config['3eqs']['gammaS'] *= 3.6
 
     return config
 
@@ -520,9 +500,14 @@ def convert_constants_from_kmh_to_ms(config):
     config['alpha'] = [i/0.0036 for i in config['alpha']]
 
     config['3eqs']['L'] /= 3.6**2
-    config['3eqs']['rhofw'] *= 3.6**2
-    config['3eqs']['rhosw'] *= 3.6**2
+    config['3eqs']['c_M'] /= 3.6**2
+    config['3eqs']['c_I'] /= 3.6**2
+    config['3eqs']['k_I'] /= 0.0036
+    config['3eqs']['rho_M'] *= 3.6**2
+    config['3eqs']['rho_I'] *= 3.6**2
     config['3eqs']['Ut'] /= 3.6
+    #config['3eqs']['gammaT'] /= 3.6
+    #config['3eqs']['gammaS'] /= 3.6
 
     return config
 
