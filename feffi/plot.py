@@ -46,12 +46,12 @@ def plot_single(to_plot, **kwargs):
     # Plot size is aspect-ratio * 2 (+2 on x to fit colorbar)
     try: # if to_plot is a Function
         mesh = to_plot.function_space().mesh()
-        figsize = (max(mesh.coordinates()[:,0])*10 + 2,
-                   max(mesh.coordinates()[:,1])*10)
+        figsize = (max(mesh.coordinates()[:,0]) + 2,
+                   max(mesh.coordinates()[:,1]))
     except AttributeError: # to_plot is then probably a mesh
         try:
-            figsize = (max(to_plot.coordinates()[:,0])*10 + 2,
-                       max(to_plot.coordinates()[:,1])*10)
+            figsize = (max(to_plot.coordinates()[:,0]) + 2,
+                       max(to_plot.coordinates()[:,1]))
         except: # plotting rocks
             figsize = (12, 10)
     
@@ -96,11 +96,11 @@ def plot_solutions(f, **kwargs):
                 title='Mesh', **kwargs)
     plot_single(f['u_'], file_name='velxy.png',
                 title='Velocity', **kwargs)
-    plot_single(fenics.div(f['u_']), file_name='div_velxy.png',
-                title='div(Velocity)', **kwargs)
+    #plot_single(fenics.div(f['u_']), file_name='div_velxy.png',
+    #            title='div(Velocity)', **kwargs)
     # Velocity components
     for i in range(f['u_'].geometric_dimension()):
-        plot_single(f['u_'][i], file_name='velx{}.png'.format(i),
+        plot_single(f['u_'].sub(i), file_name='velx{}.png'.format(i),
                     title='Velocity component {}'.format(i), **kwargs)
     plot_single(f['p_'], file_name='pressure.png',
                 title='Pressure', **kwargs)
