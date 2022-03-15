@@ -164,11 +164,13 @@ class Simulation(object):
 
                 # Every day, export solutions averages
                 if self.n % (parameters.config['steps_n']*24) == 0:
-                    day_n = str(round(self.n/parameters.config['steps_n']))
+                    day_n = str(round(self.n/parameters.config['steps_n']/24))
+
+                    assert len(self.daily_avg['u']) == 24, 'Daily avg list does not contain 24 elements'
                     
-                    avg_u = project(sum(self.daily_avg['u'])/parameters.config['steps_n'], self.f['u_'].function_space())
-                    avg_T = project(sum(self.daily_avg['T'])/parameters.config['steps_n'], self.f['T_'].function_space())
-                    avg_S = project(sum(self.daily_avg['S'])/parameters.config['steps_n'], self.f['S_'].function_space())
+                    avg_u = project(sum(self.daily_avg['u'])/24, self.f['u_'].function_space())
+                    avg_T = project(sum(self.daily_avg['T'])/24, self.f['T_'].function_space())
+                    avg_S = project(sum(self.daily_avg['S'])/24, self.f['S_'].function_space())
 
                     sol_path = os.path.join(parameters.config['plot_path'], 'daily-avg', day_n)
                     daily_avg_dict = {
@@ -178,7 +180,7 @@ class Simulation(object):
                     }
 
                     if self.f['3eqs']['m_B'] is not False: #3eqs could be disabled
-                        avg_m_B = project(sum(self.daily_avg['m_B'])/parameters.config['steps_n'], self.f['3eqs']['sol'].split()[0].function_space().collapse())
+                        avg_m_B = project(sum(self.daily_avg['m_B'])/24, self.f['3eqs']['sol'].split()[0].function_space().collapse())
                         daily_avg_dict['m_B'] = avg_m_B
                     
                     self.save_solutions_xml(sol_path, daily_avg_dict)
@@ -209,6 +211,7 @@ class Simulation(object):
         # Store final solutions
         sol_path = os.path.join(parameters.config['plot_path'], 'solutions')
         solutions = {
+            'mesh' : self.f['sol'].function_space().mesh(),
             'up' : self.f['sol'],
             'u' : self.f['u_'],
             'T' : self.f['T_'],
@@ -234,7 +237,8 @@ class Simulation(object):
         # ---------------------
 
         # Init some vars
-        self.nonlin_n = 0; residual_u = 1e22
+        self.nonlin_n = 0
+        residual_u = 1e22
         tol = 10**parameters.config['simulation_precision']
         g = Constant(parameters.config['g'])
         beta = Constant(parameters.config['beta'])

@@ -426,6 +426,7 @@ def reload_status(plot_path):
     domain : FEFFI Domain object
     mesh : FEniCS Mesh
     f_spaces : (dict)
+    daily_avgs : (dict) 
     """
 
     # This module should import as little as possible, since config is
@@ -437,31 +438,38 @@ def reload_status(plot_path):
     config_file_path = os.path.join(plot_path, 'config.yml')
     define_parameters({'config_file': config_file_path, 'plot_path': plot_path})
 
-    # Check if files have the last simulation step suffix
-    file_suffix = ''
-    files = os.listdir(os.path.join(plot_path, 'solutions'))
-    for filename in files:
-        if 'up' in filename and filename != 'up.xml':
-            file_suffix = filename[2:-4]
-
     # Load mesh, define function spaces and functions
     mesh = fenics.Mesh(os.path.join(plot_path, 'solutions', 'mesh.xml'))
     f_spaces = define_function_spaces(mesh)
     f = define_functions(f_spaces)
     domain = Domain(mesh, f_spaces)
 
-    # Load functions
-    fenics.File(os.path.join(plot_path, 'solutions', 'up{}.xml'.format(file_suffix))) >> f['sol']
-    fenics.File(os.path.join(plot_path, 'solutions', 'u{}.xml'.format(file_suffix))) >> f['u_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'u{}.xml'.format(file_suffix))) >> f['u_n']
-    fenics.File(os.path.join(plot_path, 'solutions', 'p{}.xml'.format(file_suffix))) >> f['p_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'p{}.xml'.format(file_suffix))) >> f['p_n']
-    fenics.File(os.path.join(plot_path, 'solutions', 'T{}.xml'.format(file_suffix))) >> f['T_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'T{}.xml'.format(file_suffix))) >> f['T_n']
-    fenics.File(os.path.join(plot_path, 'solutions', 'S{}.xml'.format(file_suffix))) >> f['S_']
-    fenics.File(os.path.join(plot_path, 'solutions', 'S{}.xml'.format(file_suffix))) >> f['S_n']
+    # Load solution functions
+    fenics.File(os.path.join(plot_path, 'solutions', 'up.xml')) >> f['sol']
+    (f['u_'], f['p_']) = f['sol'].split(True)
+    (f['u_n'], f['p_n']) = f['sol'].split(True)
+    fenics.File(os.path.join(plot_path, 'solutions', 'T.xml')) >> f['T_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'T.xml')) >> f['T_n']
+    fenics.File(os.path.join(plot_path, 'solutions', 'S.xml')) >> f['S_']
+    fenics.File(os.path.join(plot_path, 'solutions', 'S.xml')) >> f['S_n']
 
-    return f, domain, mesh, f_spaces
+    # Load daily averages, if available
+    daily_avgs = {}
+    if os.path.isdir(os.path.join(plot_path, 'daily-avg')):
+        dirs = os.listdir(os.path.join(plot_path, 'daily-avg'))
+        for day_n in dirs:
+            daily_avgs[day_n] = {
+                'u' : fenics.Function(f['u_'].function_space()),
+                'T' : fenics.Function(f_spaces['T']),
+                'S' : fenics.Function(f_spaces['S']),
+                'm_B' : fenics.Function(f['3eqs']['sol'].split()[0].function_space().collapse()),
+            }
+            fenics.File(os.path.join(plot_path, 'daily-avg', day_n, 'u.xml')) >> daily_avgs[day_n]['u']
+            fenics.File(os.path.join(plot_path, 'daily-avg', day_n, 'T.xml')) >> daily_avgs[day_n]['T']
+            fenics.File(os.path.join(plot_path, 'daily-avg', day_n, 'S.xml')) >> daily_avgs[day_n]['S']
+            fenics.File(os.path.join(plot_path, 'daily-avg', day_n, 'm_B.xml')) >> daily_avgs[day_n]['m_B']
+
+    return f, domain, mesh, f_spaces, daily_avgs
 
 
 def convert_constants_from_ms_to_kmh(config):

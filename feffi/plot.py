@@ -94,8 +94,8 @@ def plot_solutions(f, **kwargs):
 
     plot_single(f['u_'].function_space().mesh(), file_name='mesh.png',
                 title='Mesh', **kwargs)
-    plot_single(f['u_'], file_name='velxy.png',
-                title='Velocity', **kwargs)
+    #plot_single(f['u_'], file_name='velxy.png',
+    #            title='Velocity', **kwargs)
     #plot_single(fenics.div(f['u_']), file_name='div_velxy.png',
     #            title='div(Velocity)', **kwargs)
     # Velocity components
