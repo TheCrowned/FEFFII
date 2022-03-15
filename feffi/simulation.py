@@ -163,7 +163,7 @@ class Simulation(object):
                     self.daily_avg['m_B'].append(self.f['3eqs']['sol'].split()[0])
 
                 # Every day, export solutions averages
-                if self.n % parameters.config['steps_n']*24 == 0:
+                if self.n % (parameters.config['steps_n']*24) == 0:
                     day_n = str(round(self.n/parameters.config['steps_n']))
                     
                     avg_u = project(sum(self.daily_avg['u'])/parameters.config['steps_n'], self.f['u_'].function_space())
