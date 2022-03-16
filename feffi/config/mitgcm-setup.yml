@@ -30,21 +30,21 @@ alpha:
 - 0.25
 - 1.0e-05
 beta: 4.0e-05
-boundary_layer_thickness: 0.01
+#boundary_layer_thickness: 0.01
 checkpoint_interval: 1
 convert_from_ms_to_kmh: true
-domain_size_x: 30
-domain_size_y: 1
+#domain_size_x: 30
+#domain_size_y: 1
 final_time: 240
 gamma: 0.0008
-ice_shelf_bottom_p:
-- 0
-- 0.05
-- 0
-ice_shelf_top_p:
-- 20
-- 0.95
-- 0
+#ice_shelf_bottom_p:
+#- 0
+#- 0.05
+#- 0
+#ice_shelf_top_p:
+#- 20
+#- 0.95
+#- 0
 max_iter: 5
 melt_boundaries:
 - #ice_shelf_top
