@@ -48,11 +48,11 @@ ice_shelf_top_p:
 max_iter: 0
 melt_boundaries:
 - ice_shelf_top
-mesh_resolution: 0.15
+mesh_resolution: 0.05
 nu:
 - 0.25
 - 0.001
-plot_path: avg
+plot_path: split-boundary
 rho_0: 1000
 simulation_precision: -3
 stabilization_NS: true
