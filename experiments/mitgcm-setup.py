@@ -119,7 +119,8 @@ with pygmsh.geo.Geometry() as geom:
     mesh = geom.generate_mesh()
     mesh.write('mesh.xdmf')
     fenics_mesh = feffi.mesh.pygmsh2fenics_mesh(mesh)
-    fenics_mesh = UnitSquareMesh(50,50)
+    n = round(1/mesh_resolution)
+    fenics_mesh = UnitSquareMesh(n,n)
     feffi.plot.plot_single(fenics_mesh, display=True)
 
 # Ice shelf boundary
@@ -168,8 +169,8 @@ domain = feffi.boundaries.Domain(
     f_spaces,
     boundaries = {
       'bottom' : feffi.boundaries.Bound_Bottom(fenics_mesh),
-      'ice_shelf_bottom' : Bound_Ice_Shelf_Bottom(),
-      'ice_shelf_top' : Bound_Ice_Shelf_Top(),
+      #'ice_shelf_bottom' : Bound_Ice_Shelf_Bottom(),
+      #'ice_shelf_top' : Bound_Ice_Shelf_Top(),
       'left' : feffi.boundaries.Bound_Left(fenics_mesh),
       'right' : feffi.boundaries.Bound_Right(fenics_mesh),
       'top' : feffi.boundaries.Bound_Top(fenics_mesh),
