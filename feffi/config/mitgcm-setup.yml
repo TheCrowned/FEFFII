@@ -31,11 +31,11 @@ alpha:
 - 1.0e-05
 beta: 4.0e-05
 boundary_layer_thickness: 0.01
-checkpoint_interval: 20
+checkpoint_interval: 150
 convert_from_ms_to_kmh: true
 domain_size_x: 30
 domain_size_y: 1
-final_time: 240
+final_time: 1440
 gamma: 0.0008
 ice_shelf_bottom_p:
 - 0
@@ -48,16 +48,17 @@ ice_shelf_top_p:
 max_iter: 0
 melt_boundaries:
 - ice_shelf_top
-mesh_resolution: 0.15
+mesh_resolution: 0.03
 nu:
 - 0.25
 - 0.001
-plot_path: avg
+plot_path: mitgcm-60-days
 rho_0: 1000
-simulation_precision: -3
+simulation_precision: -4
 stabilization_NS: true
 stabilization_S: true
 stabilization_T: true
 steps_n: 30
+store_daily_avg: true
 store_solutions: true
-very_verbose: true
+very_verbose: false
