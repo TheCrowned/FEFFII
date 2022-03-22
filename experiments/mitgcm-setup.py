@@ -125,12 +125,12 @@ with pygmsh.geo.Geometry() as geom:
 # Ice shelf boundary
 class Bound_Ice_Shelf_Top(SubDomain):
     def inside(self, x, on_boundary):
-        return (((10 < x[0] <= ice_shelf_top_p[0] and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y)
+        return (((0 <= x[0] <= ice_shelf_top_p[0] and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y)
                  or (near(x[0], ice_shelf_top_p[0]) and ice_shelf_top_p[1] <= x[1] <= domain_size_y))
             and on_boundary)
 class Bound_Ice_Shelf_Bottom(SubDomain):
     def inside(self, x, on_boundary):
-        return (((0 <= x[0] <= 10 and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y))
+        return (((0 <= x[0] <= 0 and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y))
                 and on_boundary)
 
 
@@ -168,7 +168,7 @@ domain = feffi.boundaries.Domain(
     f_spaces,
     boundaries = {
       'bottom' : feffi.boundaries.Bound_Bottom(fenics_mesh),
-      'ice_shelf_bottom' : Bound_Ice_Shelf_Bottom(),
+      #'ice_shelf_bottom' : Bound_Ice_Shelf_Bottom(),
       'ice_shelf_top' : Bound_Ice_Shelf_Top(),
       'left' : feffi.boundaries.Bound_Left(fenics_mesh),
       'right' : feffi.boundaries.Bound_Right(fenics_mesh),
