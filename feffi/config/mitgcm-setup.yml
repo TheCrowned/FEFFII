@@ -31,7 +31,7 @@ alpha:
 - 1.0e-05
 beta: 4.0e-05
 boundary_layer_thickness: 0.01
-checkpoint_interval: 20
+checkpoint_interval: 5
 convert_from_ms_to_kmh: true
 domain_size_x: 30
 domain_size_y: 1
@@ -45,14 +45,14 @@ ice_shelf_top_p:
 - 20
 - 0.95
 - 0
-max_iter: 0
+max_iter: 300
 melt_boundaries:
 - ice_shelf_top
-mesh_resolution: 0.05
+mesh_resolution: 0.04
 nu:
 - 0.25
 - 0.001
-plot_path: split-boundary
+plot_path: nosplit-boundary-damped
 rho_0: 1000
 simulation_precision: -3
 stabilization_NS: true
@@ -60,4 +60,4 @@ stabilization_S: true
 stabilization_T: true
 steps_n: 30
 store_solutions: true
-very_verbose: true
+very_verbose: false

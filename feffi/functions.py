@@ -322,7 +322,7 @@ def build_temperature_form(f, domain):
         #boundaries.visualize_f_on_boundary(Fh_func, domain, 'left_ice')
         for domain_label in parameters.config['melt_boundaries']:
             if domain_label != None:
-                F += dot(Fh, T_v)*ds(domain.subdomains_markers[domain_label])
+                F += dot(Fh_func, T_v)*ds(domain.subdomains_markers[domain_label])
 
     return F
 
@@ -375,7 +375,7 @@ def build_salinity_form(f, domain):
         #boundaries.visualize_f_on_boundary(Fs_func, domain, 'left_ice')
         for domain_label in parameters.config['melt_boundaries']:
             if domain_label != None:
-                F += dot(Fs, S_v)*ds(domain.subdomains_markers[domain_label])
+                F += dot(Fs_func, S_v)*ds(domain.subdomains_markers[domain_label])
 
     return F
 
