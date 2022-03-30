@@ -159,8 +159,8 @@ def N(a, u, p):
 
     return (
         + u/dt
-        - as_vector([nu[0]*(u[0].dx(0).dx(0)),
-                     nu[1]*(u[1].dx(1).dx(1))]) # cause we don't have a real laplacian in strong form
+        - nu[0]*(u.dx(0).dx(0))
+        - nu[1]*(u.dx(1).dx(1)) # cause we don't have a real laplacian in strong form
         + dot(a, nabla_grad(u))
         + grad(p))
        # + grad(p)/rho_0)
