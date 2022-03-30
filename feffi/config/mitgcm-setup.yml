@@ -2,9 +2,9 @@ BCs:
   Q:
     '(25,0)': 0
   S:
-    right: 34.5+tanh(pi * 1000*(-x[1] +0.8) / 200)/2
+    right: 34.5+tanh(pi * 1000*(-x[1] +0.8) / 200)/2 # same as IC
   T:
-    right: -0.6+tanh(pi * 1000*(-x[1] +0.8) / 200)
+    right: -0.6+tanh(pi * 1000*(-x[1] +0.8) / 200) # same as IC
   V:
     bottom:
     - 0
@@ -12,10 +12,7 @@ BCs:
     left:
     - 0
     - 0
-    ice_shelf_top:
-    - 0
-    - 0
-    ice_shelf_bottom:
+    ice_shelf:
     - 0
     - 0
     right:
@@ -29,30 +26,28 @@ T_0: 1
 alpha:
 - 0.25
 - 1.0e-05
-beta: 4.0e-05
-boundary_layer_thickness: 0.01
-checkpoint_interval: 150
+boundary_layer_thickness: 0.01 # for u* computation in 3eqs
+checkpoint_interval: 5 # every how many timesteps solutions store/plot
 convert_from_ms_to_kmh: true
 domain_size_x: 30
 domain_size_y: 1
-final_time: 1440
-gamma: 0.0008
-ice_shelf_bottom_p:
+final_time: 1440 # hours or seconds depending on convert_from_ms_to_kmh
+ice_shelf_bottom_p: # bottom point of ice shelf segment
 - 0
 - 0.05
 - 0
-ice_shelf_top_p:
+ice_shelf_top_p: # top point of ice shelf segment
 - 20
 - 0.95
 - 0
-max_iter: 0
+max_iter: 0 # stop after given timesteps
 melt_boundaries:
-- ice_shelf_top
+- ice_shelf
 mesh_resolution: 0.03
 nu:
 - 0.25
 - 0.001
-plot_path: mitgcm-60-days
+plot_path: mitgcm-60-days # plot directory name (inside plots/ dir)
 rho_0: 1000
 simulation_precision: -4
 stabilization_NS: true
@@ -61,4 +56,4 @@ stabilization_T: true
 steps_n: 30
 store_daily_avg: true
 store_solutions: true
-very_verbose: false
+very_verbose: true

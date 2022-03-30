@@ -149,6 +149,8 @@ class Simulation(object):
             and self.n % parameters.config['checkpoint_interval'] == 0):
                 flog.debug('--- Save Checkpoint at Timestep {} ---'.format(self.n))
                 plot.plot_solutions(self.f)
+                sol_path = os.path.join(parameters.config['plot_path'], 'solutions')
+                self.save_solutions_xml(sol_path)
                 if parameters.config['store_solutions']:
                     self.save_solutions_xdmf()
 
@@ -204,30 +206,19 @@ class Simulation(object):
     def final_operations(self):
         """Performs ending-simulation tasks, such as plotting and solutions saving."""
 
+        # Restore original sigint handler
+        signal.signal(signal.SIGINT, self.original_sigint_handler)
+
+        self.save_config()
         self.build_full_pressure(self.f['p_'])
         plot.plot_solutions(self.f)
-        self.save_config()
 
-        # Store final solutions
         sol_path = os.path.join(parameters.config['plot_path'], 'solutions')
-        solutions = {
-            'mesh' : self.f['sol'].function_space().mesh(),
-            'up' : self.f['sol'],
-            'u' : self.f['u_'],
-            'T' : self.f['T_'],
-            'S' : self.f['S_'],
-        }
-        if self.f['3eqs']['m_B'] is not False:
-            solutions['m_B'] = self.f['3eqs']['sol'].split(True)[0]
-
-        self.save_solutions_xml(sol_path, solutions)
+        self.save_solutions_xml(sol_path)
 
         # Store solution for paraview
         if parameters.config['store_solutions']:
             self.save_solutions_xdmf()
-
-        # Restore original sigint handler
-        signal.signal(signal.SIGINT, self.original_sigint_handler)
 
     def timestep(self):
         """Runs one timestep."""
@@ -313,8 +304,8 @@ class Simulation(object):
             flog.debug('Solving for u, p...')
             steady_form = build_NS_GLS_steady_form(a, u, u_n, p, 0, v,
                                                    q, T_n, S_n)
-            solve(lhs(steady_form) == rhs(steady_form), self.f['sol'], bcs=bcs)
-                  #solver_parameters={'linear_solver':'mumps'})
+            solve(lhs(steady_form) == rhs(steady_form), self.f['sol'], bcs=bcs,
+                  solver_parameters={'linear_solver':'mumps'})
             flog.debug('Solved for u, p.')
 
             (self.f['u_'], self.f['p_']) = self.f['sol'].split(True) # only used to calculate residual
@@ -326,8 +317,6 @@ class Simulation(object):
             self.nonlin_n += 1
 
         flog.debug('Solved non-linear problem (u, p).')
-
-        #self.f['p_'].assign(pnh)
 
         # ------------------------
         # TEMPERATURE AND SALINITY
@@ -373,11 +362,13 @@ class Simulation(object):
 
         if parameters.config['beta'] != 0: #do not run if not coupled with velocity
             T_form = build_temperature_form(self.f, self.domain)
-            solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'])
+            solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'],
+                  solver_parameters={'linear_solver':'mumps'})
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
             S_form = build_salinity_form(self.f, self.domain)
-            solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'])
+            solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'],
+                  solver_parameters={'linear_solver':'mumps'})
 
         flog.debug('Solved for T and S.')
 
@@ -519,19 +510,31 @@ class Simulation(object):
         self.xdmffile_sol.write(self.f['T_'], self.n)
         self.xdmffile_sol.write(self.f['S_'], self.n)
 
-    def save_solutions_xml(self, path, f):
+    def save_solutions_xml(self, path, f=False):
         """Saves last timestep solutions to XML files for later reusage in FEniCS
 
         Parameters
         ----------
         path: string
             dir path where to store files
-        f: dict
-            functions to store
+        f: dict (optional)
+            functions to store, default to simulation solutions
         """
 
         flog.info('Store solutions in {}.'.format(path))
         (Path(path).mkdir(parents=True, exist_ok=True))
+
+        # If nothing is given, store final solutions
+        if f == False:
+            f = {
+                'mesh' : self.f['sol'].function_space().mesh(),
+                'up' : self.f['sol'],
+                'u' : self.f['u_'],
+                'T' : self.f['T_'],
+                'S' : self.f['S_'],
+            }
+            if self.f['3eqs']['m_B'] is not False:
+                f['m_B'] = self.f['3eqs']['sol'].split(True)[0]
 
         for (label, func) in f.items():
             (File(os.path.join(path, '{}.xml'.format(label)))) << func

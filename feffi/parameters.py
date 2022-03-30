@@ -63,7 +63,8 @@ def define_parameters(user_config={}):
         print(
             'Default config file not found. Things are likely to break.'
             'Make sure to pass ALL required config arguments as dict '
-            'or through another config file.')
+            'or through another config file. (Are you maybe not '
+            'running from the project root dir?)')
     else:
         with open(config_file_path) as config_file_handle:
             config.update(yaml.safe_load(config_file_handle))
@@ -116,20 +117,12 @@ def define_parameters(user_config={}):
     if config.get('convert_from_ms_to_kmh') and config['convert_from_ms_to_kmh']:
         config.update(convert_constants_from_ms_to_kmh(config))
 
-    # Parse viscosity and diffusivity
+    # Expand 1-value viscosity and diffusivity to list
+    # NOT 3D ready
     if len(config['nu']) == 1:
         config['nu'] = [config['nu'][0], config['nu'][0]]
-    elif len(config['nu']) == 2:
-        config['nu'] = [config['nu'][0], config['nu'][1]]
-    elif len(config['nu']) == 3:
-        config['nu'] = [config['nu'][0], config['nu'][1], config['nu'][2]]
-
     if len(config['alpha']) == 1:
         config['alpha'] = [config['alpha'][0], config['alpha'][0]]
-    elif len(config['alpha']) == 2:
-        config['alpha'] = [config['alpha'][0], config['alpha'][1]]
-    elif len(config['alpha']) == 3:
-        config['alpha'] = [config['alpha'][0], config['alpha'][1], config['alpha'][2]]
 
     # Compute ice shelf slope
     try:
@@ -473,7 +466,16 @@ def reload_status(plot_path):
 
 
 def convert_constants_from_ms_to_kmh(config):
-    """Rescale constants from m/s to km/h."""
+    """Rescale constants from m/s to km/h.
+
+    Parameters
+    ----------
+    config : (dict) FEFFII config
+
+    Return
+    ------
+    config : (dict) updated config
+    """
 
     # Copy so we don't edit global input
     config = dict(config)
@@ -497,7 +499,16 @@ def convert_constants_from_ms_to_kmh(config):
 
 
 def convert_constants_from_kmh_to_ms(config):
-    """Rescale constants from km/h to m/s."""
+    """Rescale constants from km/h to m/s.
+
+    Parameters
+    ----------
+    config : (dict) FEFFII config
+
+    Return
+    ------
+    config : (dict) updated config
+    """
 
     # Copy so we don't edit global input
     config = dict(config)
