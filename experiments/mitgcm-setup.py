@@ -6,6 +6,8 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
+# Force monothread in OpenBLAS, seems to even speed up
+# https://stackoverflow.com/questions/52026652/openblas-blas-thread-init-pthread-create-resource-temporarily-unavailable
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 import feffi
@@ -31,10 +33,6 @@ ice_shelf_bottom_p = config['ice_shelf_bottom_p']
 ice_shelf_top_p = config['ice_shelf_top_p']
 ice_shelf_slope = config['ice_shelf_slope']
 ice_shelf_f = lambda x: ice_shelf_slope*x+ice_shelf_bottom_p[1]
-lcar = mesh_resolution
-step_x = 0.1
-step_y = 0.05
-
 
 ##############################
 ### Set up geometry + mesh ###
@@ -58,7 +56,6 @@ sea_top_points = [(x, domain_size_y, 0) for x in sea_top_points_x[0:-1]] # exclu
 # Points that makes up geometry
 points =  [(0,0,0), (domain_size_x,0,0)]                           # bottom
 points += [(domain_size_x,domain_size_y,0)]                        # right
-#points += [(0,domain_size_y,0)]
 points += sea_top_points                                           # sea top
 points += [(ice_shelf_top_p[0],domain_size_y,0), ice_shelf_top_p]  # sea top
 points += shelf_points                                             # ice shelf
@@ -77,28 +74,6 @@ fenics_mesh = False
 with pygmsh.geo.Geometry() as geom:
     poly = geom.add_polygon(points, mesh_size=mesh_resolution)
 
-    ''' Domain with short horizontal ice shelf connected to correct slope by a short quadratic curve
-    
-    origin = geom.add_point([0, 0, 0], lcar)
-    br = geom.add_point([domain_size_x, 0, 0], lcar)
-    tr = geom.add_point([domain_size_x, 1, 0], lcar)
-    ice_top = geom.add_point([ice_shelf_top_p[0], domain_size_y, 0], lcar)
-    ice_top2 = geom.add_point([ice_shelf_top_p[0], ice_shelf_top_p[1], 0], lcar)
-    ice_bottom = geom.add_point([ice_shelf_bottom_p[0]+2*step_x, ice_shelf_bottom_p[1]+step_y, 0], lcar)
-    ice_bottom2 = geom.add_point([ice_shelf_bottom_p[0]+step_x, ice_shelf_bottom_p[1]+step_y/5, 0], lcar)
-    ice_bottom3 = geom.add_point([ice_shelf_bottom_p[0], ice_shelf_bottom_p[1], 0], lcar)
-
-    l1 = geom.add_line(origin, br)
-    l2 = geom.add_line(br, tr)
-    l3 = geom.add_line(tr, ice_top)
-    l4 = geom.add_line(ice_top, ice_top2)
-    l5 = geom.add_line(ice_top2, ice_bottom)
-    l6 = geom.add_spline([ice_bottom, ice_bottom2, ice_bottom3])
-    l7 = geom.add_line(ice_bottom3, origin)
-
-    ll = geom.add_curve_loop([l1,l2,l3,l4, l5, l6, l7])
-    pl = geom. add_plane_surface(ll)'''
-
     # Mesh refinement
     '''ice_shelf_lines = [poly.curve_loop.curves[i] for i in range(len(points)-len(shelf_points)-3, len(points)-1)]
     field = geom.add_boundary_layer(
@@ -108,15 +83,8 @@ with pygmsh.geo.Geometry() as geom:
         distmin=0.009, # distance up until which mesh size will be lcmin
         distmax=0.15, # distance starting at which mesh size will be lcmax
     )
-    field2 = geom.add_boundary_layer(
-        edges_list=[poly.curve_loop.curves[i] for i in range(2, 2+len(sea_top_points)+1)],
-        lcmin=0.009,
-        lcmax=mesh_resolution, #0.15,
-        distmin=0.009, # distance up until which mesh size will be lcmin
-        distmax=0.2, # distance starting at which mesh size will be lcmax
-    )
-    #geom.set_background_mesh([field, field2], operator="Min")
-'''
+    #geom.set_background_mesh([field], operator="Min")'''
+
     # Generate mesh
     mesh = geom.generate_mesh()
     mesh.write('mesh.xdmf')
@@ -125,15 +93,11 @@ with pygmsh.geo.Geometry() as geom:
     feffi.plot.plot_single(fenics_mesh, display=True)
 
 # Ice shelf boundary
-class Bound_Ice_Shelf_Top(SubDomain):
+class Bound_Ice_Shelf(SubDomain):
     def inside(self, x, on_boundary):
         return (((0 < x[0] <= ice_shelf_top_p[0] and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y)
                  or (near(x[0], ice_shelf_top_p[0]) and ice_shelf_top_p[1] <= x[1] <= domain_size_y))
             and on_boundary)
-class Bound_Ice_Shelf_Bottom(SubDomain):
-    def inside(self, x, on_boundary):
-        return (((0 <= x[0] <= 0.2 and ice_shelf_bottom_p[1] <= x[1] <= domain_size_y))
-                and on_boundary)
 
 
 ######################
@@ -142,7 +106,7 @@ class Bound_Ice_Shelf_Bottom(SubDomain):
 
 f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
 f = feffi.functions.define_functions(f_spaces)
-feffi.functions.init_functions(f)
+#feffi.functions.init_functions(f)
 
 # Initial conditions for T,S that mimick Ryder glacier
 tcd = -0.8; # Thermocline depth
@@ -150,19 +114,17 @@ Tmin, Tmax = -1.6, 0.4; # minimum/maximum Temperature
 Tc = (Tmax + Tmin) / 2; # middle temperature
 Trange = Tmax - Tmin; # temperature range
 T_init = Expression('Tc - Trange / 2 * -tanh(pi * 1000*(-x[1] - tcd) / 200)', degree=1, Tc=Tc, Trange=Trange, tcd=tcd); # calculate profile
-#T_init = Expression('-0.6+tanh(pi * 1000*(-x[1] +0.8) / 200)', degree=1, Tc=Tc, Trange=Trange, tcd=tcd); # calculate profile
 f['T_n'].assign(interpolate(T_init, f['T_n'].ufl_function_space()))
-#feffi.plot.plot_single(f['T_n'], display=True)
+#feffi.plot.plot_single(f['T_n'], title='Temperature', display=True)
 
 Sc = 34.5;
 Srange = -1;
 S_init = Expression('Sc + Srange / 2 * -tanh(pi * 1000*(-x[1] - tcd) / 200)', degree=1, Sc=Sc, Srange=Srange, tcd=tcd); # calculate profile
-#S_init = Expression('34.5+tanh(pi * 1000*(-x[1] +0.8) / 200)/2', degree=1, Sc=Sc, Srange=Srange, tcd=tcd); # calculate profile
 f['S_n'].assign(interpolate(S_init, f['S_n'].ufl_function_space()))
-#feffi.plot.plot_single(f['S_n'], display=True)
+#feffi.plot.plot_single(f['S_n'], title='Salinity', display=True)
 
 deltarho = interpolate(Expression('999.8*(1+gamma*(S)-beta*(T))-1000', rho_0=config['rho_0'], S_0=config['S_0'], T_0=config['T_0'], gamma=config['gamma'], beta=config['beta'], T=f['T_n'], S=f['S_n'], degree=1), f['S_n'].ufl_function_space())
-feffi.plot.plot_single(deltarho, display=True)
+feffi.plot.plot_single(deltarho, title='Density', display=True)
 #return
 
 domain = feffi.boundaries.Domain(
@@ -170,8 +132,7 @@ domain = feffi.boundaries.Domain(
     f_spaces,
     boundaries = {
       'bottom' : feffi.boundaries.Bound_Bottom(fenics_mesh),
-      #'ice_shelf_bottom' : Bound_Ice_Shelf_Bottom(),
-      'ice_shelf_top' : Bound_Ice_Shelf_Top(),
+      'ice_shelf' : Bound_Ice_Shelf(),
       'left' : feffi.boundaries.Bound_Left(fenics_mesh),
       'right' : feffi.boundaries.Bound_Right(fenics_mesh),
       'top' : feffi.boundaries.Bound_Top(fenics_mesh),
