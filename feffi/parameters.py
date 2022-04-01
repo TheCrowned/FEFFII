@@ -419,7 +419,7 @@ def reload_status(plot_path):
     domain : FEFFI Domain object
     mesh : FEniCS Mesh
     f_spaces : (dict)
-    daily_avgs : (dict) 
+    daily_avgs : (dict)
     """
 
     # This module should import as little as possible, since config is
