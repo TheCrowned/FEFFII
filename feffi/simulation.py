@@ -105,6 +105,26 @@ class Simulation(object):
             quoting=csv.QUOTE_MINIMAL, fieldnames=fieldnames)
         self.csv_simul_data.writeheader()'''
 
+        # Shorthand for variables
+        u = self.f['u']; p = self.f['p']
+        v = self.f['v']; q = self.f['q']
+        u_n = self.f['u_n']; T_n = self.f['T_n']; S_n = self.f['S_n']
+        self.f['a'] = Function(self.f['u_'].function_space()) #self.f['sol'].split(True)[0] # this is the "u_n" of this non-linear loop
+
+        NS_form = build_NS_GLS_steady_form(self.f['a'], self.f['u'], self.f['u_n'], self.f['p'], 0, self.f['v'], self.f['q'], self.f['T_n'], self.f['S_n'])
+        #T_form = build_temperature_form(self.f, self.domain)
+        #S_form = build_salinity_form(self.f, self.domain)
+        self.lhs = {
+            'NS': lhs(NS_form),
+        #    'T': lhs(T_form),
+        #    'S': lhs(S_form)
+        }
+        self.rhs = {
+            'NS': rhs(NS_form),
+        #    'T': rhs(T_form),
+        #    'S': rhs(S_form)
+        }
+
         flog.info('Initialized simulation.')
         flog.info('Running parameters:\n' + str(parameters.config))
         flog.info('Mesh vertices {}, hmin {}, hmax {}'.format(
@@ -169,7 +189,7 @@ class Simulation(object):
                     day_n = str(round(self.n/parameters.config['steps_n']/24))
 
                     assert len(self.daily_avg['u']) == 24, 'Daily avg list does not contain 24 elements'
-                    
+
                     avg_u = project(sum(self.daily_avg['u'])/24, self.f['u_'].function_space())
                     avg_T = project(sum(self.daily_avg['T'])/24, self.f['T_'].function_space())
                     avg_S = project(sum(self.daily_avg['S'])/24, self.f['S_'].function_space())
@@ -184,7 +204,7 @@ class Simulation(object):
                     if self.f['3eqs']['m_B'] is not False: #3eqs could be disabled
                         avg_m_B = project(sum(self.daily_avg['m_B'])/24, self.f['3eqs']['sol'].split()[0].function_space().collapse())
                         daily_avg_dict['m_B'] = avg_m_B
-                    
+
                     self.save_solutions_xml(sol_path, daily_avg_dict)
                     flog.info('Stored daily averages for day {}.'.format(day_n))
 
@@ -283,10 +303,7 @@ class Simulation(object):
         # Solve GLS Navier-Stokes eq
         # --------------------------
 
-        # Shorthand for variables
-        u = self.f['u']; p = self.f['p']
-        v = self.f['v']; q = self.f['q']
-        u_n = self.f['u_n']; T_n = self.f['T_n']; S_n = self.f['S_n']
+
 
         # Define BCs
         bcs = []
@@ -298,20 +315,19 @@ class Simulation(object):
         # Solve non-linearity iteratively
         flog.debug('Iteratively solving non-linear problem')
         while residual_u > tol and self.nonlin_n <= parameters.config['non_linear_max_iter']:
-            a = self.f['u_'] #self.f['sol'].split(True)[0] # this is the "u_n" of this non-linear loop
+
+            self.f['a'].assign(self.f['u_']) #self.f['sol'].split(True)[0] # this is the "u_n" of this non-linear loop
 
             # Define and solve NS problem
             flog.debug('Solving for u, p...')
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, 0, v,
-                                                   q, T_n, S_n)
-            solve(lhs(steady_form) == rhs(steady_form), self.f['sol'], bcs=bcs,
+            solve(self.lhs['NS'] == self.rhs['NS'], self.f['sol'], bcs=bcs,
                   solver_parameters={'linear_solver':'mumps'})
             flog.debug('Solved for u, p.')
 
             (self.f['u_'], self.f['p_']) = self.f['sol'].split(True) # only used to calculate residual
             #residual_u = norm(project(self.f['u_']-a, a.function_space()), 'L2')
             #print(residual_u)
-            residual_u = np.linalg.norm(self.f['u_'].compute_vertex_values() - a.compute_vertex_values(), ord=2)
+            residual_u = np.linalg.norm(self.f['u_'].compute_vertex_values() - self.f['a'].compute_vertex_values(), ord=2)
 
             flog.debug('>>> residual u: {} <<<'.format(residual_u))
             self.nonlin_n += 1
@@ -361,13 +377,19 @@ class Simulation(object):
         BCs_S[-1] = DirichletBC(self.f['S_'].function_space(), S_B_boundary, self.domain.marked_subdomains, self.domain.subdomains_markers['left_ice'])'''
 
         if parameters.config['beta'] != 0: #do not run if not coupled with velocity
-            T_form = build_temperature_form(self.f, self.domain)
-            solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'],
+            if self.lhs.get('T') is None:
+                T_form = build_temperature_form(self.f, self.domain)
+                self.lhs['T'] = lhs(T_form)
+                self.rhs['T'] = rhs(T_form)
+            solve(self.lhs['T'] == self.rhs['T'], self.f['T_'], bcs=self.BCs['T'],
                   solver_parameters={'linear_solver':'mumps'})
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
-            S_form = build_salinity_form(self.f, self.domain)
-            solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'],
+            if self.lhs.get('S') is None:
+                S_form = build_salinity_form(self.f, self.domain)
+                self.lhs['S'] = lhs(S_form)
+                self.rhs['S'] = rhs(S_form)
+            solve(self.lhs['S'] == self.rhs['S'], self.f['S_'], bcs=self.BCs['S'],
                   solver_parameters={'linear_solver':'mumps'})
 
         flog.debug('Solved for T and S.')
