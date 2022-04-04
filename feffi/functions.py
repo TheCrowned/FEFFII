@@ -103,6 +103,7 @@ def define_functions(f_spaces):
     f['sol'] = Function(f_spaces['W'])
     (f['u_'], f['p_']) = f['sol'].split(True)
     (f['u_n'], f['p_n']) = f['sol'].split(True)
+    f['a'] = f['u_']
 
     # Nice names for output (ex. in Paraview)
     f['u_'].rename("velocity", "Velocity in m/s")
@@ -220,12 +221,18 @@ def build_buoyancy(T_, S_):
         degree=parameters.config['degree_P'])
 
 
-def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
+def build_NS_GLS_steady_form(f):
     """Build Navier-Stokes steady state weak form + GLS stabilization."""
 
     dt = Constant(1/parameters.config['steps_n'])
     rho_0 = Constant(parameters.config['rho_0'])
 
+    # Shorthand for variables
+    u = f['u']; p = f['p']
+    v = f['v']; q = f['q']
+    u_n = f['u_n']; T_n = f['T_n']; S_n = f['S_n']
+    a = f['a']; T_ = f['T_']; S_ = f['S_']; 
+    
     # ------------------------
     # Setting stab. parameters
     # ------------------------
@@ -256,8 +263,8 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
     # in simulation.py. Full pressure is rescaled without div by rho_0.
 
     b = build_buoyancy(T_, S_)
-    f = u_n/dt + b
-    steady_form = B_g(a, u, p, grad_P_h, v, q) - dot(f, v)*dx
+    F = u_n/dt + b
+    steady_form = B_g(a, u, p, 0, v, q) - dot(F, v)*dx
 
     if parameters.config['stabilization_NS']:
         # Build form
@@ -267,7 +274,7 @@ def build_NS_GLS_steady_form(a, u, u_n, p, grad_P_h, v, q, T_, S_):
         # turn individual terms on and off by tweaking delta0, tau0 in config
         if delta > 0:
             #steady_form += delta*(dot(N(a, u, p) - f-grad_P_h/rho_0, Phi(a, v)))*dx
-            steady_form += delta*(dot(N(a, u, p) - f, Phi(a, v)))*dx
+            steady_form += delta*(dot(N(a, u, p) - F, Phi(a, v)))*dx
         if tau > 0:
             steady_form += tau*(dot(div(u), div(v)))*dx
 
