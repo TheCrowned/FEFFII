@@ -43,7 +43,7 @@ ice_shelf_top_p: # top point of ice shelf segment
 max_iter: 0 # stop after given timesteps
 melt_boundaries:
 - ice_shelf
-mesh_resolution: 0.03
+mesh_resolution: 0.02
 nu:
 - 0.25
 - 0.001
@@ -53,7 +53,7 @@ simulation_precision: -4
 stabilization_NS: true
 stabilization_S: true
 stabilization_T: true
-steps_n: 30
+steps_n: 40
 store_daily_avg: true
 store_solutions: true
 very_verbose: true
