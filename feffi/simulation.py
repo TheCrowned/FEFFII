@@ -106,17 +106,17 @@ class Simulation(object):
         self.csv_simul_data.writeheader()'''
 
         # Define variational forms
-        NS_steady_form = build_NS_GLS_steady_form(self.f)
+        #NS_steady_form = build_NS_GLS_steady_form(self.f)
         #T_form = build_temperature_form(self.f, self.domain)
         #S_form = build_temperature_form(self.f, self.domain)
-
+        self.NS_form = None
         self.lhs = {
-            'NS' : lhs(NS_steady_form),
+        #    'NS' : lhs(NS_steady_form),
         #    'T' : lhs(T_steady_form),
         #    'S' : lhs(S_steady_form),
         }
         self.rhs = {
-            'NS' : rhs(NS_steady_form),
+        #    'NS' : rhs(NS_steady_form),
         #    'T' : rhs(T_steady_form),
         #    'S' : rhs(S_steady_form),
         }
@@ -299,31 +299,43 @@ class Simulation(object):
         # Solve Navier-Stokes eq
         # --------------------------
 
-        # Shorthand for variables
-        u = self.f['u']; p = self.f['p']
-        v = self.f['v']; q = self.f['q']
-        u_n = self.f['u_n']; T_n = self.f['T_n']; S_n = self.f['S_n']
-
         # Define BCs
         bcs = []
         if self.BCs.get('V'):
             bcs += self.BCs['V']
         if self.BCs.get('Q'):
             bcs += self.BCs['Q']
-
+        
         flog.debug('Iteratively solving non-linear problem...')
+        
+        #self.NS_form = build_NS_GLS_steady_form(a, self.f)
         while residual_u > tol and self.nonlin_n <= parameters.config['non_linear_max_iter']:
-            load_vec_NS = assemble(self.rhs['NS'])
-            stiff_mat_NS = assemble(self.lhs['NS'])
-            [bc.apply(load_vec_NS) for bc in bcs]
-            [bc.apply(stiff_mat_NS) for bc in bcs]
-            solve(stiff_mat_NS, self.f['sol'].vector(), load_vec_NS)
 
-            (self.f['u_'], self.f['p_']) = self.f['sol'].split(True) # only used to calculate residual
+            # this is the "u_n" of this non-linear loop
+            self.f['a'].assign(self.f['u_'])
+
+            # Only create form if not defined already (i.e. at 1st timestep)
+            if self.NS_form is None:
+                self.NS_form = build_NS_GLS_steady_form(self.f)
+                self.lhs['NS'] = lhs(self.NS_form)
+                self.rhs['NS'] = rhs(self.NS_form)
+
+            # This is slower and has the same effect as the solve below
+            #load_vec_NS = assemble(self.rhs['NS'])
+            #stiff_mat_NS = assemble(self.lhs['NS'])
+            #[bc.apply(load_vec_NS) for bc in bcs]
+            #[bc.apply(stiff_mat_NS) for bc in bcs]
+            #solve(stiff_mat_NS, self.f['sol'].vector(), load_vec_NS)
+
+            solve(self.lhs['NS'] == self.rhs['NS'], self.f['sol'], bcs=bcs,
+                  solver_parameters={'linear_solver':'mumps'})
+
+            (sol_u, sol_p) = self.f['sol'].split(True)
+            self.f['u_'].assign(sol_u)
+            self.f['p_'].assign(sol_p)
             #residual_u = norm(project(self.f['u_']-a, a.function_space()), 'L2')
             residual_u = np.linalg.norm(self.f['u_'].compute_vertex_values() - self.f['a'].compute_vertex_values(), ord=2)
 
-            self.f['a'].assign(self.f['u_'])
             flog.debug('>>> residual u: {} <<<'.format(residual_u))
             self.nonlin_n += 1
         flog.debug('Solved non-linear problem (u, p).')
@@ -360,22 +372,18 @@ class Simulation(object):
                 T_form = build_temperature_form(self.f, self.domain)
                 self.lhs['T'] = lhs(T_form)
                 self.rhs['T'] = rhs(T_form)
-            load_vec_T = assemble(self.rhs['T'])
-            stiff_mat_T = assemble(self.lhs['T'])
-            [bc.apply(load_vec_T) for bc in self.BCs['T']]
-            [bc.apply(stiff_mat_T) for bc in self.BCs['T']]
-            solve(stiff_mat_T, self.f['T_'].vector(), load_vec_T, 'mumps')
+            solve(self.lhs['T'] == self.rhs['T'], self.f['T_'], bcs=self.BCs['T'],
+                  solver_parameters={'linear_solver':'mumps'})
+            #self.f['T_'].assign(sol_T)
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
             if self.lhs.get('S') is None:
                 S_form = build_salinity_form(self.f, self.domain)
                 self.lhs['S'] = lhs(S_form)
                 self.rhs['S'] = rhs(S_form)
-            load_vec_S = assemble(self.rhs['S'])
-            stiff_mat_S = assemble(self.lhs['S'])
-            [bc.apply(load_vec_S) for bc in self.BCs['S']]
-            [bc.apply(stiff_mat_S) for bc in self.BCs['S']]
-            solve(stiff_mat_S, self.f['S_'].vector(), load_vec_S, 'mumps')
+            solve(self.lhs['S'] == self.rhs['S'], self.f['S_'], bcs=self.BCs['S'],
+                  solver_parameters={'linear_solver':'mumps'})
+            #self.f['S_'].assign(sol_S)
 
         flog.debug('Solved for T and S.')
 

@@ -90,7 +90,7 @@ with pygmsh.geo.Geometry() as geom:
     mesh.write('mesh.xdmf')
     fenics_mesh = feffi.mesh.pygmsh2fenics_mesh(mesh)
     #fenics_mesh = UnitSquareMesh(50,50)
-    feffi.plot.plot_single(fenics_mesh, display=True)
+    #feffi.plot.plot_single(fenics_mesh, display=True)
 
 # Ice shelf boundary
 class Bound_Ice_Shelf(SubDomain):
@@ -124,7 +124,7 @@ f['S_n'].assign(interpolate(S_init, f['S_n'].ufl_function_space()))
 #feffi.plot.plot_single(f['S_n'], title='Salinity', display=True)
 
 deltarho = interpolate(Expression('999.8*(1+gamma*(S)-beta*(T))-1000', rho_0=config['rho_0'], S_0=config['S_0'], T_0=config['T_0'], gamma=config['gamma'], beta=config['beta'], T=f['T_n'], S=f['S_n'], degree=1), f['S_n'].ufl_function_space())
-feffi.plot.plot_single(deltarho, title='Density', display=True)
+#feffi.plot.plot_single(deltarho, title='Density', display=True)
 #return
 
 domain = feffi.boundaries.Domain(

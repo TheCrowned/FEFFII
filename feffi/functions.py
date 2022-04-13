@@ -103,7 +103,7 @@ def define_functions(f_spaces):
     f['sol'] = Function(f_spaces['W'])
     (f['u_'], f['p_']) = f['sol'].split(True)
     (f['u_n'], f['p_n']) = f['sol'].split(True)
-    f['a'] = f['u_']
+    f['a'] = f['sol'].split(True)[0]
 
     # Nice names for output (ex. in Paraview)
     f['u_'].rename("velocity", "Velocity in m/s")
@@ -204,7 +204,7 @@ def B_g(a, u, p_nh, grad_p_h, v, q):
     return F
 
 
-def build_buoyancy(T_, S_):
+def build_buoyancy(f):
     """Build buoyancy term.
 
     The degree is governed by pressure degree, since the Expression is added
@@ -217,7 +217,7 @@ def build_buoyancy(T_, S_):
         T_0=Constant(parameters.config['T_0']),
         S_0=Constant(parameters.config['S_0']),
         g=Constant(parameters.config['g']),
-        T_=T_, S_=S_,
+        T_=f['T_'], S_=f['S_'],
         degree=parameters.config['degree_P'])
 
 
@@ -231,7 +231,7 @@ def build_NS_GLS_steady_form(f):
     u = f['u']; p = f['p']
     v = f['v']; q = f['q']
     u_n = f['u_n']; T_n = f['T_n']; S_n = f['S_n']
-    a = f['a']; T_ = f['T_']; S_ = f['S_']; 
+    a = f['a']; T = f['T_']; S_= f['S_']
     
     # ------------------------
     # Setting stab. parameters
@@ -246,7 +246,7 @@ def build_NS_GLS_steady_form(f):
         nu_min = parameters.config['nu'][1]
     elif mesh.geometric_dimension() == 3:
         nu_min = parameters.config['nu'][2]
-
+    
     hmin = mesh.hmin(); hmax = mesh.hmax()
     delta0 = parameters.config['delta0'] #1 # "tuning parameter" > 0
     tau0 = parameters.config['tau0'] # if l == 1 else 0 # "tuning parameter" > 0 dependent on V.degree
@@ -262,7 +262,7 @@ def build_NS_GLS_steady_form(f):
     # Buoyancy term is now added as hydrostatic pressure contribution computed
     # in simulation.py. Full pressure is rescaled without div by rho_0.
 
-    b = build_buoyancy(T_, S_)
+    b = build_buoyancy(f)
     F = u_n/dt + b
     steady_form = B_g(a, u, p, 0, v, q) - dot(F, v)*dx
 
