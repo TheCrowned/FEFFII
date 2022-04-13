@@ -331,6 +331,10 @@ class Simulation(object):
                   solver_parameters={'linear_solver':'mumps'})
 
             (sol_u, sol_p) = self.f['sol'].split(True)
+
+            print(' ### {}/{} NORM a {}'.format(self.nonlin_n, self.n, np.linalg.norm(self.f['a'].compute_vertex_values())))
+            print(' ### {}/{} NORM u {}'.format(self.nonlin_n, self.n, np.linalg.norm(sol_u.compute_vertex_values())))
+            
             self.f['u_'].assign(sol_u)
             self.f['p_'].assign(sol_p)
             #residual_u = norm(project(self.f['u_']-a, a.function_space()), 'L2')
@@ -386,6 +390,8 @@ class Simulation(object):
             #self.f['S_'].assign(sol_S)
 
         flog.debug('Solved for T and S.')
+
+        print(' ### {}/{} NORM T {}'.format(self.nonlin_n, self.n, np.linalg.norm(self.f['T_'].compute_vertex_values())))
 
         self.relative_errors['u'] = (np.linalg.norm(self.f['u_'].compute_vertex_values() - self.f['u_n'].compute_vertex_values()))/np.linalg.norm(self.f['u_'].compute_vertex_values()) if norm(self.f['u_'], 'L2') != 0 else 0
         self.relative_errors['p'] = (np.linalg.norm(self.f['p_'].compute_vertex_values() - self.f['p_n'].compute_vertex_values()))/np.linalg.norm(self.f['p_'].compute_vertex_values()) if norm(self.f['p_'], 'L2') != 0 else 0
