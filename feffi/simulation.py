@@ -68,6 +68,7 @@ class Simulation(object):
         self.z_coord = self.dim-1 # z-coord in mesh points changes depending on 2/3D
         self.ramp_interval = 300000
         self.ramp_time = int(parameters.config['steps_n']*self.ramp_interval)
+        self.lhs = {}; self.rhs = {}
 
         if parameters.config['simulation_precision'] <= 0:
             self.round_precision = abs(parameters.config['simulation_precision'])
@@ -104,22 +105,6 @@ class Simulation(object):
             csv_simul_data_file, delimiter=',', quotechar='"',
             quoting=csv.QUOTE_MINIMAL, fieldnames=fieldnames)
         self.csv_simul_data.writeheader()'''
-
-        # Define variational forms
-        #NS_steady_form = build_NS_GLS_steady_form(self.f)
-        #T_form = build_temperature_form(self.f, self.domain)
-        #S_form = build_temperature_form(self.f, self.domain)
-        self.NS_form = None
-        self.lhs = {
-        #    'NS' : lhs(NS_steady_form),
-        #    'T' : lhs(T_steady_form),
-        #    'S' : lhs(S_steady_form),
-        }
-        self.rhs = {
-        #    'NS' : rhs(NS_steady_form),
-        #    'T' : rhs(T_steady_form),
-        #    'S' : rhs(S_steady_form),
-        }
 
         flog.info('Initialized simulation.')
         flog.info('Running parameters:\n' + str(parameters.config))
@@ -315,10 +300,10 @@ class Simulation(object):
             self.f['a'].assign(self.f['u_'])
 
             # Only create form if not defined already (i.e. at 1st timestep)
-            if self.NS_form is None:
-                self.NS_form = build_NS_GLS_steady_form(self.f)
-                self.lhs['NS'] = lhs(self.NS_form)
-                self.rhs['NS'] = rhs(self.NS_form)
+            if self.lhs.get('NS') is None:
+                NS_form = build_NS_GLS_steady_form(self.f)
+                self.lhs['NS'] = lhs(NS_form)
+                self.rhs['NS'] = rhs(NS_form)
 
             # This is slower and has the same effect as the solve below
             #load_vec_NS = assemble(self.rhs['NS'])
@@ -332,9 +317,6 @@ class Simulation(object):
 
             (sol_u, sol_p) = self.f['sol'].split(True)
 
-            print(' ### {}/{} NORM a {}'.format(self.nonlin_n, self.n, np.linalg.norm(self.f['a'].compute_vertex_values())))
-            print(' ### {}/{} NORM u {}'.format(self.nonlin_n, self.n, np.linalg.norm(sol_u.compute_vertex_values())))
-            
             self.f['u_'].assign(sol_u)
             self.f['p_'].assign(sol_p)
             #residual_u = norm(project(self.f['u_']-a, a.function_space()), 'L2')
@@ -378,7 +360,6 @@ class Simulation(object):
                 self.rhs['T'] = rhs(T_form)
             solve(self.lhs['T'] == self.rhs['T'], self.f['T_'], bcs=self.BCs['T'],
                   solver_parameters={'linear_solver':'mumps'})
-            #self.f['T_'].assign(sol_T)
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
             if self.lhs.get('S') is None:
@@ -387,11 +368,8 @@ class Simulation(object):
                 self.rhs['S'] = rhs(S_form)
             solve(self.lhs['S'] == self.rhs['S'], self.f['S_'], bcs=self.BCs['S'],
                   solver_parameters={'linear_solver':'mumps'})
-            #self.f['S_'].assign(sol_S)
 
         flog.debug('Solved for T and S.')
-
-        print(' ### {}/{} NORM T {}'.format(self.nonlin_n, self.n, np.linalg.norm(self.f['T_'].compute_vertex_values())))
 
         self.relative_errors['u'] = (np.linalg.norm(self.f['u_'].compute_vertex_values() - self.f['u_n'].compute_vertex_values()))/np.linalg.norm(self.f['u_'].compute_vertex_values()) if norm(self.f['u_'], 'L2') != 0 else 0
         self.relative_errors['p'] = (np.linalg.norm(self.f['p_'].compute_vertex_values() - self.f['p_n'].compute_vertex_values()))/np.linalg.norm(self.f['p_'].compute_vertex_values()) if norm(self.f['p_'], 'L2') != 0 else 0
