@@ -68,6 +68,7 @@ class Simulation(object):
         self.z_coord = self.dim-1 # z-coord in mesh points changes depending on 2/3D
         self.ramp_interval = 300000
         self.ramp_time = int(parameters.config['steps_n']*self.ramp_interval)
+        self.lhs = {}; self.rhs = {}
 
         if parameters.config['simulation_precision'] <= 0:
             self.round_precision = abs(parameters.config['simulation_precision'])
@@ -280,13 +281,8 @@ class Simulation(object):
         '''
 
         # --------------------------
-        # Solve GLS Navier-Stokes eq
+        # Solve Navier-Stokes eq
         # --------------------------
-
-        # Shorthand for variables
-        u = self.f['u']; p = self.f['p']
-        v = self.f['v']; q = self.f['q']
-        u_n = self.f['u_n']; T_n = self.f['T_n']; S_n = self.f['S_n']
 
         # Define BCs
         bcs = []
@@ -294,28 +290,40 @@ class Simulation(object):
             bcs += self.BCs['V']
         if self.BCs.get('Q'):
             bcs += self.BCs['Q']
-
-        # Solve non-linearity iteratively
-        flog.debug('Iteratively solving non-linear problem')
+        
+        flog.debug('Iteratively solving non-linear problem...')
+        
+        #self.NS_form = build_NS_GLS_steady_form(a, self.f)
         while residual_u > tol and self.nonlin_n <= parameters.config['non_linear_max_iter']:
-            a = self.f['u_'] #self.f['sol'].split(True)[0] # this is the "u_n" of this non-linear loop
 
-            # Define and solve NS problem
-            flog.debug('Solving for u, p...')
-            steady_form = build_NS_GLS_steady_form(a, u, u_n, p, 0, v,
-                                                   q, T_n, S_n)
-            solve(lhs(steady_form) == rhs(steady_form), self.f['sol'], bcs=bcs,
+            # this is the "u_n" of this non-linear loop
+            self.f['a'].assign(self.f['u_'])
+
+            # Only create form if not defined already (i.e. at 1st timestep)
+            if self.lhs.get('NS') is None:
+                NS_form = build_NS_GLS_steady_form(self.f)
+                self.lhs['NS'] = lhs(NS_form)
+                self.rhs['NS'] = rhs(NS_form)
+
+            # This is slower and has the same effect as the solve below
+            #load_vec_NS = assemble(self.rhs['NS'])
+            #stiff_mat_NS = assemble(self.lhs['NS'])
+            #[bc.apply(load_vec_NS) for bc in bcs]
+            #[bc.apply(stiff_mat_NS) for bc in bcs]
+            #solve(stiff_mat_NS, self.f['sol'].vector(), load_vec_NS)
+
+            solve(self.lhs['NS'] == self.rhs['NS'], self.f['sol'], bcs=bcs,
                   solver_parameters={'linear_solver':'mumps'})
-            flog.debug('Solved for u, p.')
 
-            (self.f['u_'], self.f['p_']) = self.f['sol'].split(True) # only used to calculate residual
+            (sol_u, sol_p) = self.f['sol'].split(True)
+
+            self.f['u_'].assign(sol_u)
+            self.f['p_'].assign(sol_p)
             #residual_u = norm(project(self.f['u_']-a, a.function_space()), 'L2')
-            #print(residual_u)
-            residual_u = np.linalg.norm(self.f['u_'].compute_vertex_values() - a.compute_vertex_values(), ord=2)
+            residual_u = np.linalg.norm(self.f['u_'].compute_vertex_values() - self.f['a'].compute_vertex_values(), ord=2)
 
             flog.debug('>>> residual u: {} <<<'.format(residual_u))
             self.nonlin_n += 1
-
         flog.debug('Solved non-linear problem (u, p).')
 
         # ------------------------
@@ -335,39 +343,30 @@ class Simulation(object):
                     ).sub(0)
 
                 solve_3eqs_system(self.f) # result goes into self.f['3eqs']
-
-                # These log values are useless, we should only compute them at ice boundary
                 flog.debug('Solved 3 equations system.')
-                '''            ' - mw: {}\n - Tzd: {}\n - Szd: {}'
-                            .format(round(np.average(mw.compute_vertex_values()), self.round_precision),
-                                    round(np.average(Tzd.compute_vertex_values()), self.round_precision),
-                                    round(np.average(Szd.compute_vertex_values()), self.round_precision))))'''
 
-        # Other functions will check if m_B == False to determine whether melt
-        # parametrization is enabled in this run
+        # Other functions will check if m_B == False to determine whether
+        # melt parametrization is enabled in this run
         else:
             self.f['3eqs']['m_B'], self.f['3eqs']['T_B'], self.f['3eqs']['S_B'] = False, False, False
 
+        # T/S equations
         flog.debug('Solving for T and S...')
 
-        '''BCs_T = self.BCs['T']
-        BCs_T.append(0)
-        T_B_boundary = Expression('T_B', degree=2, T_B=Tzd)
-        BCs_T[-1] = DirichletBC(self.f['T_'].function_space(), T_B_boundary, self.domain.marked_subdomains, self.domain.subdomains_markers['left_ice'])
-
-        BCs_S = self.BCs['S']
-        BCs_S.append(0)
-        S_B_boundary = Expression('S_B', degree=2, S_B=Szd)
-        BCs_S[-1] = DirichletBC(self.f['S_'].function_space(), S_B_boundary, self.domain.marked_subdomains, self.domain.subdomains_markers['left_ice'])'''
-
         if parameters.config['beta'] != 0: #do not run if not coupled with velocity
-            T_form = build_temperature_form(self.f, self.domain)
-            solve(lhs(T_form) == rhs(T_form), self.f['T_'], bcs=self.BCs['T'],
+            if self.lhs.get('T') is None:
+                T_form = build_temperature_form(self.f, self.domain)
+                self.lhs['T'] = lhs(T_form)
+                self.rhs['T'] = rhs(T_form)
+            solve(self.lhs['T'] == self.rhs['T'], self.f['T_'], bcs=self.BCs['T'],
                   solver_parameters={'linear_solver':'mumps'})
 
         if parameters.config['gamma'] != 0: #do not run if not coupled with velocity
-            S_form = build_salinity_form(self.f, self.domain)
-            solve(lhs(S_form) == rhs(S_form), self.f['S_'], bcs=self.BCs['S'],
+            if self.lhs.get('S') is None:
+                S_form = build_salinity_form(self.f, self.domain)
+                self.lhs['S'] = lhs(S_form)
+                self.rhs['S'] = rhs(S_form)
+            solve(self.lhs['S'] == self.rhs['S'], self.f['S_'], bcs=self.BCs['S'],
                   solver_parameters={'linear_solver':'mumps'})
 
         flog.debug('Solved for T and S.')
