@@ -62,7 +62,7 @@ points += shelf_points                                             # ice shelf
 points += [ice_shelf_bottom_p]                                     # left
 
 ## IDEA: give points only, and automatically generate a list of points
-##       for each segment, as done for ice shelf and sea top, but for 
+##       for each segment, as done for ice shelf and sea top, but for
 ##       all boundaries.
 
 
@@ -90,7 +90,7 @@ with pygmsh.geo.Geometry() as geom:
     mesh.write('mesh.xdmf')
     fenics_mesh = feffi.mesh.pygmsh2fenics_mesh(mesh)
     #fenics_mesh = UnitSquareMesh(50,50)
-    feffi.plot.plot_single(fenics_mesh, display=True)
+    #feffi.plot.plot_single(fenics_mesh, display=True)
 
 # Ice shelf boundary
 class Bound_Ice_Shelf(SubDomain):
@@ -115,16 +115,18 @@ Tc = (Tmax + Tmin) / 2; # middle temperature
 Trange = Tmax - Tmin; # temperature range
 T_init = Expression('Tc - Trange / 2 * -tanh(pi * 1000*(-x[1] - tcd) / 200)', degree=1, Tc=Tc, Trange=Trange, tcd=tcd); # calculate profile
 f['T_n'].assign(interpolate(T_init, f['T_n'].ufl_function_space()))
+f['T_'].assign(interpolate(T_init, f['T_n'].ufl_function_space()))
 #feffi.plot.plot_single(f['T_n'], title='Temperature', display=True)
 
 Sc = 34.5;
 Srange = -1;
 S_init = Expression('Sc + Srange / 2 * -tanh(pi * 1000*(-x[1] - tcd) / 200)', degree=1, Sc=Sc, Srange=Srange, tcd=tcd); # calculate profile
 f['S_n'].assign(interpolate(S_init, f['S_n'].ufl_function_space()))
+f['S_'].assign(interpolate(S_init, f['S_n'].ufl_function_space()))
 #feffi.plot.plot_single(f['S_n'], title='Salinity', display=True)
 
 deltarho = interpolate(Expression('999.8*(1+gamma*(S)-beta*(T))-1000', rho_0=config['rho_0'], S_0=config['S_0'], T_0=config['T_0'], gamma=config['gamma'], beta=config['beta'], T=f['T_n'], S=f['S_n'], degree=1), f['S_n'].ufl_function_space())
-feffi.plot.plot_single(deltarho, title='Density', display=True)
+#feffi.plot.plot_single(deltarho, title='Density', display=True)
 #return
 
 domain = feffi.boundaries.Domain(
