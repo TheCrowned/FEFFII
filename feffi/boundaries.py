@@ -259,52 +259,6 @@ class Domain(object):
 
         flog.info('Deforming boundary {}...'.format(boundary_label))
 
-        def closest_k_nodes(node, nodes, k):
-            """
-            Finds the k closest points (`nodes`) to `node`.
-
-            Parameters
-            ----------
-            node : (tuple)
-                The node wrt whom look for closest neigbors.
-            nodes : list/np.array
-                List of tuples with nodes among which to look for closest neighbors.
-            k : int
-                Number of closest nodes to find.
-
-            Return
-            ------
-            result : dict
-                `k` elements from `nodes`.
-            """
-
-            result = {}
-            nodes = np.asarray(nodes)
-            mask = np.ones(len(nodes), dtype=bool)
-            distances = np.sum((nodes-node)**2, axis=1)
-
-            closest_node_idx = -1
-            max_dist = -1
-            for _ in range(k):
-                prev_closest_node_idx = closest_node_idx
-                closest_node_idx = np.argmin(distances[mask])
-
-                # When nodes get hidden indexes can get messed up
-                if prev_closest_node_idx > -1 \
-                   and closest_node_idx >= prev_closest_node_idx:
-                    closest_node_idx += 1
-
-                result[closest_node_idx] = {
-                    'coord': nodes[closest_node_idx],
-                    'dist': distances[closest_node_idx]
-                }
-
-                # Hide already picked node so it cannot be chosen again
-                mask[closest_node_idx] = False
-
-            return result
-
-
         b_mesh = BoundaryMesh(self.mesh, 'exterior')
 
         # Get closest k closest neighbors to p from goal_profile and compute
@@ -449,6 +403,52 @@ def visualize_f_on_boundary(f, domain, boundary_label):
 
     for _, p in b_points.items():
         flog.info('{} at ({:.2f}, {:.2f}) = {}'.format(f.name(), p[0], p[1], f(p)))
+
+
+def closest_k_nodes(node, nodes, k):
+        """
+        Finds the k closest points (`nodes`) to `node`.
+
+        Parameters
+        ----------
+        node : (tuple)
+            The node wrt whom look for closest neigbors.
+        nodes : list/np.array
+            List of tuples with nodes among which to look for closest neighbors.
+        k : int
+            Number of closest nodes to find.
+
+        Return
+        ------
+        result : dict
+            `k` elements from `nodes`.
+        """
+
+        result = {}
+        nodes = np.asarray(nodes)
+        mask = np.ones(len(nodes), dtype=bool)
+        distances = np.sum((nodes-node)**2, axis=1)
+
+        closest_node_idx = -1
+        max_dist = -1
+        for _ in range(k):
+            prev_closest_node_idx = closest_node_idx
+            closest_node_idx = np.argmin(distances[mask])
+
+            # When nodes get hidden indexes can get messed up
+            if prev_closest_node_idx > -1 \
+               and closest_node_idx >= prev_closest_node_idx:
+                closest_node_idx += 1
+
+            result[closest_node_idx] = {
+                'coord': nodes[closest_node_idx],
+                'dist': distances[closest_node_idx]
+            }
+
+            # Hide already picked node so it cannot be chosen again
+            mask[closest_node_idx] = False
+
+        return result
 
 
 ### SUBDOMAIN DEFINITIONS ###
