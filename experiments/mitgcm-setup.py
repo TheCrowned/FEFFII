@@ -1,4 +1,4 @@
-# feffi module lives one level up current dir
+# feffii module lives one level up current dir
 import os
 import sys
 import inspect
@@ -10,7 +10,7 @@ sys.path.insert(0, parentdir)
 # https://stackoverflow.com/questions/52026652/openblas-blas-thread-init-pthread-create-resource-temporarily-unavailable
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
-import feffi
+import feffii
 from fenics import *
 import numpy as np
 import pygmsh
@@ -20,10 +20,10 @@ import pygmsh
 ### Config setup ###
 ####################
 
-feffi.parameters.define_parameters({
-    'config_file' : 'feffi/config/mitgcm-setup.yml',
+feffii.parameters.define_parameters({
+    'config_file' : 'feffii/config/mitgcm-setup.yml',
 })
-config = feffi.parameters.config
+config = feffii.parameters.config
 
 ## Config shorthands
 domain_size_x = config['domain_size_x']
@@ -88,9 +88,9 @@ with pygmsh.geo.Geometry() as geom:
     # Generate mesh
     mesh = geom.generate_mesh()
     mesh.write('mesh.xdmf')
-    fenics_mesh = feffi.mesh.pygmsh2fenics_mesh(mesh)
+    fenics_mesh = feffii.mesh.pygmsh2fenics_mesh(mesh)
     #fenics_mesh = UnitSquareMesh(50,50)
-    #feffi.plot.plot_single(fenics_mesh, display=True)
+    #feffii.plot.plot_single(fenics_mesh, display=True)
 
 # Ice shelf boundary
 class Bound_Ice_Shelf(SubDomain):
@@ -104,9 +104,9 @@ class Bound_Ice_Shelf(SubDomain):
 ## Simulation setup ##
 ######################
 
-f_spaces = feffi.functions.define_function_spaces(fenics_mesh)
-f = feffi.functions.define_functions(f_spaces)
-#feffi.functions.init_functions(f)
+f_spaces = feffii.functions.define_function_spaces(fenics_mesh)
+f = feffii.functions.define_functions(f_spaces)
+#feffii.functions.init_functions(f)
 
 # Initial conditions for T,S that mimick Ryder glacier
 tcd = -0.8; # Thermocline depth
@@ -116,31 +116,31 @@ Trange = Tmax - Tmin; # temperature range
 T_init = Expression('Tc - Trange / 2 * -tanh(pi * 1000*(-x[1] - tcd) / 200)', degree=1, Tc=Tc, Trange=Trange, tcd=tcd); # calculate profile
 f['T_n'].assign(interpolate(T_init, f['T_n'].ufl_function_space()))
 f['T_'].assign(interpolate(T_init, f['T_n'].ufl_function_space()))
-#feffi.plot.plot_single(f['T_n'], title='Temperature', display=True)
+#feffii.plot.plot_single(f['T_n'], title='Temperature', display=True)
 
 Sc = 34.5;
 Srange = -1;
 S_init = Expression('Sc + Srange / 2 * -tanh(pi * 1000*(-x[1] - tcd) / 200)', degree=1, Sc=Sc, Srange=Srange, tcd=tcd); # calculate profile
 f['S_n'].assign(interpolate(S_init, f['S_n'].ufl_function_space()))
 f['S_'].assign(interpolate(S_init, f['S_n'].ufl_function_space()))
-#feffi.plot.plot_single(f['S_n'], title='Salinity', display=True)
+#feffii.plot.plot_single(f['S_n'], title='Salinity', display=True)
 
 deltarho = interpolate(Expression('999.8*(1+gamma*(S)-beta*(T))-1000', rho_0=config['rho_0'], S_0=config['S_0'], T_0=config['T_0'], gamma=config['gamma'], beta=config['beta'], T=f['T_n'], S=f['S_n'], degree=1), f['S_n'].ufl_function_space())
-#feffi.plot.plot_single(deltarho, title='Density', display=True)
+#feffii.plot.plot_single(deltarho, title='Density', display=True)
 #return
 
-domain = feffi.boundaries.Domain(
+domain = feffii.boundaries.Domain(
     fenics_mesh,
     f_spaces,
     boundaries = {
-      'bottom' : feffi.boundaries.Bound_Bottom(fenics_mesh),
+      'bottom' : feffii.boundaries.Bound_Bottom(fenics_mesh),
       'ice_shelf' : Bound_Ice_Shelf(),
-      'left' : feffi.boundaries.Bound_Left(fenics_mesh),
-      'right' : feffi.boundaries.Bound_Right(fenics_mesh),
-      'top' : feffi.boundaries.Bound_Top(fenics_mesh),
+      'left' : feffii.boundaries.Bound_Left(fenics_mesh),
+      'right' : feffii.boundaries.Bound_Right(fenics_mesh),
+      'top' : feffii.boundaries.Bound_Top(fenics_mesh),
     },
-    BCs = feffi.parameters.config['BCs'])
+    BCs = feffii.parameters.config['BCs'])
 #domain.show_boundaries() # with paraview installed, will show boundary markers
 
-simulation = feffi.simulation.Simulation(f, domain)
+simulation = feffii.simulation.Simulation(f, domain)
 simulation.run()
