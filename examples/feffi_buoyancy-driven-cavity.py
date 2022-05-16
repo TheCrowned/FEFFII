@@ -1,4 +1,4 @@
-# feffi module lives one level up current dir
+# feffii module lives one level up current dir
 import os
 import sys
 import inspect
@@ -6,12 +6,12 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
-from feffi import *
+from feffii import *
 import fenics
 import matplotlib.pyplot as plt
 
 parameters.define_parameters({
-    'config_file' : 'feffi/config/buoyancy-driven-cavity.yml',
+    'config_file' : 'feffii/config/buoyancy-driven-cavity.yml',
     'max_iter' : 3000
 })
 parameters.parse_commandline_args()
