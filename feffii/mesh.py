@@ -1,7 +1,6 @@
 import fenics
 import logging
 import meshio
-from feffii.shelfgeometry import ShelfGeometry
 import numpy as np
 from math import sqrt
 from . import parameters
@@ -47,6 +46,7 @@ def create_mesh(**kwargs):
         domain_params = [config['domain_size_x'], config['domain_size_y'],
                          config['shelf_size_x'], config['shelf_size_y']]
 
+        # Shelfgeometry is no longer supported - draw your own mesh if you don't want a square
         sg = ShelfGeometry(
             domain_params,
             ny_ocean = config['mesh_resolution_y'],      # layers on "deep ocean" (y-dir)
