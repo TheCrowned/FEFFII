@@ -1,7 +1,7 @@
 # Finite Elements Framework for Fjord Ice-ocean Interactions
 FEFFII is a simulation package for ice sheets-ocean dynamics in fjords, based on the Finite Elements Method and FEniCS. 
 
-![A 10-days run velocity profile](https://www.thecrowned.org/feffii/mitgcm-10-days-refined-mesh/vel.png "A 10-days run velocity profile")
+![A 10-days run velocity profile](https://user-images.githubusercontent.com/7880569/201364071-462730a9-6cfa-4c47-b9ad-b133448c6d91.png)
 
 ## Installation
 The easiest and quickest way of setting up an environment to run the code is through `conda`.
